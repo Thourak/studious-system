@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Lakehouse",
+    "displayName": "MOTUL_lkh"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "1c5ab522-b53f-a1ce-4e98-da7d6305faaa"
+  }
+}
