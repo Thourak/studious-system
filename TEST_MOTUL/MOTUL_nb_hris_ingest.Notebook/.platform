@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "MOTUL_nb_hris_ingest",
+    "description": "Ingestion des exports SIRH et des imports CSV ponctuels."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "b0159b03-99ba-44fa-ae3d-1681f55a992a"
+  }
+}

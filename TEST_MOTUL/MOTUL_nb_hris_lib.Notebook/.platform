@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "MOTUL_nb_hris_lib",
+    "description": "Fonctions partagées; ce notebook n'est pas une activité du pipeline."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "2bf411ac-2af1-816c-48d9-1c391fb718ae"
+  }
+}

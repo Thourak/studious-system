@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "MOTUL_nb_hris_transform",
+    "description": "Transformations vers les contrats des systèmes cibles."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "92b92802-66ae-4f07-a723-eea7e59890a2"
+  }
+}

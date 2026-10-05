@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "MOTUL_nb_hris_control",
+    "description": "Contrôles qualité, rejets et bilan d'exécution."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "da992538-252f-4418-b465-41e3bca32a5e"
+  }
+}

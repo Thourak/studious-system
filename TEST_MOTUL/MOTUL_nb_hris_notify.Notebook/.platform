@@ -2,10 +2,11 @@
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
   "metadata": {
     "type": "Notebook",
-    "displayName": "MOTUL_Notebook_5"
+    "displayName": "MOTUL_nb_hris_notify",
+    "description": "Notification factuelle du résultat d'exécution."
   },
   "config": {
     "version": "2.0",
-    "logicalId": "2bf411ac-2af1-816c-48d9-1c391fb718ae"
+    "logicalId": "32286b5c-5a4f-4797-834e-b134b0ee18d4"
   }
 }

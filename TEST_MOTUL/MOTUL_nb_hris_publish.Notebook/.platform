@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "MOTUL_nb_hris_publish",
+    "description": "Publication contrôlée des données validées."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "4f24598c-e445-4238-91b7-14ad1b0ef500"
+  }
+}
