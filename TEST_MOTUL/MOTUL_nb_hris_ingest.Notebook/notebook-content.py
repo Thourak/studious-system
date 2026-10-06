@@ -12,44 +12,25 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-#
-# MOTUL_nb_hris_ingest, nom repris du champ displayName du fichier .platform.
-#
-# **Type d'objet**
-#
-# Notebook Microsoft Fabric exécuté avec le moteur Synapse PySpark, appelé par le pipeline MOTUL_PL_HRIS_Orchestrateur pour chaque flux d'ingestion déclaré dans cfg_flux.
-#
-# **Chemin dans le dépôt**
-#
-# TEST_MOTUL/MOTUL_nb_hris_ingest.Notebook/notebook-content.py.
-#
-# **Description fonctionnelle**
-#
-# Ce notebook récupère les données entrantes du hub RH sans leur appliquer de règle métier. Il charge l'export des salariés produit par TalentSoft, les trois exports de rémunération déposés sur le SFTP de TalentSoft, les dix-sept référentiels de correspondance entre TalentSoft et ADP, et les fichiers CSV déposés ponctuellement. Les exports récurrents ne sont plus traités comme des fichiers datés : le jeu le plus récent est chargé dans une table de staging stg_*, que MOTUL_nb_hris_transform compare ensuite à la table d'état non-STG. Il remplace les activités de copie Synapse, la recherche du fichier de la veille par boucle et les quarante et un datasets.
-#
-# **Dépendances**
-#
-# Le notebook importe MOTUL_nb_hris_lib. Il lit cfg_flux pour connaître la source, le format et la table de destination de chaque flux, et cfg_qualite pour les contrôles minimaux d'un import ponctuel. Il lit le SFTP TalentSoft avec l'hôte, le port, le compte et le dossier portés par les variables d'environnement, et le mot de passe lu dans le coffre par le nom porté par env_secret_sftp. Pendant la transition, l'export JSON des salariés est lu sur le compte ADLS désigné par env_adls_compte et env_adls_filesystem. Il écrit dans les tables stg_*, cfg_mapping, brz_*, ctl_execution_etape et ctl_fichier_traite.
-#
-# **Fonctionnement et logique de traitement**
-#
-# Après la lecture de sa configuration, le notebook choisit un traitement selon le champ traitement des paramètres du flux. Le traitement export_json_ts sélectionne le fichier daté le plus récent qui ne dépasse pas la date de traitement, en lisant la date dans le nom plutôt qu'en comparant les noms, puis reproduit l'analyse JSON de la vue Synapse d'origine : chaque valeur scalaire devient un texte tronqué à cinquante caractères, un objet ou un tableau devient nul, le téléphone professionnel prend le mobile puis le fixe, et la valeur None de la date de fin de contrat devient une chaîne vide. Le traitement export_csv_sftp télécharge en mémoire un export de rémunération, contrôle ses colonnes et le charge tel quel en staging, une valeur vide devenant nulle comme dans la copie d'origine. Le traitement referentiels télécharge les dix-sept fichiers de correspondance, en conserve une copie brute dans Files/reference, lit les colonnes par position comme le faisaient les tables externes, refuse un entier invalide ou un code en double, puis recalcule cfg_mapping en clôturant les correspondances modifiées ou disparues. Le traitement depot_csv_ponctuel applique le processus d'import ponctuel : validation du nom avant lecture, refus d'un fichier déjà chargé, lecture sans inférence, validation du schéma et des types, contrôles de cfg_qualite, chargement Delta transactionnel, puis archivage ou rejet du fichier avec un motif.
-#
-# **Paramètres**
-#
-# Le paramètre execution_id porte l'identifiant unique de l'exécution produit par le pipeline. Le paramètre flux_id désigne la ligne de cfg_flux à traiter. Le paramètre mode vaut complet, incremental ou ponctuel. Le paramètre date_traitement, au format aaaa-mm-jj, vaut par défaut la date du jour à Paris. Le paramètre variables_env porte le JSON des variables d'environnement résolues par le pipeline ; il n'a aucune valeur par défaut exploitable. Le paramètre fichier désigne le fichier d'un import ponctuel. Le paramètre rejouer_reussis, faux par défaut, autorise le rechargement d'un fichier ponctuel déjà chargé.
-#
-# **Sorties produites**
-#
-# Les tables stg_ts_employe, stg_sftp_base_salary, stg_sftp_bonus_percentage et stg_sftp_bonus_target contiennent le jeu courant de chaque export avec l'identifiant d'exécution, la date de traitement et le fichier source. La table cfg_mapping contient les correspondances historisées par date de début et de fin. Un import ponctuel alimente la table brz_* déclarée dans cfg_flux. Chaque exécution laisse une trace dans ctl_execution_etape avec les volumes lus, écrits et rejetés.
-#
-# **Limitations connues et points d'attention**
-#
-# La connectivité de Fabric vers le compte de stockage privé et vers le SFTP reste à établir par la tâche MIG-006 ; sans elle, le notebook échoue explicitement. L'encodage réel des fichiers SFTP n'est pas documenté ; l'UTF-8 de la copie d'origine est déclaré dans cfg_flux. La clé d'hôte SFTP n'est pas vérifiée, comme dans l'existant. Les variables env_sftp_port et env_sftp_utilisateur s'ajoutent à l'inventaire du plan pour ne coder en dur ni le port ni le compte. La configuration du flux import_csv_ponctuel reste à fournir : sa table cible et ses colonnes ne sont pas connues, le flux est donc inactif. Les paramètres sont placés avant la configuration de l'environnement, car les variables arrivent par paramètre.
-#
-# **Responsable et contact**
-#
-# Équipe data du projet HRIS Motul.
+# # MOTUL_nb_hris_ingest, nom repris du champ displayName du fichier .platform.
+# # **Type d'objet**
+# # Notebook Microsoft Fabric exécuté avec le moteur Synapse PySpark, appelé par le pipeline MOTUL_PL_HRIS_Orchestrateur pour chaque flux d'ingestion déclaré dans cfg_flux.
+# # **Chemin dans le dépôt**
+# # TEST_MOTUL/MOTUL_nb_hris_ingest.Notebook/notebook-content.py.
+# # **Description fonctionnelle**
+# # Ce notebook récupère les données entrantes du hub RH sans leur appliquer de règle métier. Il charge l'export des salariés produit par TalentSoft, les trois exports de rémunération déposés sur le SFTP de TalentSoft, les dix-sept référentiels de correspondance entre TalentSoft et ADP, et les fichiers CSV déposés ponctuellement. Les exports récurrents ne sont plus traités comme des fichiers datés : le jeu le plus récent est chargé dans une table de staging stg_*, que MOTUL_nb_hris_transform compare ensuite à la table d'état non-STG. Il remplace les activités de copie Synapse, la recherche du fichier de la veille par boucle et les quarante et un datasets.
+# # **Dépendances**
+# # Le notebook importe MOTUL_nb_hris_lib. Il lit cfg_flux pour connaître la source, le format et la table de destination de chaque flux, et cfg_qualite pour les contrôles minimaux d'un import ponctuel. Il lit le SFTP TalentSoft avec l'hôte, le port, le compte et le dossier portés par les variables d'environnement, et le mot de passe lu dans le coffre par le nom porté par env_secret_sftp. Pendant la transition, l'export JSON des salariés est lu sur le compte ADLS désigné par env_adls_compte et env_adls_filesystem. Il écrit dans les tables stg_*, cfg_mapping, brz_*, ctl_execution_etape et ctl_fichier_traite.
+# # **Fonctionnement et logique de traitement**
+# # Après la lecture de sa configuration, le notebook choisit un traitement selon le champ traitement des paramètres du flux. Le traitement export_json_ts sélectionne le fichier daté le plus récent qui ne dépasse pas la date de traitement, en lisant la date dans le nom plutôt qu'en comparant les noms, puis reproduit l'analyse JSON de la vue Synapse d'origine : chaque valeur scalaire devient un texte tronqué à cinquante caractères, un objet ou un tableau devient nul, le téléphone professionnel prend le mobile puis le fixe, et la valeur None de la date de fin de contrat devient une chaîne vide. Le traitement export_csv_sftp télécharge en mémoire un export de rémunération, contrôle ses colonnes et le charge tel quel en staging, une valeur vide devenant nulle comme dans la copie d'origine. Le traitement referentiels télécharge les dix-sept fichiers de correspondance, en conserve une copie brute dans Files/reference, lit les colonnes par position comme le faisaient les tables externes, refuse un entier invalide ou un code en double, puis recalcule cfg_mapping en clôturant les correspondances modifiées ou disparues. Le traitement depot_csv_ponctuel applique le processus d'import ponctuel : validation du nom avant lecture, refus d'un fichier déjà chargé, lecture sans inférence, validation du schéma et des types, contrôles de cfg_qualite, chargement Delta transactionnel, puis archivage ou rejet du fichier avec un motif.
+# # **Paramètres**
+# # Le paramètre execution_id porte l'identifiant unique de l'exécution produit par le pipeline. Le paramètre flux_id désigne la ligne de cfg_flux à traiter. Le paramètre mode vaut complet, incremental ou ponctuel. Le paramètre date_traitement, au format aaaa-mm-jj, vaut par défaut la date du jour à Paris. Le paramètre variables_env porte le JSON des variables d'environnement résolues par le pipeline ; il n'a aucune valeur par défaut exploitable. Le paramètre fichier désigne le fichier d'un import ponctuel. Le paramètre rejouer_reussis, faux par défaut, autorise le rechargement d'un fichier ponctuel déjà chargé.
+# # **Sorties produites**
+# # Les tables stg_ts_employe, stg_sftp_base_salary, stg_sftp_bonus_percentage et stg_sftp_bonus_target contiennent le jeu courant de chaque export avec l'identifiant d'exécution, la date de traitement et le fichier source. La table cfg_mapping contient les correspondances historisées par date de début et de fin. Un import ponctuel alimente la table brz_* déclarée dans cfg_flux. Chaque exécution laisse une trace dans ctl_execution_etape avec les volumes lus, écrits et rejetés.
+# # **Limitations connues et points d'attention**
+# # La connectivité de Fabric vers le compte de stockage privé et vers le SFTP reste à établir par la tâche MIG-006 ; sans elle, le notebook échoue explicitement. L'encodage réel des fichiers SFTP n'est pas documenté ; l'UTF-8 de la copie d'origine est déclaré dans cfg_flux. La clé d'hôte SFTP n'est pas vérifiée, comme dans l'existant. Les variables env_sftp_port et env_sftp_utilisateur s'ajoutent à l'inventaire du plan pour ne coder en dur ni le port ni le compte. La configuration du flux import_csv_ponctuel reste à fournir : sa table cible et ses colonnes ne sont pas connues, le flux est donc inactif. Les paramètres sont placés avant la configuration de l'environnement, car les variables arrivent par paramètre.
+# # **Responsable et contact**
+# # Équipe data du projet HRIS Motul.
 
 # CELL ********************
 

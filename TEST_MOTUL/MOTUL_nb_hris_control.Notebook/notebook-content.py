@@ -12,44 +12,25 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-#
-# MOTUL_nb_hris_control, nom repris du champ displayName du fichier .platform.
-#
-# **Type d'objet**
-#
-# Notebook Microsoft Fabric exécuté avec le moteur Synapse PySpark, appelé par MOTUL_PL_HRIS_Orchestrateur au début de chaque exécution, pour chaque flux de contrôle, puis à la fin de l'exécution.
-#
-# **Chemin dans le dépôt**
-#
-# TEST_MOTUL/MOTUL_nb_hris_control.Notebook/notebook-content.py.
-#
-# **Description fonctionnelle**
-#
-# Ce notebook porte les contrôles qualité et le bilan d'exécution du hub RH. Il remplace le script ScriptResume, la requête mail_variables, la procédure de résumé et les contrôles de format de matricule de la branche SFTP, qui étaient inactifs. Il ouvre aussi chaque exécution : il applique la configuration de référence versionnée, vérifie que les variables d'environnement requises existent, détecte un cycle dans le graphe des flux avant tout traitement et calcule le plan d'exécution par vagues. Il clôture enfin l'exécution en calculant le statut global et en marquant bloqués les flux dont une dépendance a échoué.
-#
-# **Dépendances**
-#
-# Le notebook importe MOTUL_nb_hris_lib. Il écrit cfg_flux, cfg_dependance et cfg_qualite à partir de la configuration de référence, puis lit ces tables pour planifier. Il lit les tables de rejets et de sortie produites par MOTUL_nb_hris_transform, et la table ctl_execution_etape alimentée par tous les notebooks. Il écrit ctl_execution, ctl_qualite et gld_resume, que consultent MOTUL_nb_hris_publish et MOTUL_nb_hris_notify.
-#
-# **Fonctionnement et logique de traitement**
-#
-# L'action ouvrir crée ou complète les tables de socle, remplace le contenu de cfg_flux, cfg_dependance et cfg_qualite par la configuration de référence de ce notebook, afin que les trois environnements aient exactement la même configuration, puis contrôle chaque variable d'environnement citée par un flux actif. Elle trie topologiquement tous les flux actifs ; un cycle arrête l'exécution. Elle retient ensuite les flux demandés, écarte ceux qui ont déjà réussi pour la même date sauf demande de rejeu, et journalise l'environnement, les paramètres et le plan dans ctl_execution. En reprise, elle recharge le plan de l'exécution visée et n'en conserve que les flux non aboutis. L'action controler calcule le résumé : pour les salariés, lignes rejetées et insérées en salariés distincts, lignes lues, taux de rejet et types de rejet, comme la procédure de résumé ; pour la rémunération, les volumes source et les évolutions, comme mail_variables. Elle trace dans ctl_qualite le nombre de rejets par règle et l'état des contrôles du contrat ADP. Aucune règle ADP n'étant fournie, la publication ADP est déclarée bloquée en PRD et non applicable ailleurs ; aucun seuil de rejet n'est appliqué tant qu'il n'est pas déclaré dans cfg_flux. L'action cloturer calcule le statut global Succès, Succès avec rejets, Échec partiel ou Échec.
-#
-# **Paramètres**
-#
-# Le paramètre action vaut ouvrir, controler ou cloturer. Le paramètre execution_id porte l'identifiant de l'exécution ; vide à l'ouverture, il est généré. Le paramètre flux_id désigne le flux de contrôle pour l'action controler. Le paramètre date_traitement, au format aaaa-mm-jj, vaut par défaut la date du jour à Paris. Le paramètre variables_env porte le JSON des variables d'environnement. À l'ouverture, p_flux vaut une étoile pour tous les flux récurrents actifs, ou une liste d'identifiants séparés par des virgules ; p_rejouer_reussis vaut faux par défaut ; p_execution_id_reprise désigne une exécution à reprendre ; declencheur et parametres_pipeline sont journalisés tels quels.
-#
-# **Sorties produites**
-#
-# L'action ouvrir renvoie le plan d'exécution au pipeline sous forme de JSON : identifiant d'exécution, environnement, date et vagues de flux avec leur notebook, leurs reprises et leur délai. L'action controler écrit une ligne dans gld_resume et une ligne par règle dans ctl_qualite. L'action cloturer met à jour ctl_execution avec la fin, le statut global et un message de synthèse, et renvoie ce statut au pipeline.
-#
-# **Limitations connues et points d'attention**
-#
-# La configuration de référence est la source de vérité : une modification manuelle de cfg_flux, cfg_dependance ou cfg_qualite est remplacée à l'ouverture suivante ; toute évolution passe par Git et le pipeline de déploiement. Le tri topologique est réalisé dans ce notebook parce qu'un Data Pipeline ne sait pas le calculer seul ; le pipeline consomme le plan renvoyé. Chaque vague est découpée pour ne jamais dépasser le parallélisme déclaré dans cfg_flux, puis le plan est complété par des vagues vides jusqu'au nombre de vagues prévu par le pipeline, transmis par nb_vagues_max ; un plan plus profond fait échouer l'ouverture. Les valeurs de parallélisme de la configuration de référence sont provisoires. Les nombres de reprises et les délais des étapes de transformation, de contrôle et de publication sont des valeurs provisoires à valider en exploitation. Le résumé de rémunération ne contient pas de taux de rejet, car les contrôles SFTP de l'existant étaient inactifs. Pour la publication, la configuration déclare une table cumulative et une table finale par jeu de données ; les clés de consolidation, la stratégie de cumul upsert et la politique vider pour un lot vide sont des choix à confirmer par le métier.
-#
-# **Responsable et contact**
-#
-# Équipe data du projet HRIS Motul ; le métier RH valide les règles de contrôle et le futur contrat ADP.
+# # MOTUL_nb_hris_control, nom repris du champ displayName du fichier .platform.
+# # **Type d'objet**
+# # Notebook Microsoft Fabric exécuté avec le moteur Synapse PySpark, appelé par MOTUL_PL_HRIS_Orchestrateur au début de chaque exécution, pour chaque flux de contrôle, puis à la fin de l'exécution.
+# # **Chemin dans le dépôt**
+# # TEST_MOTUL/MOTUL_nb_hris_control.Notebook/notebook-content.py.
+# # **Description fonctionnelle**
+# # Ce notebook porte les contrôles qualité et le bilan d'exécution du hub RH. Il remplace le script ScriptResume, la requête mail_variables, la procédure de résumé et les contrôles de format de matricule de la branche SFTP, qui étaient inactifs. Il ouvre aussi chaque exécution : il applique la configuration de référence versionnée, vérifie que les variables d'environnement requises existent, détecte un cycle dans le graphe des flux avant tout traitement et calcule le plan d'exécution par vagues. Il clôture enfin l'exécution en calculant le statut global et en marquant bloqués les flux dont une dépendance a échoué.
+# # **Dépendances**
+# # Le notebook importe MOTUL_nb_hris_lib. Il écrit cfg_flux, cfg_dependance et cfg_qualite à partir de la configuration de référence, puis lit ces tables pour planifier. Il lit les tables de rejets et de sortie produites par MOTUL_nb_hris_transform, et la table ctl_execution_etape alimentée par tous les notebooks. Il écrit ctl_execution, ctl_qualite et gld_resume, que consultent MOTUL_nb_hris_publish et MOTUL_nb_hris_notify.
+# # **Fonctionnement et logique de traitement**
+# # L'action ouvrir crée ou complète les tables de socle, remplace le contenu de cfg_flux, cfg_dependance et cfg_qualite par la configuration de référence de ce notebook, afin que les trois environnements aient exactement la même configuration, puis contrôle chaque variable d'environnement citée par un flux actif. Elle trie topologiquement tous les flux actifs ; un cycle arrête l'exécution. Elle retient ensuite les flux demandés, écarte ceux qui ont déjà réussi pour la même date sauf demande de rejeu, et journalise l'environnement, les paramètres et le plan dans ctl_execution. En reprise, elle recharge le plan de l'exécution visée et n'en conserve que les flux non aboutis. L'action controler calcule le résumé : pour les salariés, lignes rejetées et insérées en salariés distincts, lignes lues, taux de rejet et types de rejet, comme la procédure de résumé ; pour la rémunération, les volumes source et les évolutions, comme mail_variables. Elle trace dans ctl_qualite le nombre de rejets par règle et l'état des contrôles du contrat ADP. Aucune règle ADP n'étant fournie, la publication ADP est déclarée bloquée en PRD et non applicable ailleurs ; aucun seuil de rejet n'est appliqué tant qu'il n'est pas déclaré dans cfg_flux. L'action cloturer calcule le statut global Succès, Succès avec rejets, Échec partiel ou Échec.
+# # **Paramètres**
+# # Le paramètre action vaut ouvrir, controler ou cloturer. Le paramètre execution_id porte l'identifiant de l'exécution ; vide à l'ouverture, il est généré. Le paramètre flux_id désigne le flux de contrôle pour l'action controler. Le paramètre date_traitement, au format aaaa-mm-jj, vaut par défaut la date du jour à Paris. Le paramètre variables_env porte le JSON des variables d'environnement. À l'ouverture, p_flux vaut une étoile pour tous les flux récurrents actifs, ou une liste d'identifiants séparés par des virgules ; p_rejouer_reussis vaut faux par défaut ; p_execution_id_reprise désigne une exécution à reprendre ; declencheur et parametres_pipeline sont journalisés tels quels.
+# # **Sorties produites**
+# # L'action ouvrir renvoie le plan d'exécution au pipeline sous forme de JSON : identifiant d'exécution, environnement, date et vagues de flux avec leur notebook, leurs reprises et leur délai. L'action controler écrit une ligne dans gld_resume et une ligne par règle dans ctl_qualite. L'action cloturer met à jour ctl_execution avec la fin, le statut global et un message de synthèse, et renvoie ce statut au pipeline.
+# # **Limitations connues et points d'attention**
+# # La configuration de référence est la source de vérité : une modification manuelle de cfg_flux, cfg_dependance ou cfg_qualite est remplacée à l'ouverture suivante ; toute évolution passe par Git et le pipeline de déploiement. Le tri topologique est réalisé dans ce notebook parce qu'un Data Pipeline ne sait pas le calculer seul ; le pipeline consomme le plan renvoyé. Chaque vague est découpée pour ne jamais dépasser le parallélisme déclaré dans cfg_flux, puis le plan est complété par des vagues vides jusqu'au nombre de vagues prévu par le pipeline, transmis par nb_vagues_max ; un plan plus profond fait échouer l'ouverture. Les valeurs de parallélisme de la configuration de référence sont provisoires. Les nombres de reprises et les délais des étapes de transformation, de contrôle et de publication sont des valeurs provisoires à valider en exploitation. Le résumé de rémunération ne contient pas de taux de rejet, car les contrôles SFTP de l'existant étaient inactifs. Pour la publication, la configuration déclare une table cumulative et une table finale par jeu de données ; les clés de consolidation, la stratégie de cumul upsert et la politique vider pour un lot vide sont des choix à confirmer par le métier.
+# # **Responsable et contact**
+# # Équipe data du projet HRIS Motul ; le métier RH valide les règles de contrôle et le futur contrat ADP.
 
 # CELL ********************
 

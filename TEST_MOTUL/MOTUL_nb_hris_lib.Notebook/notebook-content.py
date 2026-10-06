@@ -12,44 +12,25 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-#
-# MOTUL_nb_hris_lib. Ce nom est celui du champ displayName du fichier .platform et c'est celui qu'utilisent les autres notebooks dans leur instruction %run.
-#
-# **Type d'objet**
-#
-# Notebook Microsoft Fabric exécuté avec le moteur Synapse PySpark. Il s'agit d'une bibliothèque : elle n'est jamais exécutée seule et n'est jamais appelée comme activité du pipeline.
-#
-# **Chemin dans le dépôt**
-#
-# TEST_MOTUL/MOTUL_nb_hris_lib.Notebook/notebook-content.py.
-#
-# **Description fonctionnelle**
-#
-# Cette bibliothèque regroupe les fonctions communes aux cinq notebooks métier du hub d'intégration RH entre TalentSoft et ADP. Elle remplace les quarante et un datasets Synapse, les expressions qui déduisaient l'environnement du nom de la fabrique et les activités qui lisaient des liens dans le coffre de secrets. Elle ne contient aucune règle métier : les règles de transformation vivent dans MOTUL_nb_hris_transform et les règles de contrôle sont déclarées dans la table cfg_qualite.
-#
-# **Dépendances**
-#
-# La bibliothèque s'appuie sur le Lakehouse de l'environnement, dont le nom est fourni par la variable env_lakehouse_nom, et sur le coffre de secrets de l'environnement, dont l'adresse est fournie par la variable env_kv_url. Elle lit les tables cfg_flux, cfg_dependance, cfg_mapping et cfg_qualite et écrit dans les tables ctl_execution et ctl_execution_etape. Les échanges SFTP utilisent la bibliothèque paramiko lorsqu'elle est présente dans le runtime Spark.
-#
-# **Fonctionnement et logique de traitement**
-#
-# Les variables d'environnement sont résolues une seule fois par le pipeline MOTUL_PL_HRIS_Orchestrateur, qui les transmet à chaque notebook dans le paramètre variables_env sous forme de texte JSON. La fonction initialiser_contexte_hris lit ce paramètre, contrôle que l'environnement résolu vaut exactement DEV, UAT ou PRD et refuse l'exécution si le nom du workspace courant porte le marqueur d'un autre environnement. La fonction lire_variable lève une exception explicite lorsqu'une variable est absente ou vide : il n'existe aucune valeur par défaut et aucun repli vers un autre environnement. Les tables sont adressées par un nom complet composé du workspace courant, du Lakehouse, du schéma dbo et du nom de table, ce qui évite d'attacher un Lakehouse par défaut dont l'identifiant changerait d'un workspace à l'autre. Les secrets sont lus à l'exécution par notebookutils.credentials.getSecret à partir du nom porté par une variable, et leur valeur n'est jamais journalisée. Les primitives de qualité reproduisent la sémantique du T-SQL d'origine, notamment le fait qu'une chaîne vide n'est pas une valeur nulle et que les espaces de fin sont ignorés dans les comparaisons. La publication externe n'est autorisée que si l'environnement résolu vaut exactement PRD et si le nom du workspace porte le marqueur PRD. La fonction consolider_upsert alimente une table cumulative par fusion uniquement : elle insère les clés nouvelles, met à jour une clé existante seulement si ses valeurs changent et si le lot n'est pas plus ancien que celui qui l'a écrite, et conserve les clés absentes du lot ; elle ne supprime et ne remplace jamais globalement et ne conserve pas les anciennes valeurs, ce qui correspond à une SCD de type 1. La fonction historiser_scd2 reste disponible si une historisation de toutes les versions est retenue. La fonction ecraser_contenu_table remplace le contenu d'une table finale par l'instruction INSERT OVERWRITE, sans la supprimer ni la recréer, et inscrit l'identité du lot dans le même commit Delta, que relit lire_metadonnees_dernier_lot.
-#
-# **Paramètres**
-#
-# Ce notebook n'a aucun paramètre. Il est importé par l'instruction %run MOTUL_nb_hris_lib placée dans la troisième cellule de chaque notebook métier.
-#
-# **Sorties produites**
-#
-# La bibliothèque crée de façon idempotente les tables de socle cfg_flux, cfg_dependance, cfg_mapping, cfg_qualite, ctl_execution, ctl_execution_etape, ctl_qualite, ctl_fichier_traite et gld_resume. Elle écrit une ligne dans ctl_execution_etape au début et à la fin de chaque tentative d'étape, ce qui permet de détecter une étape restée en cours au-delà de son délai.
-#
-# **Limitations connues et points d'attention**
-#
-# Les noms de fonctions et de colonnes sont en français pour rester alignés sur le plan de migration, qui prime sur la règle de nommage en anglais du référentiel FR_BI_FABRIC. La fonction tsql_isdate reproduit la fonction ISDATE pour les formats ISO, compacts et avec barres obliques en année, mois et jour ; un format dépendant de la langue de session SQL Server, comme mois, jour et année, est considéré comme invalide et doit être vérifié lors de la réconciliation. L'écriture parallèle de plusieurs flux dans une même table Delta est protégée par une reprise automatique en cas de conflit de concurrence. La fonction executer_tests_unitaires vérifie les fonctions pures ; elle doit être lancée manuellement dans le workspace DEV.
-#
-# **Responsable et contact**
-#
-# Équipe data du projet HRIS Motul, référent technique HRIS pour les évolutions.
+# # MOTUL_nb_hris_lib. Ce nom est celui du champ displayName du fichier .platform et c'est celui qu'utilisent les autres notebooks dans leur instruction %run.
+# # **Type d'objet**
+# # Notebook Microsoft Fabric exécuté avec le moteur Synapse PySpark. Il s'agit d'une bibliothèque : elle n'est jamais exécutée seule et n'est jamais appelée comme activité du pipeline.
+# # **Chemin dans le dépôt**
+# # TEST_MOTUL/MOTUL_nb_hris_lib.Notebook/notebook-content.py.
+# # **Description fonctionnelle**
+# # Cette bibliothèque regroupe les fonctions communes aux cinq notebooks métier du hub d'intégration RH entre TalentSoft et ADP. Elle remplace les quarante et un datasets Synapse, les expressions qui déduisaient l'environnement du nom de la fabrique et les activités qui lisaient des liens dans le coffre de secrets. Elle ne contient aucune règle métier : les règles de transformation vivent dans MOTUL_nb_hris_transform et les règles de contrôle sont déclarées dans la table cfg_qualite.
+# # **Dépendances**
+# # La bibliothèque s'appuie sur le Lakehouse de l'environnement, dont le nom est fourni par la variable env_lakehouse_nom, et sur le coffre de secrets de l'environnement, dont l'adresse est fournie par la variable env_kv_url. Elle lit les tables cfg_flux, cfg_dependance, cfg_mapping et cfg_qualite et écrit dans les tables ctl_execution et ctl_execution_etape. Les échanges SFTP utilisent la bibliothèque paramiko lorsqu'elle est présente dans le runtime Spark.
+# # **Fonctionnement et logique de traitement**
+# # Les variables d'environnement sont résolues une seule fois par le pipeline MOTUL_PL_HRIS_Orchestrateur, qui les transmet à chaque notebook dans le paramètre variables_env sous forme de texte JSON. La fonction initialiser_contexte_hris lit ce paramètre, contrôle que l'environnement résolu vaut exactement DEV, UAT ou PRD et refuse l'exécution si le nom du workspace courant porte le marqueur d'un autre environnement. La fonction lire_variable lève une exception explicite lorsqu'une variable est absente ou vide : il n'existe aucune valeur par défaut et aucun repli vers un autre environnement. Les tables sont adressées par un nom complet composé du workspace courant, du Lakehouse, du schéma dbo et du nom de table, ce qui évite d'attacher un Lakehouse par défaut dont l'identifiant changerait d'un workspace à l'autre. Les secrets sont lus à l'exécution par notebookutils.credentials.getSecret à partir du nom porté par une variable, et leur valeur n'est jamais journalisée. Les primitives de qualité reproduisent la sémantique du T-SQL d'origine, notamment le fait qu'une chaîne vide n'est pas une valeur nulle et que les espaces de fin sont ignorés dans les comparaisons. La publication externe n'est autorisée que si l'environnement résolu vaut exactement PRD et si le nom du workspace porte le marqueur PRD. La fonction consolider_upsert alimente une table cumulative par fusion uniquement : elle insère les clés nouvelles, met à jour une clé existante seulement si ses valeurs changent et si le lot n'est pas plus ancien que celui qui l'a écrite, et conserve les clés absentes du lot ; elle ne supprime et ne remplace jamais globalement et ne conserve pas les anciennes valeurs, ce qui correspond à une SCD de type 1. La fonction historiser_scd2 reste disponible si une historisation de toutes les versions est retenue. La fonction ecraser_contenu_table remplace le contenu d'une table finale par l'instruction INSERT OVERWRITE, sans la supprimer ni la recréer, et inscrit l'identité du lot dans le même commit Delta, que relit lire_metadonnees_dernier_lot.
+# # **Paramètres**
+# # Ce notebook n'a aucun paramètre. Il est importé par l'instruction %run MOTUL_nb_hris_lib placée dans la troisième cellule de chaque notebook métier.
+# # **Sorties produites**
+# # La bibliothèque crée de façon idempotente les tables de socle cfg_flux, cfg_dependance, cfg_mapping, cfg_qualite, ctl_execution, ctl_execution_etape, ctl_qualite, ctl_fichier_traite et gld_resume. Elle écrit une ligne dans ctl_execution_etape au début et à la fin de chaque tentative d'étape, ce qui permet de détecter une étape restée en cours au-delà de son délai.
+# # **Limitations connues et points d'attention**
+# # Les noms de fonctions et de colonnes sont en français pour rester alignés sur le plan de migration, qui prime sur la règle de nommage en anglais du référentiel FR_BI_FABRIC. La fonction tsql_isdate reproduit la fonction ISDATE pour les formats ISO, compacts et avec barres obliques en année, mois et jour ; un format dépendant de la langue de session SQL Server, comme mois, jour et année, est considéré comme invalide et doit être vérifié lors de la réconciliation. L'écriture parallèle de plusieurs flux dans une même table Delta est protégée par une reprise automatique en cas de conflit de concurrence. La fonction executer_tests_unitaires vérifie les fonctions pures ; elle doit être lancée manuellement dans le workspace DEV.
+# # **Responsable et contact**
+# # Équipe data du projet HRIS Motul, référent technique HRIS pour les évolutions.
 
 # CELL ********************
 

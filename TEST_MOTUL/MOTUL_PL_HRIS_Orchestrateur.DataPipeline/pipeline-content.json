@@ -325,12 +325,12 @@
       {
         "type": "ForEach",
         "typeProperties": {
+          "isSequential": false,
+          "batchCount": 4,
           "items": {
             "value": "@json(variables('plan')).vagues[0]",
             "type": "Expression"
           },
-          "isSequential": false,
-          "batchCount": 4,
           "activities": [
             {
               "type": "Switch",
@@ -627,12 +627,12 @@
       {
         "type": "ForEach",
         "typeProperties": {
+          "isSequential": false,
+          "batchCount": 4,
           "items": {
             "value": "@json(variables('plan')).vagues[1]",
             "type": "Expression"
           },
-          "isSequential": false,
-          "batchCount": 4,
           "activities": [
             {
               "type": "Switch",
@@ -929,12 +929,12 @@
       {
         "type": "ForEach",
         "typeProperties": {
+          "isSequential": false,
+          "batchCount": 4,
           "items": {
             "value": "@json(variables('plan')).vagues[2]",
             "type": "Expression"
           },
-          "isSequential": false,
-          "batchCount": 4,
           "activities": [
             {
               "type": "Switch",
@@ -1231,12 +1231,12 @@
       {
         "type": "ForEach",
         "typeProperties": {
+          "isSequential": false,
+          "batchCount": 4,
           "items": {
             "value": "@json(variables('plan')).vagues[3]",
             "type": "Expression"
           },
-          "isSequential": false,
-          "batchCount": 4,
           "activities": [
             {
               "type": "Switch",
@@ -1533,12 +1533,12 @@
       {
         "type": "ForEach",
         "typeProperties": {
+          "isSequential": false,
+          "batchCount": 4,
           "items": {
             "value": "@json(variables('plan')).vagues[4]",
             "type": "Expression"
           },
-          "isSequential": false,
-          "batchCount": 4,
           "activities": [
             {
               "type": "Switch",
@@ -1835,12 +1835,12 @@
       {
         "type": "ForEach",
         "typeProperties": {
+          "isSequential": false,
+          "batchCount": 4,
           "items": {
             "value": "@json(variables('plan')).vagues[5]",
             "type": "Expression"
           },
-          "isSequential": false,
-          "batchCount": 4,
           "activities": [
             {
               "type": "Switch",
@@ -2263,6 +2263,7 @@
             "value": "@contains(createArray('Succès', 'Succès avec rejets'), json(activity('Cloturer execution').output.result.exitValue).statut)",
             "type": "Expression"
           },
+          "ifTrueActivities": [],
           "ifFalseActivities": [
             {
               "type": "Fail",
@@ -2276,8 +2277,7 @@
               "name": "Statut global en echec",
               "dependsOn": []
             }
-          ],
-          "ifTrueActivities": []
+          ]
         },
         "name": "Verifier statut global",
         "dependsOn": [
@@ -2320,24 +2320,6 @@
       "p_execution_id_reprise": {
         "type": "string",
         "defaultValue": ""
-      }
-    },
-    "variables": {
-      "variables_env": {
-        "type": "String"
-      },
-      "execution_id": {
-        "type": "String"
-      },
-      "date_traitement": {
-        "type": "String"
-      },
-      "plan": {
-        "type": "String"
-      },
-      "nb_vagues_max": {
-        "type": "String",
-        "defaultValue": "6"
       }
     },
     "libraryVariables": {
@@ -2435,6 +2417,24 @@
         "type": "String",
         "variableName": "env_notif_cert_secret",
         "libraryName": "VL_HRIS"
+      }
+    },
+    "variables": {
+      "variables_env": {
+        "type": "String"
+      },
+      "execution_id": {
+        "type": "String"
+      },
+      "date_traitement": {
+        "type": "String"
+      },
+      "plan": {
+        "type": "String"
+      },
+      "nb_vagues_max": {
+        "type": "String",
+        "defaultValue": "6"
       }
     }
   }

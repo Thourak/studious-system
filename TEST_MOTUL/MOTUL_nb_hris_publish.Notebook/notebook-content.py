@@ -12,44 +12,25 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-#
-# MOTUL_nb_hris_publish, nom repris du champ displayName du fichier .platform.
-#
-# **Type d'objet**
-#
-# Notebook Microsoft Fabric exécuté avec le moteur Synapse PySpark, appelé par MOTUL_PL_HRIS_Orchestrateur pour les flux de publication pub_sirh et pub_remuneration, après la réussite des contrôles.
-#
-# **Chemin dans le dépôt**
-#
-# TEST_MOTUL/MOTUL_nb_hris_publish.Notebook/notebook-content.py.
-#
-# **Description fonctionnelle**
-#
-# Ce notebook consolide puis met à disposition le lot validé de l'exécution courante. Pour chaque jeu de données, il gère deux tables aux rôles distincts. La table cumulative, suffixée _cumul, regroupe les données des traitements successifs : elle est alimentée exclusivement par upsert, conserve les enregistrements absents du lot courant et n'est jamais vidée ni remplacée. La table finale, de nom stable, contient uniquement les données du dernier lot validé : son contenu est remplacé à chaque alimentation réussie, sans que la table soit supprimée ni recréée. La publication lit la table finale et non la table cumulative. La publication externe n'a lieu que si l'environnement résolu vaut exactement PRD et si le nom du workspace porte le marqueur PRD : les évolutions de rémunération partent alors vers le SFTP de TalentSoft, et l'envoi vers ADP reste bloqué tant que la tâche MIG-027 n'a pas fourni le contrat ADP. En DEV et en UAT, la table finale du Lakehouse local constitue la publication.
-#
-# **Dépendances**
-#
-# Le notebook importe MOTUL_nb_hris_lib. Il lit cfg_flux pour la description des jeux de données, des clés, des politiques et des fichiers, les tables de lot slv_*_lot produites par MOTUL_nb_hris_transform, ctl_execution pour l'horodatage du lot, ctl_execution_etape pour vérifier la réussite de la transformation et du contrôle et pour la protection contre le double envoi, et ctl_qualite pour l'état du contrat ADP. En PRD, il utilise le SFTP désigné par env_sftp_hote, env_sftp_port, env_sftp_utilisateur et env_sftp_import_chemin, avec le mot de passe lu dans le coffre par le nom porté par env_secret_sftp.
-#
-# **Fonctionnement et logique de traitement**
-#
-# Le notebook vérifie d'abord que la transformation et le contrôle du flux ont réussi pour cette exécution et que la source n'était pas vide : un lot non validé, ou issu d'une source vide, ne remplace pas le dernier résultat valide et ne déclenche aucune publication. Pour chaque jeu, il lit le lot de l'exécution, supprime les doublons exacts et refuse des lignes contradictoires partageant la même clé. Il consolide ensuite la table cumulative : une clé nouvelle est insérée, une clé existante est mise à jour seulement si ses valeurs changent et si le lot n'est pas plus ancien que celui qui l'a écrite, une clé absente est conservée. Il alimente ensuite la table finale avec toutes les lignes du lot, y compris celles dont les valeurs n'ont pas changé dans la table cumulative, par l'instruction INSERT OVERWRITE ; l'identité du lot est inscrite dans le même commit Delta, et un lot plus ancien que le dernier lot écrit est refusé, ce qui protège contre une exécution concurrente ou tardive. Un lot valide mais vide vide la table finale ou conserve le résultat précédent selon la politique déclarée. Une fois toutes les écritures réussies, la publication lit la table finale : dépôt SFTP en PRD, protégé contre le double envoi, trace de l'état bloqué pour ADP en PRD, et trace de la mise à disposition dans le Lakehouse local hors PRD.
-#
-# **Paramètres**
-#
-# Le paramètre execution_id porte l'identifiant de l'exécution. Le paramètre flux_id vaut pub_sirh ou pub_remuneration. Le paramètre date_traitement, au format aaaa-mm-jj, date le lot et le nom des fichiers déposés. Le paramètre variables_env porte le JSON des variables d'environnement. Le paramètre mode est accepté pour homogénéité et n'a pas d'effet ici.
-#
-# **Sorties produites**
-#
-# Les tables cumulatives gld_ts_employe_adp_cumul, gld_base_salary_changes_cumul et gld_bonus_changes_cumul portent les colonnes cumul_empreinte, cumul_execution_id, cumul_date_traitement, cumul_horodatage_lot, cumul_date_insertion et cumul_date_maj. Les tables finales gld_ts_employe_adp, gld_base_salary_changes et gld_bonus_changes contiennent le dernier lot validé avec execution_id, date_traitement et horodatage_lot. En PRD, les fichiers RemunSalaryHistoIE_InsertAndUpdate_fr-FR_1_<jjmmaaaa>.csv et RemunTargetBonusHistoIE_InsertAndUpdate_fr-FR_2_<jjmmaaaa>.csv sont déposés dans le dossier d'import TalentSoft. Chaque consolidation, remplacement, dépôt ou refus laisse une sous-étape dans ctl_execution_etape.
-#
-# **Limitations connues et points d'attention**
-#
-# Plusieurs choix restent à confirmer par le métier : les clés de consolidation de chaque jeu, la stratégie de cumul, upsert de type SCD 1 retenu par défaut ou historisation de type SCD 2 disponible par configuration, la règle à appliquer à des lignes contradictoires, et le comportement d'un lot valide mais vide, réglé sur vider comme le faisait l'existant. Aucune transaction ne couvre les deux tables : si la consolidation réussit et que le remplacement de la table finale échoue, l'étape échoue sans publier, et une reprise de la même exécution rejoue la consolidation sans effet puis remplace la table finale. Tout dépôt SFTP destiné à être réintégré et tout envoi vers ADP exigent une validation humaine avant la première exécution en PRD. La durée de conservation des tables de lot et de la table cumulative reste une question ouverte.
-#
-# **Responsable et contact**
-#
-# Équipe data du projet HRIS Motul ; validation humaine par le métier RH et l'administrateur HRIS avant toute publication externe.
+# # MOTUL_nb_hris_publish, nom repris du champ displayName du fichier .platform.
+# # **Type d'objet**
+# # Notebook Microsoft Fabric exécuté avec le moteur Synapse PySpark, appelé par MOTUL_PL_HRIS_Orchestrateur pour les flux de publication pub_sirh et pub_remuneration, après la réussite des contrôles.
+# # **Chemin dans le dépôt**
+# # TEST_MOTUL/MOTUL_nb_hris_publish.Notebook/notebook-content.py.
+# # **Description fonctionnelle**
+# # Ce notebook consolide puis met à disposition le lot validé de l'exécution courante. Pour chaque jeu de données, il gère deux tables aux rôles distincts. La table cumulative, suffixée _cumul, regroupe les données des traitements successifs : elle est alimentée exclusivement par upsert, conserve les enregistrements absents du lot courant et n'est jamais vidée ni remplacée. La table finale, de nom stable, contient uniquement les données du dernier lot validé : son contenu est remplacé à chaque alimentation réussie, sans que la table soit supprimée ni recréée. La publication lit la table finale et non la table cumulative. La publication externe n'a lieu que si l'environnement résolu vaut exactement PRD et si le nom du workspace porte le marqueur PRD : les évolutions de rémunération partent alors vers le SFTP de TalentSoft, et l'envoi vers ADP reste bloqué tant que la tâche MIG-027 n'a pas fourni le contrat ADP. En DEV et en UAT, la table finale du Lakehouse local constitue la publication.
+# # **Dépendances**
+# # Le notebook importe MOTUL_nb_hris_lib. Il lit cfg_flux pour la description des jeux de données, des clés, des politiques et des fichiers, les tables de lot slv_*_lot produites par MOTUL_nb_hris_transform, ctl_execution pour l'horodatage du lot, ctl_execution_etape pour vérifier la réussite de la transformation et du contrôle et pour la protection contre le double envoi, et ctl_qualite pour l'état du contrat ADP. En PRD, il utilise le SFTP désigné par env_sftp_hote, env_sftp_port, env_sftp_utilisateur et env_sftp_import_chemin, avec le mot de passe lu dans le coffre par le nom porté par env_secret_sftp.
+# # **Fonctionnement et logique de traitement**
+# # Le notebook vérifie d'abord que la transformation et le contrôle du flux ont réussi pour cette exécution et que la source n'était pas vide : un lot non validé, ou issu d'une source vide, ne remplace pas le dernier résultat valide et ne déclenche aucune publication. Pour chaque jeu, il lit le lot de l'exécution, supprime les doublons exacts et refuse des lignes contradictoires partageant la même clé. Il consolide ensuite la table cumulative : une clé nouvelle est insérée, une clé existante est mise à jour seulement si ses valeurs changent et si le lot n'est pas plus ancien que celui qui l'a écrite, une clé absente est conservée. Il alimente ensuite la table finale avec toutes les lignes du lot, y compris celles dont les valeurs n'ont pas changé dans la table cumulative, par l'instruction INSERT OVERWRITE ; l'identité du lot est inscrite dans le même commit Delta, et un lot plus ancien que le dernier lot écrit est refusé, ce qui protège contre une exécution concurrente ou tardive. Un lot valide mais vide vide la table finale ou conserve le résultat précédent selon la politique déclarée. Une fois toutes les écritures réussies, la publication lit la table finale : dépôt SFTP en PRD, protégé contre le double envoi, trace de l'état bloqué pour ADP en PRD, et trace de la mise à disposition dans le Lakehouse local hors PRD.
+# # **Paramètres**
+# # Le paramètre execution_id porte l'identifiant de l'exécution. Le paramètre flux_id vaut pub_sirh ou pub_remuneration. Le paramètre date_traitement, au format aaaa-mm-jj, date le lot et le nom des fichiers déposés. Le paramètre variables_env porte le JSON des variables d'environnement. Le paramètre mode est accepté pour homogénéité et n'a pas d'effet ici.
+# # **Sorties produites**
+# # Les tables cumulatives gld_ts_employe_adp_cumul, gld_base_salary_changes_cumul et gld_bonus_changes_cumul portent les colonnes cumul_empreinte, cumul_execution_id, cumul_date_traitement, cumul_horodatage_lot, cumul_date_insertion et cumul_date_maj. Les tables finales gld_ts_employe_adp, gld_base_salary_changes et gld_bonus_changes contiennent le dernier lot validé avec execution_id, date_traitement et horodatage_lot. En PRD, les fichiers RemunSalaryHistoIE_InsertAndUpdate_fr-FR_1_<jjmmaaaa>.csv et RemunTargetBonusHistoIE_InsertAndUpdate_fr-FR_2_<jjmmaaaa>.csv sont déposés dans le dossier d'import TalentSoft. Chaque consolidation, remplacement, dépôt ou refus laisse une sous-étape dans ctl_execution_etape.
+# # **Limitations connues et points d'attention**
+# # Plusieurs choix restent à confirmer par le métier : les clés de consolidation de chaque jeu, la stratégie de cumul, upsert de type SCD 1 retenu par défaut ou historisation de type SCD 2 disponible par configuration, la règle à appliquer à des lignes contradictoires, et le comportement d'un lot valide mais vide, réglé sur vider comme le faisait l'existant. Aucune transaction ne couvre les deux tables : si la consolidation réussit et que le remplacement de la table finale échoue, l'étape échoue sans publier, et une reprise de la même exécution rejoue la consolidation sans effet puis remplace la table finale. Tout dépôt SFTP destiné à être réintégré et tout envoi vers ADP exigent une validation humaine avant la première exécution en PRD. La durée de conservation des tables de lot et de la table cumulative reste une question ouverte.
+# # **Responsable et contact**
+# # Équipe data du projet HRIS Motul ; validation humaine par le métier RH et l'administrateur HRIS avant toute publication externe.
 
 # CELL ********************
 

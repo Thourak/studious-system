@@ -12,44 +12,25 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-#
-# MOTUL_nb_hris_notify, nom repris du champ displayName du fichier .platform.
-#
-# **Type d'objet**
-#
-# Notebook Microsoft Fabric exécuté avec le moteur Synapse PySpark, appelé par MOTUL_PL_HRIS_Orchestrateur au début de l'exécution pour vérifier les destinataires, puis à la fin ou en cas d'échec pour informer.
-#
-# **Chemin dans le dépôt**
-#
-# TEST_MOTUL/MOTUL_nb_hris_notify.Notebook/notebook-content.py.
-#
-# **Description fonctionnelle**
-#
-# Ce notebook informe la liste de distribution du résultat d'une exécution par un courriel HTML, distinct pour un succès et pour un échec. Il remplace les activités SendEmailResume, SendEmailErrorNotif et Web1, les trois Logic Apps d'envoi et la lecture du fichier emails.txt. Contrairement à l'existant, le courriel d'échec transporte le diagnostic réel journalisé dans ctl_execution_etape, et les destinataires sont résolus dès le début de l'exécution, de sorte qu'un échec précoce est lui aussi notifié. Le corps ne contient aucune donnée RH nominative : volumes, statuts, types de rejet et identifiant d'exécution uniquement.
-#
-# **Dépendances**
-#
-# Le notebook importe MOTUL_nb_hris_lib. Il lit ctl_execution, ctl_execution_etape et gld_resume, et rjt_ts_employe seulement si une pièce jointe de rejets est explicitement demandée. Il lit dans le coffre de l'environnement le secret dont le nom est porté par env_notif_liste_distribution, qui contient l'adresse de la liste de distribution. Il envoie le courriel par l'API Microsoft Graph sendMail depuis la boîte technique désignée par env_notif_bal_technique. L'identité d'exécution est choisie par env_notif_auth_mode : identite_workspace pour l'identité du workspace Fabric, ou certificat pour une application Entra ID dont le certificat est lu dans le secret nommé par env_notif_cert_secret, avec env_tenant_id et env_notif_client_id. Le lien du rapport est porté par env_powerbi_rapport_url.
-#
-# **Fonctionnement et logique de traitement**
-#
-# L'action verifier lit le secret des destinataires et contrôle les variables d'envoi, sans rien envoyer : le pipeline l'appelle avant toute étape susceptible d'échouer. L'action envoyer résout d'abord les destinataires, puis vérifie dans ctl_execution_etape qu'aucune notification du même type n'a déjà réussi pour cette exécution. Elle détermine le statut à partir du paramètre statut ou, à défaut, de ctl_execution, rassemble les statuts et volumes des flux, le résumé de gld_resume et, en cas d'échec, les diagnostics des étapes en échec. Elle construit le message HTML, obtient un jeton Graph et envoie le courriel. Seules les erreurs transitoires, codes 429 et 5xx ou erreurs réseau, sont réessayées, trois fois au plus avec un délai croissant ; une erreur 401 ou 403 n'est jamais réessayée car elle signale une configuration incorrecte. Chaque tentative laisse une ligne dans ctl_execution_etape avec son code retour. Un échec d'envoi laisse les données intactes, porte le statut Notification en échec et fait échouer l'activité pour déclencher l'alerte native Fabric.
-#
-# **Paramètres**
-#
-# Le paramètre action vaut envoyer par défaut, ou verifier. Le paramètre execution_id porte l'identifiant de l'exécution. Le paramètre statut force le statut à notifier, par exemple Échec sur le chemin d'erreur du pipeline ; vide, le statut de ctl_execution est utilisé. Le paramètre resume accepte un JSON de volumes à afficher en complément. Le paramètre pieces_jointes vaut aucune par défaut ; la valeur rejets joint le fichier des rejets de l'exécution, qui contient des données nominatives et exige une validation préalable du métier. Le paramètre message_erreur_pipeline transmet le diagnostic d'une activité du pipeline qui aurait échoué avant d'écrire dans les journaux. Les paramètres date_traitement et variables_env ont le même rôle que dans les autres notebooks.
-#
-# **Sorties produites**
-#
-# Un courriel HTML est envoyé à la liste de distribution. Une ligne par tentative est écrite dans ctl_execution_etape, pour le flux notification et l'étape notify:<type>, avec le code retour. Aucun jeton, aucun en-tête d'autorisation et aucune adresse de destinataire n'est journalisé.
-#
-# **Limitations connues et points d'attention**
-#
-# L'envoi reste non validé tant que les droits Exchange de la boîte technique, l'identité d'exécution et la liste de distribution ne sont pas configurés. L'obtention d'un jeton Graph par l'identité du workspace est à confirmer ; à défaut, le mode certificat doit être retenu. Le courriel de résumé avec pièce jointe de rejets reste un besoin à arbitrer : la pièce jointe n'est produite que sur demande explicite. Un diagnostic issu d'une erreur Spark est tronqué mais peut exceptionnellement citer une valeur ; il est limité à cinq cents caractères par étape.
-#
-# **Responsable et contact**
-#
-# Métier RH pour le contenu, référent technique HRIS pour le canal d'envoi.
+# # MOTUL_nb_hris_notify, nom repris du champ displayName du fichier .platform.
+# # **Type d'objet**
+# # Notebook Microsoft Fabric exécuté avec le moteur Synapse PySpark, appelé par MOTUL_PL_HRIS_Orchestrateur au début de l'exécution pour vérifier les destinataires, puis à la fin ou en cas d'échec pour informer.
+# # **Chemin dans le dépôt**
+# # TEST_MOTUL/MOTUL_nb_hris_notify.Notebook/notebook-content.py.
+# # **Description fonctionnelle**
+# # Ce notebook informe la liste de distribution du résultat d'une exécution par un courriel HTML, distinct pour un succès et pour un échec. Il remplace les activités SendEmailResume, SendEmailErrorNotif et Web1, les trois Logic Apps d'envoi et la lecture du fichier emails.txt. Contrairement à l'existant, le courriel d'échec transporte le diagnostic réel journalisé dans ctl_execution_etape, et les destinataires sont résolus dès le début de l'exécution, de sorte qu'un échec précoce est lui aussi notifié. Le corps ne contient aucune donnée RH nominative : volumes, statuts, types de rejet et identifiant d'exécution uniquement.
+# # **Dépendances**
+# # Le notebook importe MOTUL_nb_hris_lib. Il lit ctl_execution, ctl_execution_etape et gld_resume, et rjt_ts_employe seulement si une pièce jointe de rejets est explicitement demandée. Il lit dans le coffre de l'environnement le secret dont le nom est porté par env_notif_liste_distribution, qui contient l'adresse de la liste de distribution. Il envoie le courriel par l'API Microsoft Graph sendMail depuis la boîte technique désignée par env_notif_bal_technique. L'identité d'exécution est choisie par env_notif_auth_mode : identite_workspace pour l'identité du workspace Fabric, ou certificat pour une application Entra ID dont le certificat est lu dans le secret nommé par env_notif_cert_secret, avec env_tenant_id et env_notif_client_id. Le lien du rapport est porté par env_powerbi_rapport_url.
+# # **Fonctionnement et logique de traitement**
+# # L'action verifier lit le secret des destinataires et contrôle les variables d'envoi, sans rien envoyer : le pipeline l'appelle avant toute étape susceptible d'échouer. L'action envoyer résout d'abord les destinataires, puis vérifie dans ctl_execution_etape qu'aucune notification du même type n'a déjà réussi pour cette exécution. Elle détermine le statut à partir du paramètre statut ou, à défaut, de ctl_execution, rassemble les statuts et volumes des flux, le résumé de gld_resume et, en cas d'échec, les diagnostics des étapes en échec. Elle construit le message HTML, obtient un jeton Graph et envoie le courriel. Seules les erreurs transitoires, codes 429 et 5xx ou erreurs réseau, sont réessayées, trois fois au plus avec un délai croissant ; une erreur 401 ou 403 n'est jamais réessayée car elle signale une configuration incorrecte. Chaque tentative laisse une ligne dans ctl_execution_etape avec son code retour. Un échec d'envoi laisse les données intactes, porte le statut Notification en échec et fait échouer l'activité pour déclencher l'alerte native Fabric.
+# # **Paramètres**
+# # Le paramètre action vaut envoyer par défaut, ou verifier. Le paramètre execution_id porte l'identifiant de l'exécution. Le paramètre statut force le statut à notifier, par exemple Échec sur le chemin d'erreur du pipeline ; vide, le statut de ctl_execution est utilisé. Le paramètre resume accepte un JSON de volumes à afficher en complément. Le paramètre pieces_jointes vaut aucune par défaut ; la valeur rejets joint le fichier des rejets de l'exécution, qui contient des données nominatives et exige une validation préalable du métier. Le paramètre message_erreur_pipeline transmet le diagnostic d'une activité du pipeline qui aurait échoué avant d'écrire dans les journaux. Les paramètres date_traitement et variables_env ont le même rôle que dans les autres notebooks.
+# # **Sorties produites**
+# # Un courriel HTML est envoyé à la liste de distribution. Une ligne par tentative est écrite dans ctl_execution_etape, pour le flux notification et l'étape notify:<type>, avec le code retour. Aucun jeton, aucun en-tête d'autorisation et aucune adresse de destinataire n'est journalisé.
+# # **Limitations connues et points d'attention**
+# # L'envoi reste non validé tant que les droits Exchange de la boîte technique, l'identité d'exécution et la liste de distribution ne sont pas configurés. L'obtention d'un jeton Graph par l'identité du workspace est à confirmer ; à défaut, le mode certificat doit être retenu. Le courriel de résumé avec pièce jointe de rejets reste un besoin à arbitrer : la pièce jointe n'est produite que sur demande explicite. Un diagnostic issu d'une erreur Spark est tronqué mais peut exceptionnellement citer une valeur ; il est limité à cinq cents caractères par étape.
+# # **Responsable et contact**
+# # Métier RH pour le contenu, référent technique HRIS pour le canal d'envoi.
 
 # CELL ********************
 

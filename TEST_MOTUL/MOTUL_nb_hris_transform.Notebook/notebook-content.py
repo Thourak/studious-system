@@ -12,44 +12,25 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-#
-# MOTUL_nb_hris_transform, nom repris du champ displayName du fichier .platform.
-#
-# **Type d'objet**
-#
-# Notebook Microsoft Fabric exécuté avec le moteur Synapse PySpark, appelé par MOTUL_PL_HRIS_Orchestrateur pour les flux de transformation trf_sirh et trf_remuneration.
-#
-# **Chemin dans le dépôt**
-#
-# TEST_MOTUL/MOTUL_nb_hris_transform.Notebook/notebook-content.py.
-#
-# **Description fonctionnelle**
-#
-# Ce notebook met les données RH au format attendu par les systèmes cibles. Il reporte en PySpark, sans altération fonctionnelle volontaire, les cinq procédures stockées ps_hr_ts_LoadDataToExternal*Table pour le flux des salariés vers la paie ADP, ainsi que les vues vw_BaseSalary_Changes et vw_Bonus_Changes pour les évolutions de rémunération renvoyées à TalentSoft. Il remplace la recherche du fichier de la veille : le jeu courant chargé en staging est comparé à la table d'état non-STG, le delta est calculé, transformé et contrôlé, puis la table d'état est mise à jour en dernier.
-#
-# **Dépendances**
-#
-# Le notebook importe MOTUL_nb_hris_lib. Il lit cfg_flux pour connaître les tables du flux, cfg_mapping pour les correspondances TalentSoft vers ADP actives à la date de traitement et cfg_qualite pour les règles de rejet du flux trf_sirh. Il lit les tables de staging alimentées par MOTUL_nb_hris_ingest et les tables d'état slv_*_etat qu'il maintient lui-même. Il ne dépend d'aucune variable d'environnement autre que celles qui désignent le Lakehouse.
-#
-# **Fonctionnement et logique de traitement**
-#
-# Pour le flux des salariés, le notebook calcule d'abord le delta par différence ensembliste entre la staging et l'état, comme le faisait l'instruction EXCEPT entre l'export du jour et celui de la veille ; en mode complet, toute la staging est retenue. Il joint ensuite les quinze correspondances de la procédure de staging, en ignorant les espaces de fin comme le faisait SQL Server, et produit la table préparée slv_ts_employe_prepare. Il applique les règles déclarées dans cfg_qualite, qui reprennent les trois familles de rejets d'origine : information obligatoire vide, format de matricule, de date ou de pourcentage, et correspondance absente. Un salarié qui porte au moins un rejet est exclu du lot au format paie slv_ts_employe_adp_lot, dans laquelle les dates sont converties comme par CONVERT et le salaire mensuel vaut le salaire de base arrondi au centime divisé par douze. Pour la rémunération, le notebook reproduit la comparaison entre le jour et la veille : évolution de montant ou de date du salaire de base avec le pourcentage d'augmentation, nouvelles entrées de bonus, clôture de l'ancienne entrée la veille de la nouvelle date de début, et clôture d'une entrée disparue. Les montants sont arrondis au centime et écrits avec une virgule décimale.
-#
-# **Paramètres**
-#
-# Le paramètre execution_id porte l'identifiant de l'exécution. Le paramètre flux_id vaut trf_sirh ou trf_remuneration. Le paramètre mode vaut incremental par défaut ; la valeur complet ignore la table d'état et retraite toute la staging. Le paramètre date_traitement, au format aaaa-mm-jj, sert de date de rejet, de transformation et de validité des correspondances. Le paramètre variables_env porte le JSON des variables d'environnement.
-#
-# **Sorties produites**
-#
-# Le flux des salariés produit slv_ts_employe_prepare, rjt_ts_employe, partitionnée par date de traitement, et le lot au format paie slv_ts_employe_adp_lot. Le flux de rémunération produit les lots slv_base_salary_changes_lot et slv_bonus_changes_lot. Chaque table de lot porte l'identifiant d'exécution : rejouer une exécution remplace ses propres lignes, sans doublon. Le volume de la source est journalisé dans ctl_execution_etape pour distinguer un lot vide d'une ingestion vide. Les tables d'état slv_ts_employe_etat et slv_sftp_*_etat ne sont réécrites qu'après le succès de toutes les sorties. La consolidation cumulative, la table finale et la publication sont réalisées par MOTUL_nb_hris_publish après les contrôles.
-#
-# **Limitations connues et points d'attention**
-#
-# La reproduction de la fonction ISDATE couvre les formats ISO ; un format dépendant de la langue SQL Server serait rejeté ici alors qu'il était accepté par l'existant. Plusieurs comportements surprenants de l'existant sont reproduits volontairement et doivent être validés par le métier : une valeur nulle n'est pas un rejet d'information obligatoire, le rejet de pourcentage d'équivalent temps plein et celui de catégorie d'emploi ne sont émis que si une autre règle de la même famille est en défaut, la correspondance du pays fiscal n'est jamais contrôlée, une date vide devient le 1er janvier 1900, le motif d'un rejet de matricule ou de prime annuelle est vide, et la clôture d'un bonus disparu porte une date de fin vide alors que le commentaire d'origine annonçait la veille du jour. Comme dans l'existant, un salaire ou un montant non numérique fait échouer le traitement. Les codes ADP de type caractère ne sont pas complétés par des espaces de fin. L'ordre des types de rejet dans le résumé était indéterminé dans l'existant ; il est trié ici.
-#
-# **Responsable et contact**
-#
-# Équipe data du projet HRIS Motul ; validation fonctionnelle par le métier RH pour tout écart de réconciliation.
+# # MOTUL_nb_hris_transform, nom repris du champ displayName du fichier .platform.
+# # **Type d'objet**
+# # Notebook Microsoft Fabric exécuté avec le moteur Synapse PySpark, appelé par MOTUL_PL_HRIS_Orchestrateur pour les flux de transformation trf_sirh et trf_remuneration.
+# # **Chemin dans le dépôt**
+# # TEST_MOTUL/MOTUL_nb_hris_transform.Notebook/notebook-content.py.
+# # **Description fonctionnelle**
+# # Ce notebook met les données RH au format attendu par les systèmes cibles. Il reporte en PySpark, sans altération fonctionnelle volontaire, les cinq procédures stockées ps_hr_ts_LoadDataToExternal*Table pour le flux des salariés vers la paie ADP, ainsi que les vues vw_BaseSalary_Changes et vw_Bonus_Changes pour les évolutions de rémunération renvoyées à TalentSoft. Il remplace la recherche du fichier de la veille : le jeu courant chargé en staging est comparé à la table d'état non-STG, le delta est calculé, transformé et contrôlé, puis la table d'état est mise à jour en dernier.
+# # **Dépendances**
+# # Le notebook importe MOTUL_nb_hris_lib. Il lit cfg_flux pour connaître les tables du flux, cfg_mapping pour les correspondances TalentSoft vers ADP actives à la date de traitement et cfg_qualite pour les règles de rejet du flux trf_sirh. Il lit les tables de staging alimentées par MOTUL_nb_hris_ingest et les tables d'état slv_*_etat qu'il maintient lui-même. Il ne dépend d'aucune variable d'environnement autre que celles qui désignent le Lakehouse.
+# # **Fonctionnement et logique de traitement**
+# # Pour le flux des salariés, le notebook calcule d'abord le delta par différence ensembliste entre la staging et l'état, comme le faisait l'instruction EXCEPT entre l'export du jour et celui de la veille ; en mode complet, toute la staging est retenue. Il joint ensuite les quinze correspondances de la procédure de staging, en ignorant les espaces de fin comme le faisait SQL Server, et produit la table préparée slv_ts_employe_prepare. Il applique les règles déclarées dans cfg_qualite, qui reprennent les trois familles de rejets d'origine : information obligatoire vide, format de matricule, de date ou de pourcentage, et correspondance absente. Un salarié qui porte au moins un rejet est exclu du lot au format paie slv_ts_employe_adp_lot, dans laquelle les dates sont converties comme par CONVERT et le salaire mensuel vaut le salaire de base arrondi au centime divisé par douze. Pour la rémunération, le notebook reproduit la comparaison entre le jour et la veille : évolution de montant ou de date du salaire de base avec le pourcentage d'augmentation, nouvelles entrées de bonus, clôture de l'ancienne entrée la veille de la nouvelle date de début, et clôture d'une entrée disparue. Les montants sont arrondis au centime et écrits avec une virgule décimale.
+# # **Paramètres**
+# # Le paramètre execution_id porte l'identifiant de l'exécution. Le paramètre flux_id vaut trf_sirh ou trf_remuneration. Le paramètre mode vaut incremental par défaut ; la valeur complet ignore la table d'état et retraite toute la staging. Le paramètre date_traitement, au format aaaa-mm-jj, sert de date de rejet, de transformation et de validité des correspondances. Le paramètre variables_env porte le JSON des variables d'environnement.
+# # **Sorties produites**
+# # Le flux des salariés produit slv_ts_employe_prepare, rjt_ts_employe, partitionnée par date de traitement, et le lot au format paie slv_ts_employe_adp_lot. Le flux de rémunération produit les lots slv_base_salary_changes_lot et slv_bonus_changes_lot. Chaque table de lot porte l'identifiant d'exécution : rejouer une exécution remplace ses propres lignes, sans doublon. Le volume de la source est journalisé dans ctl_execution_etape pour distinguer un lot vide d'une ingestion vide. Les tables d'état slv_ts_employe_etat et slv_sftp_*_etat ne sont réécrites qu'après le succès de toutes les sorties. La consolidation cumulative, la table finale et la publication sont réalisées par MOTUL_nb_hris_publish après les contrôles.
+# # **Limitations connues et points d'attention**
+# # La reproduction de la fonction ISDATE couvre les formats ISO ; un format dépendant de la langue SQL Server serait rejeté ici alors qu'il était accepté par l'existant. Plusieurs comportements surprenants de l'existant sont reproduits volontairement et doivent être validés par le métier : une valeur nulle n'est pas un rejet d'information obligatoire, le rejet de pourcentage d'équivalent temps plein et celui de catégorie d'emploi ne sont émis que si une autre règle de la même famille est en défaut, la correspondance du pays fiscal n'est jamais contrôlée, une date vide devient le 1er janvier 1900, le motif d'un rejet de matricule ou de prime annuelle est vide, et la clôture d'un bonus disparu porte une date de fin vide alors que le commentaire d'origine annonçait la veille du jour. Comme dans l'existant, un salaire ou un montant non numérique fait échouer le traitement. Les codes ADP de type caractère ne sont pas complétés par des espaces de fin. L'ordre des types de rejet dans le résumé était indéterminé dans l'existant ; il est trié ici.
+# # **Responsable et contact**
+# # Équipe data du projet HRIS Motul ; validation fonctionnelle par le métier RH pour tout écart de réconciliation.
 
 # CELL ********************
 
