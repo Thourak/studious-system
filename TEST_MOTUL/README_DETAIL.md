@@ -188,7 +188,7 @@ particularités, à valider par le métier lors de la réconciliation.
    motif.
 4. **Format paie.** Un salarié qui porte au moins un rejet est exclu. Les autres forment le lot de l'exécution dans
    `slv_ts_employe_adp_lot` : dates converties, et salaire mensuel égal au salaire de base arrondi au centime divisé
-   par douze.
+   par douze, sur 13 décimales dont la dernière est tronquée, comme le faisait SQL Server.
 5. **État.** `slv_ts_employe_etat` n'est remplacée qu'en dernier, après le succès de toutes les écritures.
 
 **Rémunération (`trf_remuneration`).** Le notebook compare chaque staging `stg_sftp_*` à son état

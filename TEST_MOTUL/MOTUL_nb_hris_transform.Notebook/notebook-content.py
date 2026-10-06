@@ -321,7 +321,18 @@ def verifier_conversions_sirh(retenus: DataFrame) -> None:
 # CELL ********************
 
 def construire_transforme_sirh(retenus: DataFrame, date_effective: date) -> DataFrame:
-    """Sélectionne et convertit les colonnes au format paie, comme dwh.ps_hr_ts_LoadDataToExternalTransformeTable."""
+    """
+    Sélectionne et convertit les colonnes au format paie, comme dwh.ps_hr_ts_LoadDataToExternalTransformeTable.
+
+    Le salaire mensuel reproduit CAST(mt_salaire_base AS NUMERIC(12,2))/12 : le diviseur est un entier T-SQL, donc
+    NUMERIC(10,0), le résultat est un NUMERIC(23,13) et SQL Server tronque le dernier chiffre au lieu de l'arrondir.
+    """
+    quotient = F.col("mt_salaire_base").cast("decimal(12,2)").cast("decimal(38,20)") / F.lit(12).cast("decimal(10,0)")
+    retenus = retenus.withColumn("_quotient_salaire", quotient)
+    salaire_mensuel = F.expr(
+        "CAST(CASE WHEN _quotient_salaire >= 0 THEN floor(_quotient_salaire, 13) "
+        "ELSE ceil(_quotient_salaire, 13) END AS DECIMAL(23,13))"
+    )
     colonnes = [F.lit(date_effective).cast("date").alias("dt_transforme")]
     for colonne, conversion in COLONNES_TRANSFORME_SIRH:
         if conversion == "date":
@@ -329,7 +340,7 @@ def construire_transforme_sirh(retenus: DataFrame, date_effective: date) -> Data
         elif conversion == "date10":
             colonnes.append(udf_tsql_convertir_date(F.substring(F.col(colonne), 1, 10)).alias(colonne))
         elif conversion == "salaire_mensuel":
-            colonnes.append((F.col("mt_salaire_base").cast("decimal(12,2)") / F.lit(12)).alias(colonne))
+            colonnes.append(salaire_mensuel.alias(colonne))
         else:
             colonnes.append(F.col(colonne))
     return retenus.select(*colonnes)
