@@ -1,5 +1,2441 @@
 {
   "properties": {
-    "activities": []
+    "activities": [
+      {
+        "type": "SetVariable",
+        "typeProperties": {
+          "variableName": "variables_env",
+          "value": {
+            "value": "@concat('{\"env_nom\":\"', pipeline().libraryVariables.env_nom, '\"', ',\"env_lakehouse_nom\":\"', pipeline().libraryVariables.env_lakehouse_nom, '\"', ',\"env_kv_url\":\"', pipeline().libraryVariables.env_kv_url, '\"', ',\"env_adls_compte\":\"', pipeline().libraryVariables.env_adls_compte, '\"', ',\"env_adls_filesystem\":\"', pipeline().libraryVariables.env_adls_filesystem, '\"', ',\"env_sftp_hote\":\"', pipeline().libraryVariables.env_sftp_hote, '\"', ',\"env_sftp_port\":\"', pipeline().libraryVariables.env_sftp_port, '\"', ',\"env_sftp_utilisateur\":\"', pipeline().libraryVariables.env_sftp_utilisateur, '\"', ',\"env_sftp_export_chemin\":\"', pipeline().libraryVariables.env_sftp_export_chemin, '\"', ',\"env_sftp_import_chemin\":\"', pipeline().libraryVariables.env_sftp_import_chemin, '\"', ',\"env_sftp_reference_chemin\":\"', pipeline().libraryVariables.env_sftp_reference_chemin, '\"', ',\"env_secret_sftp\":\"', pipeline().libraryVariables.env_secret_sftp, '\"', ',\"env_notif_liste_distribution\":\"', pipeline().libraryVariables.env_notif_liste_distribution, '\"', ',\"env_notif_bal_technique\":\"', pipeline().libraryVariables.env_notif_bal_technique, '\"', ',\"env_powerbi_rapport_url\":\"', pipeline().libraryVariables.env_powerbi_rapport_url, '\"', ',\"env_notif_auth_mode\":\"', pipeline().libraryVariables.env_notif_auth_mode, '\"', ',\"env_tenant_id\":\"', pipeline().libraryVariables.env_tenant_id, '\"', ',\"env_notif_client_id\":\"', pipeline().libraryVariables.env_notif_client_id, '\"', ',\"env_notif_cert_secret\":\"', pipeline().libraryVariables.env_notif_cert_secret, '\"', '}')",
+            "type": "Expression"
+          }
+        },
+        "policy": {
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Resoudre variables env",
+        "dependsOn": []
+      },
+      {
+        "type": "SetVariable",
+        "typeProperties": {
+          "variableName": "execution_id",
+          "value": {
+            "value": "@if(empty(pipeline().parameters.p_execution_id_reprise), pipeline().RunId, pipeline().parameters.p_execution_id_reprise)",
+            "type": "Expression"
+          }
+        },
+        "policy": {
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Definir execution id",
+        "dependsOn": []
+      },
+      {
+        "type": "SetVariable",
+        "typeProperties": {
+          "variableName": "date_traitement",
+          "value": {
+            "value": "@if(empty(pipeline().parameters.p_date_traitement), formatDateTime(convertFromUtc(utcNow(), 'Romance Standard Time'), 'yyyy-MM-dd'), pipeline().parameters.p_date_traitement)",
+            "type": "Expression"
+          }
+        },
+        "policy": {
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Definir date traitement",
+        "dependsOn": []
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "32286b5c-5a4f-4797-834e-b134b0ee18d4",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "action": {
+              "value": {
+                "value": "verifier",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "execution_id": {
+              "value": {
+                "value": "@variables('execution_id')",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "date_traitement": {
+              "value": {
+                "value": "@variables('date_traitement')",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "variables_env": {
+              "value": {
+                "value": "@variables('variables_env')",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.00:15:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Verifier destinataires",
+        "dependsOn": [
+          {
+            "activity": "Resoudre variables env",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
+            "activity": "Definir execution id",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
+            "activity": "Definir date traitement",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "da992538-252f-4418-b465-41e3bca32a5e",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "action": {
+              "value": {
+                "value": "ouvrir",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "execution_id": {
+              "value": {
+                "value": "@variables('execution_id')",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "date_traitement": {
+              "value": {
+                "value": "@variables('date_traitement')",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "mode": {
+              "value": {
+                "value": "@pipeline().parameters.p_mode",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "variables_env": {
+              "value": {
+                "value": "@variables('variables_env')",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_flux": {
+              "value": {
+                "value": "@pipeline().parameters.p_flux",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_rejouer_reussis": {
+              "value": {
+                "value": "@pipeline().parameters.p_rejouer_reussis",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_execution_id_reprise": {
+              "value": {
+                "value": "@pipeline().parameters.p_execution_id_reprise",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "declencheur": {
+              "value": {
+                "value": "@pipeline().TriggerType",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "parametres_pipeline": {
+              "value": {
+                "value": "@string(pipeline().parameters)",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "nb_vagues_max": {
+              "value": {
+                "value": "@variables('nb_vagues_max')",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Ouvrir execution",
+        "dependsOn": [
+          {
+            "activity": "Verifier destinataires",
+            "dependencyConditions": [
+              "Completed"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "SetVariable",
+        "typeProperties": {
+          "variableName": "plan",
+          "value": {
+            "value": "@activity('Ouvrir execution').output.result.exitValue",
+            "type": "Expression"
+          }
+        },
+        "policy": {
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Memoriser plan",
+        "dependsOn": [
+          {
+            "activity": "Ouvrir execution",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "32286b5c-5a4f-4797-834e-b134b0ee18d4",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "action": {
+              "value": {
+                "value": "envoyer",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "statut": {
+              "value": {
+                "value": "Échec",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "execution_id": {
+              "value": {
+                "value": "@variables('execution_id')",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "date_traitement": {
+              "value": {
+                "value": "@variables('date_traitement')",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "variables_env": {
+              "value": {
+                "value": "@variables('variables_env')",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "message_erreur_pipeline": {
+              "value": {
+                "value": "@activity('Ouvrir execution').error.message",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.00:15:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Notifier echec ouverture",
+        "dependsOn": [
+          {
+            "activity": "Ouvrir execution",
+            "dependencyConditions": [
+              "Failed"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "Fail",
+        "typeProperties": {
+          "message": "Ouverture de l'exécution HRIS en échec : diagnostic dans ctl_execution_etape et dans la notification.",
+          "errorCode": "HRIS_OUVERTURE"
+        },
+        "name": "Echec ouverture",
+        "dependsOn": [
+          {
+            "activity": "Notifier echec ouverture",
+            "dependencyConditions": [
+              "Completed"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ForEach",
+        "typeProperties": {
+          "items": {
+            "value": "@json(variables('plan')).vagues[0]",
+            "type": "Expression"
+          },
+          "isSequential": false,
+          "batchCount": 4,
+          "activities": [
+            {
+              "type": "Switch",
+              "typeProperties": {
+                "on": {
+                  "value": "@item().notebook",
+                  "type": "Expression"
+                },
+                "cases": [
+                  {
+                    "value": "MOTUL_nb_hris_ingest",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "b0159b03-99ba-44fa-ae3d-1681f55a992a",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "fichier": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_fichier",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "rejouer_reussis": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_rejouer_reussis",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:45:00",
+                          "retry": 2,
+                          "retryIntervalInSeconds": 60,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Ingest V1",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_transform",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "92b92802-66ae-4f07-a723-eea7e59890a2",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.01:00:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Transform V1",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_control",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "da992538-252f-4418-b465-41e3bca32a5e",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "action": {
+                              "value": {
+                                "value": "controler",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:30:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Control V1",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_publish",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "4f24598c-e445-4238-91b7-14ad1b0ef500",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:30:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Publish V1",
+                        "dependsOn": []
+                      }
+                    ]
+                  }
+                ],
+                "defaultActivities": [
+                  {
+                    "type": "Fail",
+                    "typeProperties": {
+                      "message": {
+                        "value": "@concat('Notebook non prévu par le pipeline : ', item().notebook)",
+                        "type": "Expression"
+                      },
+                      "errorCode": "HRIS_NOTEBOOK_INCONNU"
+                    },
+                    "name": "Notebook inconnu V1",
+                    "dependsOn": []
+                  }
+                ]
+              },
+              "name": "Notebook du flux V1",
+              "dependsOn": []
+            }
+          ]
+        },
+        "name": "Vague 1",
+        "dependsOn": [
+          {
+            "activity": "Memoriser plan",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ForEach",
+        "typeProperties": {
+          "items": {
+            "value": "@json(variables('plan')).vagues[1]",
+            "type": "Expression"
+          },
+          "isSequential": false,
+          "batchCount": 4,
+          "activities": [
+            {
+              "type": "Switch",
+              "typeProperties": {
+                "on": {
+                  "value": "@item().notebook",
+                  "type": "Expression"
+                },
+                "cases": [
+                  {
+                    "value": "MOTUL_nb_hris_ingest",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "b0159b03-99ba-44fa-ae3d-1681f55a992a",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "fichier": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_fichier",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "rejouer_reussis": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_rejouer_reussis",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:45:00",
+                          "retry": 2,
+                          "retryIntervalInSeconds": 60,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Ingest V2",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_transform",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "92b92802-66ae-4f07-a723-eea7e59890a2",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.01:00:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Transform V2",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_control",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "da992538-252f-4418-b465-41e3bca32a5e",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "action": {
+                              "value": {
+                                "value": "controler",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:30:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Control V2",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_publish",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "4f24598c-e445-4238-91b7-14ad1b0ef500",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:30:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Publish V2",
+                        "dependsOn": []
+                      }
+                    ]
+                  }
+                ],
+                "defaultActivities": [
+                  {
+                    "type": "Fail",
+                    "typeProperties": {
+                      "message": {
+                        "value": "@concat('Notebook non prévu par le pipeline : ', item().notebook)",
+                        "type": "Expression"
+                      },
+                      "errorCode": "HRIS_NOTEBOOK_INCONNU"
+                    },
+                    "name": "Notebook inconnu V2",
+                    "dependsOn": []
+                  }
+                ]
+              },
+              "name": "Notebook du flux V2",
+              "dependsOn": []
+            }
+          ]
+        },
+        "name": "Vague 2",
+        "dependsOn": [
+          {
+            "activity": "Vague 1",
+            "dependencyConditions": [
+              "Completed"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ForEach",
+        "typeProperties": {
+          "items": {
+            "value": "@json(variables('plan')).vagues[2]",
+            "type": "Expression"
+          },
+          "isSequential": false,
+          "batchCount": 4,
+          "activities": [
+            {
+              "type": "Switch",
+              "typeProperties": {
+                "on": {
+                  "value": "@item().notebook",
+                  "type": "Expression"
+                },
+                "cases": [
+                  {
+                    "value": "MOTUL_nb_hris_ingest",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "b0159b03-99ba-44fa-ae3d-1681f55a992a",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "fichier": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_fichier",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "rejouer_reussis": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_rejouer_reussis",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:45:00",
+                          "retry": 2,
+                          "retryIntervalInSeconds": 60,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Ingest V3",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_transform",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "92b92802-66ae-4f07-a723-eea7e59890a2",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.01:00:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Transform V3",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_control",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "da992538-252f-4418-b465-41e3bca32a5e",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "action": {
+                              "value": {
+                                "value": "controler",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:30:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Control V3",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_publish",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "4f24598c-e445-4238-91b7-14ad1b0ef500",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:30:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Publish V3",
+                        "dependsOn": []
+                      }
+                    ]
+                  }
+                ],
+                "defaultActivities": [
+                  {
+                    "type": "Fail",
+                    "typeProperties": {
+                      "message": {
+                        "value": "@concat('Notebook non prévu par le pipeline : ', item().notebook)",
+                        "type": "Expression"
+                      },
+                      "errorCode": "HRIS_NOTEBOOK_INCONNU"
+                    },
+                    "name": "Notebook inconnu V3",
+                    "dependsOn": []
+                  }
+                ]
+              },
+              "name": "Notebook du flux V3",
+              "dependsOn": []
+            }
+          ]
+        },
+        "name": "Vague 3",
+        "dependsOn": [
+          {
+            "activity": "Vague 2",
+            "dependencyConditions": [
+              "Completed"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ForEach",
+        "typeProperties": {
+          "items": {
+            "value": "@json(variables('plan')).vagues[3]",
+            "type": "Expression"
+          },
+          "isSequential": false,
+          "batchCount": 4,
+          "activities": [
+            {
+              "type": "Switch",
+              "typeProperties": {
+                "on": {
+                  "value": "@item().notebook",
+                  "type": "Expression"
+                },
+                "cases": [
+                  {
+                    "value": "MOTUL_nb_hris_ingest",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "b0159b03-99ba-44fa-ae3d-1681f55a992a",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "fichier": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_fichier",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "rejouer_reussis": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_rejouer_reussis",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:45:00",
+                          "retry": 2,
+                          "retryIntervalInSeconds": 60,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Ingest V4",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_transform",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "92b92802-66ae-4f07-a723-eea7e59890a2",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.01:00:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Transform V4",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_control",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "da992538-252f-4418-b465-41e3bca32a5e",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "action": {
+                              "value": {
+                                "value": "controler",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:30:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Control V4",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_publish",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "4f24598c-e445-4238-91b7-14ad1b0ef500",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:30:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Publish V4",
+                        "dependsOn": []
+                      }
+                    ]
+                  }
+                ],
+                "defaultActivities": [
+                  {
+                    "type": "Fail",
+                    "typeProperties": {
+                      "message": {
+                        "value": "@concat('Notebook non prévu par le pipeline : ', item().notebook)",
+                        "type": "Expression"
+                      },
+                      "errorCode": "HRIS_NOTEBOOK_INCONNU"
+                    },
+                    "name": "Notebook inconnu V4",
+                    "dependsOn": []
+                  }
+                ]
+              },
+              "name": "Notebook du flux V4",
+              "dependsOn": []
+            }
+          ]
+        },
+        "name": "Vague 4",
+        "dependsOn": [
+          {
+            "activity": "Vague 3",
+            "dependencyConditions": [
+              "Completed"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ForEach",
+        "typeProperties": {
+          "items": {
+            "value": "@json(variables('plan')).vagues[4]",
+            "type": "Expression"
+          },
+          "isSequential": false,
+          "batchCount": 4,
+          "activities": [
+            {
+              "type": "Switch",
+              "typeProperties": {
+                "on": {
+                  "value": "@item().notebook",
+                  "type": "Expression"
+                },
+                "cases": [
+                  {
+                    "value": "MOTUL_nb_hris_ingest",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "b0159b03-99ba-44fa-ae3d-1681f55a992a",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "fichier": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_fichier",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "rejouer_reussis": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_rejouer_reussis",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:45:00",
+                          "retry": 2,
+                          "retryIntervalInSeconds": 60,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Ingest V5",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_transform",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "92b92802-66ae-4f07-a723-eea7e59890a2",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.01:00:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Transform V5",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_control",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "da992538-252f-4418-b465-41e3bca32a5e",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "action": {
+                              "value": {
+                                "value": "controler",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:30:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Control V5",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_publish",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "4f24598c-e445-4238-91b7-14ad1b0ef500",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:30:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Publish V5",
+                        "dependsOn": []
+                      }
+                    ]
+                  }
+                ],
+                "defaultActivities": [
+                  {
+                    "type": "Fail",
+                    "typeProperties": {
+                      "message": {
+                        "value": "@concat('Notebook non prévu par le pipeline : ', item().notebook)",
+                        "type": "Expression"
+                      },
+                      "errorCode": "HRIS_NOTEBOOK_INCONNU"
+                    },
+                    "name": "Notebook inconnu V5",
+                    "dependsOn": []
+                  }
+                ]
+              },
+              "name": "Notebook du flux V5",
+              "dependsOn": []
+            }
+          ]
+        },
+        "name": "Vague 5",
+        "dependsOn": [
+          {
+            "activity": "Vague 4",
+            "dependencyConditions": [
+              "Completed"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ForEach",
+        "typeProperties": {
+          "items": {
+            "value": "@json(variables('plan')).vagues[5]",
+            "type": "Expression"
+          },
+          "isSequential": false,
+          "batchCount": 4,
+          "activities": [
+            {
+              "type": "Switch",
+              "typeProperties": {
+                "on": {
+                  "value": "@item().notebook",
+                  "type": "Expression"
+                },
+                "cases": [
+                  {
+                    "value": "MOTUL_nb_hris_ingest",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "b0159b03-99ba-44fa-ae3d-1681f55a992a",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "fichier": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_fichier",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "rejouer_reussis": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_rejouer_reussis",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:45:00",
+                          "retry": 2,
+                          "retryIntervalInSeconds": 60,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Ingest V6",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_transform",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "92b92802-66ae-4f07-a723-eea7e59890a2",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.01:00:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Transform V6",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_control",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "da992538-252f-4418-b465-41e3bca32a5e",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "action": {
+                              "value": {
+                                "value": "controler",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:30:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Control V6",
+                        "dependsOn": []
+                      }
+                    ]
+                  },
+                  {
+                    "value": "MOTUL_nb_hris_publish",
+                    "activities": [
+                      {
+                        "type": "TridentNotebook",
+                        "typeProperties": {
+                          "notebookId": "4f24598c-e445-4238-91b7-14ad1b0ef500",
+                          "workspaceId": "00000000-0000-0000-0000-000000000000",
+                          "parameters": {
+                            "execution_id": {
+                              "value": {
+                                "value": "@json(variables('plan')).execution_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "date_traitement": {
+                              "value": {
+                                "value": "@json(variables('plan')).date_traitement",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "variables_env": {
+                              "value": {
+                                "value": "@variables('variables_env')",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "flux_id": {
+                              "value": {
+                                "value": "@item().flux_id",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            },
+                            "mode": {
+                              "value": {
+                                "value": "@pipeline().parameters.p_mode",
+                                "type": "Expression"
+                              },
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "policy": {
+                          "timeout": "0.00:30:00",
+                          "retry": 0,
+                          "retryIntervalInSeconds": 30,
+                          "secureInput": false,
+                          "secureOutput": false
+                        },
+                        "name": "Publish V6",
+                        "dependsOn": []
+                      }
+                    ]
+                  }
+                ],
+                "defaultActivities": [
+                  {
+                    "type": "Fail",
+                    "typeProperties": {
+                      "message": {
+                        "value": "@concat('Notebook non prévu par le pipeline : ', item().notebook)",
+                        "type": "Expression"
+                      },
+                      "errorCode": "HRIS_NOTEBOOK_INCONNU"
+                    },
+                    "name": "Notebook inconnu V6",
+                    "dependsOn": []
+                  }
+                ]
+              },
+              "name": "Notebook du flux V6",
+              "dependsOn": []
+            }
+          ]
+        },
+        "name": "Vague 6",
+        "dependsOn": [
+          {
+            "activity": "Vague 5",
+            "dependencyConditions": [
+              "Completed"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "da992538-252f-4418-b465-41e3bca32a5e",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "action": {
+              "value": {
+                "value": "cloturer",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "execution_id": {
+              "value": {
+                "value": "@json(variables('plan')).execution_id",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "date_traitement": {
+              "value": {
+                "value": "@json(variables('plan')).date_traitement",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "variables_env": {
+              "value": {
+                "value": "@variables('variables_env')",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Cloturer execution",
+        "dependsOn": [
+          {
+            "activity": "Vague 6",
+            "dependencyConditions": [
+              "Completed"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "32286b5c-5a4f-4797-834e-b134b0ee18d4",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "action": {
+              "value": {
+                "value": "envoyer",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "execution_id": {
+              "value": {
+                "value": "@json(variables('plan')).execution_id",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "date_traitement": {
+              "value": {
+                "value": "@json(variables('plan')).date_traitement",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "variables_env": {
+              "value": {
+                "value": "@variables('variables_env')",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.00:15:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Notifier resultat",
+        "dependsOn": [
+          {
+            "activity": "Cloturer execution",
+            "dependencyConditions": [
+              "Completed"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "Fail",
+        "typeProperties": {
+          "message": "Clôture de l'exécution HRIS en échec : diagnostic dans ctl_execution_etape.",
+          "errorCode": "HRIS_CLOTURE"
+        },
+        "name": "Echec cloture",
+        "dependsOn": [
+          {
+            "activity": "Cloturer execution",
+            "dependencyConditions": [
+              "Failed"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "IfCondition",
+        "typeProperties": {
+          "expression": {
+            "value": "@contains(createArray('Succès', 'Succès avec rejets'), json(activity('Cloturer execution').output.result.exitValue).statut)",
+            "type": "Expression"
+          },
+          "ifFalseActivities": [
+            {
+              "type": "Fail",
+              "typeProperties": {
+                "message": {
+                  "value": "@concat('Exécution HRIS terminée avec le statut : ', json(activity('Cloturer execution').output.result.exitValue).statut)",
+                  "type": "Expression"
+                },
+                "errorCode": "HRIS_STATUT_GLOBAL"
+              },
+              "name": "Statut global en echec",
+              "dependsOn": []
+            }
+          ],
+          "ifTrueActivities": []
+        },
+        "name": "Verifier statut global",
+        "dependsOn": [
+          {
+            "activity": "Cloturer execution",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
+            "activity": "Notifier resultat",
+            "dependencyConditions": [
+              "Completed"
+            ]
+          }
+        ]
+      }
+    ],
+    "parameters": {
+      "p_flux": {
+        "type": "string",
+        "defaultValue": "*"
+      },
+      "p_mode": {
+        "type": "string",
+        "defaultValue": "incremental"
+      },
+      "p_date_traitement": {
+        "type": "string",
+        "defaultValue": ""
+      },
+      "p_fichier": {
+        "type": "string",
+        "defaultValue": ""
+      },
+      "p_rejouer_reussis": {
+        "type": "string",
+        "defaultValue": "false"
+      },
+      "p_execution_id_reprise": {
+        "type": "string",
+        "defaultValue": ""
+      }
+    },
+    "variables": {
+      "variables_env": {
+        "type": "String"
+      },
+      "execution_id": {
+        "type": "String"
+      },
+      "date_traitement": {
+        "type": "String"
+      },
+      "plan": {
+        "type": "String"
+      },
+      "nb_vagues_max": {
+        "type": "String",
+        "defaultValue": "6"
+      }
+    },
+    "libraryVariables": {
+      "env_nom": {
+        "type": "String",
+        "variableName": "env_nom",
+        "libraryName": "VL_HRIS"
+      },
+      "env_lakehouse_nom": {
+        "type": "String",
+        "variableName": "env_lakehouse_nom",
+        "libraryName": "VL_HRIS"
+      },
+      "env_kv_url": {
+        "type": "String",
+        "variableName": "env_kv_url",
+        "libraryName": "VL_HRIS"
+      },
+      "env_adls_compte": {
+        "type": "String",
+        "variableName": "env_adls_compte",
+        "libraryName": "VL_HRIS"
+      },
+      "env_adls_filesystem": {
+        "type": "String",
+        "variableName": "env_adls_filesystem",
+        "libraryName": "VL_HRIS"
+      },
+      "env_sftp_hote": {
+        "type": "String",
+        "variableName": "env_sftp_hote",
+        "libraryName": "VL_HRIS"
+      },
+      "env_sftp_port": {
+        "type": "String",
+        "variableName": "env_sftp_port",
+        "libraryName": "VL_HRIS"
+      },
+      "env_sftp_utilisateur": {
+        "type": "String",
+        "variableName": "env_sftp_utilisateur",
+        "libraryName": "VL_HRIS"
+      },
+      "env_sftp_export_chemin": {
+        "type": "String",
+        "variableName": "env_sftp_export_chemin",
+        "libraryName": "VL_HRIS"
+      },
+      "env_sftp_import_chemin": {
+        "type": "String",
+        "variableName": "env_sftp_import_chemin",
+        "libraryName": "VL_HRIS"
+      },
+      "env_sftp_reference_chemin": {
+        "type": "String",
+        "variableName": "env_sftp_reference_chemin",
+        "libraryName": "VL_HRIS"
+      },
+      "env_secret_sftp": {
+        "type": "String",
+        "variableName": "env_secret_sftp",
+        "libraryName": "VL_HRIS"
+      },
+      "env_notif_liste_distribution": {
+        "type": "String",
+        "variableName": "env_notif_liste_distribution",
+        "libraryName": "VL_HRIS"
+      },
+      "env_notif_bal_technique": {
+        "type": "String",
+        "variableName": "env_notif_bal_technique",
+        "libraryName": "VL_HRIS"
+      },
+      "env_powerbi_rapport_url": {
+        "type": "String",
+        "variableName": "env_powerbi_rapport_url",
+        "libraryName": "VL_HRIS"
+      },
+      "env_notif_auth_mode": {
+        "type": "String",
+        "variableName": "env_notif_auth_mode",
+        "libraryName": "VL_HRIS"
+      },
+      "env_tenant_id": {
+        "type": "String",
+        "variableName": "env_tenant_id",
+        "libraryName": "VL_HRIS"
+      },
+      "env_notif_client_id": {
+        "type": "String",
+        "variableName": "env_notif_client_id",
+        "libraryName": "VL_HRIS"
+      },
+      "env_notif_cert_secret": {
+        "type": "String",
+        "variableName": "env_notif_cert_secret",
+        "libraryName": "VL_HRIS"
+      }
+    }
   }
 }
