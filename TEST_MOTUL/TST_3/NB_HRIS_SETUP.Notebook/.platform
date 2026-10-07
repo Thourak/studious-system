@@ -2,11 +2,11 @@
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
   "metadata": {
     "type": "Notebook",
-    "displayName": "NB_HRIS_TS_ACQUIRE",
-    "description": "Extraction TalentSoft PRD -> stg.ts_employee_raw ; contrôles de complétude."
+    "displayName": "T3_NB_HRIS_SETUP",
+    "description": "Création idempotente des schémas et tables du Lakehouse ; graines de configuration."
   },
   "config": {
     "version": "2.0",
-    "logicalId": "54d21360-6af1-83a5-480e-ebc010448c10"
+    "logicalId": "e2e23678-995a-939e-4b0a-dfb2c6ab33a3"
   }
 }

@@ -2,11 +2,11 @@
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
   "metadata": {
     "type": "Notebook",
-    "displayName": "NB_HRIS_TRANSFORM",
-    "description": "Parsing, correspondances, rejets, format ADP (parité SQL de production)."
+    "displayName": "T3_NB_HRIS_COMPARE",
+    "description": "Comparaison staging finale / référence ; contrôles ; décision."
   },
   "config": {
     "version": "2.0",
-    "logicalId": "84201418-a7ef-a5bb-416a-ae6e7c56b845"
+    "logicalId": "964907e6-6812-a516-422a-c1bcf3219e75"
   }
 }

@@ -2,11 +2,11 @@
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
   "metadata": {
     "type": "Notebook",
-    "displayName": "NB_HRIS_TESTS",
-    "description": "Tests sur données fictives (unitaires, parité Spark, intégration Delta en schéma isolé)."
+    "displayName": "T3_NB_HRIS_PROMOTE",
+    "description": "Promotion de la référence (MERGE) et outbox de publication."
   },
   "config": {
     "version": "2.0",
-    "logicalId": "96328a6f-7e12-9e20-4cb4-051daf01970e"
+    "logicalId": "d4fe8f05-97a3-abe2-41d4-dd99837cb75d"
   }
 }
