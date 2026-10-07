@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "DataPipeline",
+    "displayName": "PL_HRIS_ORCHESTRATOR",
+    "description": "Pipeline générique HRIS TalentSoft PRD -> Fabric -> ADP (publication verrouillée hors PRD et non activée). Planification : AUCUNE (D-RUN-05 non validée)."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "b3085f46-10b0-9dc9-4bfe-533602877954"
+  }
+}

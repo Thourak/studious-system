@@ -1,0 +1,59 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/variableLibrary/definition/variables/1.0.0/schema.json",
+  "variables": [
+    {
+      "name": "env_code",
+      "note": "Information (journaux, notification). Jamais utilisé par le garde-fou ADP.",
+      "type": "String",
+      "value": "DEV"
+    },
+    {
+      "name": "ts_base_url",
+      "note": "Tenant TalentSoft de PRODUCTION (seule valeur acceptée par le code).",
+      "type": "String",
+      "value": "https://motul.talent-soft.com"
+    },
+    {
+      "name": "kv_url_ts",
+      "note": "Coffre portant les identifiants applicatifs du tenant TalentSoft PRD (appariement établi par la Function existante).",
+      "type": "String",
+      "value": "https://kvt-mge-azr-hris-ts-prd.vault.azure.net/"
+    },
+    {
+      "name": "kv_url_adp",
+      "note": "Vide hors PRD. Secrets ADP lus seulement si garde-fou + activation (non approuvée).",
+      "type": "String",
+      "value": ""
+    },
+    {
+      "name": "business_timezone",
+      "note": "D-RUN-02 (À CONFIRMER).",
+      "type": "String",
+      "value": "Europe/Paris"
+    },
+    {
+      "name": "lock_lease_minutes",
+      "note": "D-RUN-04 (À CONFIRMER) : bail du verrou = timeout du pipeline. Type String : Number non supporté en pipeline (A06 F7).",
+      "type": "String",
+      "value": "240"
+    },
+    {
+      "name": "adp_max_attempts",
+      "note": "D-PUB-02 (À CONFIRMER).",
+      "type": "String",
+      "value": "3"
+    },
+    {
+      "name": "notification_recipients",
+      "note": "D-NOT-02 non décidé : aucune notification envoyée.",
+      "type": "String",
+      "value": ""
+    },
+    {
+      "name": "lakehouse_name",
+      "note": "Nom du Lakehouse cible dans le workspace d'exécution (noms de tables à 4 parties ; aucun Lakehouse par défaut requis).",
+      "type": "String",
+      "value": "MOTUL_LH_HRIS"
+    }
+  ]
+}

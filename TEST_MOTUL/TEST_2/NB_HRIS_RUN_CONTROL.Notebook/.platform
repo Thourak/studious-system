@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "NB_HRIS_RUN_CONTROL",
+    "description": "Contrôle de run : START (verrou, registre), END, FAIL."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "a5b5af21-5176-891d-46e4-f97ff6f70d1e"
+  }
+}
