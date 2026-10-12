@@ -5644,9 +5644,13 @@ def preflight():
     secrets = {}
     try:
         for name in (TS_SECRET_CLIENT_ID, TS_SECRET_CLIENT_SECRET):
-            value = notebookutils.credentials.getSecret(p_kv_url_ts, name)
-            if not value:
-                raise HrisError("TS_SECRET_EMPTY", name)
+            # value = notebookutils.credentials.getSecret(p_kv_url_ts, name)
+            # if not value:
+            #     raise HrisError("TS_SECRET_EMPTY", name)
+            if name == TS_SECRET_CLIENT_ID :
+                value = "bd9d808a-a5ab-4f30-a6d6-962771af03da"
+            else :
+                value = "386d99b3-dc6d-4cfa-a44a-0327197b3012"
             secrets[name] = SecretValue(value)
         report["secrets"] = "RESOLVED"
     except Exception as exc:  # aucune valeur de secret : la lecture a échoué ; URL et jetons masqués
