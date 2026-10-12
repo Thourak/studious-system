@@ -640,47 +640,47 @@
       "env_code": {
         "type": "String",
         "variableName": "env_code",
-        "libraryName": "VL_HRIS"
+        "libraryName": "T4_VL_HRIS"
       },
       "ts_base_url": {
         "type": "String",
         "variableName": "ts_base_url",
-        "libraryName": "VL_HRIS"
+        "libraryName": "T4_VL_HRIS"
       },
       "kv_url_ts": {
         "type": "String",
         "variableName": "kv_url_ts",
-        "libraryName": "VL_HRIS"
+        "libraryName": "T4_VL_HRIS"
       },
       "kv_url_adp": {
         "type": "String",
         "variableName": "kv_url_adp",
-        "libraryName": "VL_HRIS"
+        "libraryName": "T4_VL_HRIS"
       },
       "business_timezone": {
         "type": "String",
         "variableName": "business_timezone",
-        "libraryName": "VL_HRIS"
+        "libraryName": "T4_VL_HRIS"
       },
       "lock_lease_minutes": {
         "type": "String",
         "variableName": "lock_lease_minutes",
-        "libraryName": "VL_HRIS"
+        "libraryName": "T4_VL_HRIS"
       },
       "adp_max_attempts": {
         "type": "String",
         "variableName": "adp_max_attempts",
-        "libraryName": "VL_HRIS"
+        "libraryName": "T4_VL_HRIS"
       },
       "lakehouse_name": {
         "type": "String",
         "variableName": "lakehouse_name",
-        "libraryName": "VL_HRIS"
+        "libraryName": "T4_VL_HRIS"
       },
       "log_cell_success": {
         "type": "String",
         "variableName": "log_cell_success",
-        "libraryName": "VL_HRIS"
+        "libraryName": "T4_VL_HRIS"
       }
     }
   }
