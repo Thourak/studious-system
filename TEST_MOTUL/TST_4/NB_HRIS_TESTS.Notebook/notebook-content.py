@@ -572,7 +572,7 @@ if __name__ == "__main__":
 # CELL ********************
 
 # ============= MODULE test_ts_acquire =============
-register_hris_module('test_ts_acquire', '26ef54079e89bc34eb70af3377d42d05a6b7465b5720db26ce30fca639591c3e', r'''"""TU-07 — acquisition TalentSoft (JDD-01) contre un faux serveur HTTP en mémoire. Aucun appel réseau."""
+register_hris_module('test_ts_acquire', '4add74e2f2d4a5a22697e443ceda4c693d6528e7ed2bab0da2c74358a565103e', r'''"""TU-07 — acquisition TalentSoft (JDD-01) contre un faux serveur HTTP en mémoire. Aucun appel réseau."""
 import json
 import os
 import re
@@ -615,7 +615,7 @@ class FakeClock:
 
 
 class FakeTalentSoft:
-    """Faux TalentSoft : 3 salariés fictifs, dont 1 hors « Motul France » (conservé : plus de filtre).
+    """Faux TalentSoft : 3 salariés fictifs, dont 1 hors « Motul France ».
 
     n_employees : génère n salariés fictifs (tous en position P1) à la place des 3 salariés de base.
     latency : durée simulée de chaque appel GET (mesure de la concurrence réelle).
@@ -747,8 +747,8 @@ class Extraction(unittest.TestCase):
         ex, stats = make(fake)
         records = ex.run()
         by = {r["employeeNumber"]: r for r in records}
-        self.assertEqual(sorted(by), ["E1", "E2", "E3"])                # plus de filtre : E3 (Motul SA) est extrait
-        self.assertEqual(by["E3"]["LegalStructure"], "Motul SA")        # la structure juridique reste persistée
+        self.assertEqual(sorted(by), ["E1", "E2"])                      # E3 hors Motul France (R-TS-010)
+        self.assertEqual(by["E1"]["LegalStructure"], "Motul France")
         e1 = by["E1"]
         self.assertEqual(e1["LastName"], "NOM")                         # R-TS-018 : item ancien ignoré
         self.assertEqual(e1["Gender"], "")                              # R-TS-020 : falsy -> ''
@@ -799,17 +799,21 @@ class Extraction(unittest.TestCase):
         ex.run()
         self.assertGreater(stats.counters["network_error"], 0)
         a = {x["control_code"]: x for x in A.completeness_anomalies(stats.as_dict())}
-        self.assertEqual(a["TS_ENDPOINT_FAILURE"]["outcome"], "FAIL")
-        self.assertNotIn("TS_FILTER_TECHNICAL_FAILURE", a)              # le filtre n'existe plus
+        self.assertEqual(a["TS_FILTER_TECHNICAL_FAILURE"]["outcome"], "FAIL")
 
-    def test_no_legal_structure_filter_and_no_duplicate_calls(self):
+    def test_filter_motul_france_without_duplicate_calls(self):
         fake = FakeTalentSoft()
-        ex, _ = make(fake)
+        ex, stats = make(fake)
         ex.run()
         for emp in ("E1", "E2", "E3"):
-            self.assertEqual(len(gets(fake, f"/employees/{emp}/Situation")), 1)   # plus de lecture de filtrage
+            self.assertEqual(len(gets(fake, f"/employees/{emp}/Situation")), 1)   # lue une seule fois, filtre compris
         positions = [u for m, u in fake.calls if "/positions/" in u]
         self.assertEqual(len(positions), 3)                                       # une position par salarié
+        e3_calls = [u for m, u in fake.calls if "/employees/E3/" in u]
+        self.assertEqual(len(e3_calls), 1)                                        # E3 exclu : aucun détail lu
+        self.assertEqual(stats.counters["excluded_not_motul_france"], 1)
+        self.assertEqual(stats.counters["retained_phase1"], 2)
+        self.assertEqual(stats.counters["records"], 2)
 
     def test_health_entities_are_not_requested(self):
         fake = FakeTalentSoft()

@@ -220,13 +220,14 @@ techniques.
 1. Lecture de `totalCount` (`directory/employees?count=1`), puis de la liste complète en **une seule page**
    (`count=totalCount`). Il n'y a pas de pagination ni de filtre de période : l'extraction est **complète à chaque
    run**.
-2. **Aucun filtre de société** : tous les salariés de l'annuaire sont détaillés, quelle que soit leur structure
-   juridique (l'ancienne fonction ne gardait que `LegalStructure = Motul France`, au prix d'une phase séquentielle de
-   deux appels par salarié). `LegalStructure` reste persisté et peut filtrer en aval. Les anciens salariés sont
-   présents **seulement si l'annuaire TalentSoft les renvoie** (à vérifier sur les données).
-3. **Détail** : 13 entités `hub/v2` par salarié (situation, dates clés, identités, contrat, coordonnées, banque,
-   rémunération…) plus le poste et l'adresse postale. Les 3 entités de santé ne sont plus appelées (jamais
-   persistées).
+2. **Filtre « Motul France »** : pour chaque salarié, la situation la plus récente donne un code de poste, puis le
+   poste à cette date donne `LegalStructure` ; seuls les salariés dont la valeur vaut exactement `Motul France` sont
+   retenus. Ce filtre n'est plus une phase séquentielle : il s'évalue salarié par salarié dans la fenêtre parallèle
+   (deux appels), et la situation et le poste lus sont réutilisés pour le détail. Les anciens salariés sont présents
+   **seulement si l'annuaire TalentSoft les renvoie** (à vérifier sur les données).
+3. **Détail** des salariés retenus : 12 entités `hub/v2` (dates clés, identités, contrat, coordonnées, banque,
+   rémunération…) plus l'adresse postale, en plus de la situation et du poste déjà lus. Les 3 entités de santé ne
+   sont plus appelées (jamais persistées).
 4. **Règles de valeur** : valeur courante déterminée dans l'ordre de l'API par la date de début maximale ; valeurs
    « falsy » converties en chaîne vide ; montants de rémunération conservés tels quels ; date de fin de contrat à
    `1900-01-01` si absente ; `Hors_France` selon le pays ; pourcentage d'imputation sans le signe `%`.
@@ -245,10 +246,10 @@ techniques.
 
 **Contrôles de complétude** (écrits dans `log.anomaly`, bloquants sauf mention). Une extraction partielle n'est jamais
 présentée comme complète : `EXTRACTION_INCOMPLETE` (reçus différent de `totalCount`), `EMPTY_EXTRACTION`,
-`SCHEMA_CHANGE`, `TS_ENDPOINT_FAILURE` (appels de détail en échec après reprises, situation et poste compris),
-`TS_PROCESSING_ERROR`, `TS_CIRCUIT_OPEN`, `TS_SECRET_RESOLUTION`. Les réponses `404` donnent un avertissement
-(`TS_ENDPOINT_NOT_FOUND`). Les contrôles `TS_FILTER_TECHNICAL_FAILURE` et `TS_FILTER_NOT_FOUND` ont disparu avec le
-filtre. Les échecs de l'existant étaient silencieux ; ils sont désormais comptés.
+`SCHEMA_CHANGE`, `TS_FILTER_TECHNICAL_FAILURE` (filtre indécidable), `TS_ENDPOINT_FAILURE` (appels de détail en échec
+après reprises), `TS_PROCESSING_ERROR`, `TS_CIRCUIT_OPEN`, `TS_SECRET_RESOLUTION`. Les réponses `404` donnent un
+avertissement (`TS_FILTER_NOT_FOUND`, `TS_ENDPOINT_NOT_FOUND`). Les échecs de l'existant étaient silencieux ; ils sont
+désormais comptés.
 
 **Minimisation.** Seules les **70 clés** lues en aval sont conservées dans `stg.ts_employee_raw` ; les données de santé
 (handicap, accident du travail, visite médicale) et les champs inutilisés ne sont pas persistés.

@@ -77,8 +77,8 @@ flowchart TD
 
 1. **Ouverture.** Le run reçoit l'identifiant du pipeline, une date métier (Paris) et un verrou : un seul run actif à
    la fois. [→ Détail](README_DETAILS.md#run-control)
-2. **Acquisition.** Extraction complète de tous les salariés de l'annuaire TalentSoft PRD (plus de filtre sur
-   « Motul France »), avec contrôle que tout a bien été reçu. [→ Détail](README_DETAILS.md#acquisition)
+2. **Acquisition.** Extraction complète des salariés de « Motul France » depuis TalentSoft PRD, avec contrôle que
+   tout a bien été reçu. [→ Détail](README_DETAILS.md#acquisition)
 3. **Transformation.** Les règles de l'existant sont reproduites ligne à ligne ; les salariés non conformes sont
    rejetés avec leur motif. [→ Détail](README_DETAILS.md#transformation)
 4. **Comparaison.** Le résultat est comparé à l'état validé précédent : nouveaux, modifiés, inchangés, absents,

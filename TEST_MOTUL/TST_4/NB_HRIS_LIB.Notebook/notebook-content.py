@@ -1235,16 +1235,17 @@ def normalize_type(t: str) -> str:
 # CELL ********************
 
 # ============= MODULE hris.ts_acquire =============
-register_hris_module('hris.ts_acquire', '205d641407b9f7f05805d93619ffd784e2298bb30ce830abb3dbd06714e2e953', r'''"""hris.ts_acquire — portage de la Function TalentSoft (ts-function-app/function_app.py, PRJ @ 5541490).
+register_hris_module('hris.ts_acquire', 'd381880b82ee3b6a7d071d8f416315677188498410fe5a9652a813409531b2ba', r'''"""hris.ts_acquire — portage de la Function TalentSoft (ts-function-app/function_app.py, PRJ @ 5541490).
 
 Parité (A01, R-TS-007 à R-TS-030) : endpoints, règle de « valeur courante » dépendant de l'ordre,
-conversion « falsy », sentinelle 1900-01-01, Hors_France, Level sans %,
+conversion « falsy », sentinelle 1900-01-01, Hors_France, Level sans %, filtre « Motul France »,
 retries 429/503/réseau avec backoff, disjoncteur global.
 
-Écarts volontaires avec l'existant (extraction de TOUS les salariés de l'annuaire, plus rapide) : plus de
-filtre « Motul France » ni de phase 1 séquentielle ; plus de lots de 75 ni de pause entre lots (fenêtre
-glissante) ; concurrence configurable (par défaut 8 salariés et 10 requêtes simultanées, contre 2 et 5) ;
-jeton renouvelé selon son âge ; les trois entités de santé ne sont plus appelées (jamais persistées).
+Écarts volontaires avec l'existant (extraction plus rapide, mêmes données) : le filtre « Motul France » n'est plus
+une phase 1 séquentielle mais s'évalue salarié par salarié dans la fenêtre parallèle, et la situation et le poste
+lus pour le filtre sont réutilisés pour le détail (aucun appel en double) ; plus de lots de 75 ni de pause entre
+lots (fenêtre glissante) ; concurrence configurable (par défaut 8 salariés et 10 requêtes simultanées, contre 2 et
+5) ; jeton renouvelé selon son âge ; les trois entités de santé ne sont plus appelées (jamais persistées).
 
 Améliorations techniques (A08 D-TS-02, À CONFIRMER, sans effet sur les données si l'API se comporte
 comme attendu) : appels synchrones bornés (pas d'asyncio dans un notebook) ; renouvellement du jeton
@@ -1272,8 +1273,11 @@ from hris.parity import json_value_repr
 EMPLOYEE_CONCURRENCY = 8  # salariés traités en même temps (ts:L254 : 2 par lot dans l'existant)
 PER_HOST_LIMIT = 10       # requêtes HTTP simultanées vers TalentSoft (ts:L100 : 5 dans l'existant)
 TOKEN_MAX_AGE_SECONDS = 300  # jeton renouvelé au-delà (l'existant le renouvelait à chaque lot de 75)
+MOTUL_FRANCE = "Motul France"
+# Entités de détail lues pour les salariés retenus. « Situation » et la position n'en font pas partie :
+# elles sont lues une seule fois, pour le filtre « Motul France », puis réutilisées pour le détail.
 HUB_ENTITIES = {
-    "situation": "Situation", "keydate": "KeyDates", "legacyid": "EmployeeIDs",
+    "keydate": "KeyDates", "legacyid": "EmployeeIDs",
     "qualification": "Qualification", "mainpostaladdress": "MainPostalAddress",
     "contactinfo": "ContactInformation", "maritalstatus": "FamilyStatus", "contract": "Contract",
     "bankdetails": "BankDetails", "probation": "ProbationaryPeriod", "salary": "Compensation",
@@ -1821,6 +1825,20 @@ class TalentSoftExtractor:
         else:
             self.stats.inc(f"{endpoint}_unavailable")
 
+    def get_situation(self, employee_number) -> dict:
+        try:
+            data, status = self.client.get(f"/api/hub/v2/employees/{employee_number}/Situation",
+                                           "phase1_situation", max_retries=2, initial_delay=1)
+            if status == 200 and data:
+                return process_situation_data(data)
+            self._classify_unavailable("phase1_situation", status)
+            return {}
+        except HrisError:
+            raise
+        except Exception:
+            self.stats.inc("phase1_situation_error")
+            return {}
+
     def get_position(self, position_code, date, endpoint: str) -> dict:
         try:
             if "T" not in date:
@@ -1837,13 +1855,47 @@ class TalentSoftExtractor:
             self.stats.inc(f"{endpoint}_error")
             return {}
 
-    # -- détail d'un salarié (ts:L440-616) ---------------------------------------------
+    # -- filtre « Motul France » (ts:L217-246), évalué salarié par salarié --------------
+    def qualify(self, employee_number) -> Optional[Tuple[dict, dict]]:
+        """Situation la plus récente -> code de poste -> poste à cette date -> LegalStructure.
+
+        Renvoie (situation, poste) pour un salarié « Motul France », sinon None (exclusion comptée).
+        Mêmes règles et mêmes compteurs que la phase 1 de l'existant, mais un salarié à la fois dans la
+        fenêtre parallèle, et sans relire plus tard la situation et le poste des salariés retenus.
+        """
+        situation = self.get_situation(employee_number)
+        if not situation:
+            self.stats.inc("excluded_no_situation")  # échec technique OU absence : voir contrôles
+            return None
+        position_code = situation.get("Position")
+        situation_date = situation.get("Situation_starDate")
+        if not (position_code and situation_date):
+            self.stats.inc("excluded_missing_position_or_date")
+            return None
+        position_data = self.get_position(position_code, situation_date, "phase1_position")
+        if not position_data:
+            self.stats.inc("excluded_no_position_data")
+            return None
+        if str(position_data.get("LegalStructure")) != MOTUL_FRANCE:
+            self.stats.inc("excluded_not_motul_france")
+            return None
+        self.stats.inc("retained_phase1")
+        return situation, position_data
+
+    # -- détail d'un salarié retenu (ts:L440-616) ---------------------------------------
     def get_employee_data(self, employee: dict, pool: ThreadPoolExecutor) -> dict:
         employee_number = employee.get("employeeNumber")
         if not employee_number:
+            self.stats.inc("excluded_no_employee_number")
             return {}
+        qualified = self.qualify(employee_number)
+        if qualified is None:
+            return {}
+        situation_data, position_data = qualified
         try:
             employee_data = {employee_number: initialize_employee_fields(str(employee_number))}
+            employee_data[employee_number].update(situation_data)
+            employee_data[employee_number].update(position_data)
             individual = employee.get("individual", {}) or {}
             nir = (individual.get("extras", {}) or {}).get("hubSocialSecurityNumber")
             if nir:
@@ -1865,33 +1917,7 @@ class TalentSoftExtractor:
                     raise
                 except Exception as exc:
                     responses[key] = exc
-            # situation d'abord (code et date de position)
-            position_code = situation_date = None
-            situation_result = responses.get("situation")
-            if isinstance(situation_result, tuple) and len(situation_result) == 2:
-                data, status = situation_result
-                if status == 200 and data:
-                    try:
-                        situation_data = process_situation_data(data)
-                    except Exception:
-                        self.stats.inc("processing_error_situation")
-                        raise
-                    employee_data[employee_number].update(situation_data)
-                    position_code = situation_data.get("Position")
-                    situation_date = situation_data.get("Situation_starDate")
-                else:
-                    self.stats.inc("phase2_endpoint_not_ok_situation")
-            if position_code and situation_date:
-                position_data = self.get_position(position_code, situation_date, "phase2_position")
-                if position_data:
-                    employee_data[employee_number].update(position_data)
-                else:
-                    self.stats.inc("phase2_position_missing")
-            else:
-                self.stats.inc("phase2_position_not_requested")
             for key, result in responses.items():
-                if key == "situation":
-                    continue
                 if isinstance(result, Exception):
                     self.stats.inc(f"phase2_exception_{key}")
                     continue
@@ -1930,11 +1956,11 @@ class TalentSoftExtractor:
             return {}
 
     def run(self) -> List[dict]:
-        """Extraction complète de l'annuaire, sans filtre de structure juridique ; renvoie les enregistrements bruts.
+        """Extraction complète de l'annuaire, filtrée sur « Motul France » ; renvoie les enregistrements bruts.
 
-        Tous les salariés renvoyés par l'annuaire sont détaillés (anciens salariés compris si TalentSoft les
-        renvoie). Les salariés avancent en fenêtre glissante, sans lots ni pause : la file de requêtes ne se vide
-        qu'à la toute fin. Une erreur fatale (HrisError) annule les salariés non commencés.
+        Chaque salarié de l'annuaire est d'abord qualifié (situation puis poste : deux appels), puis, s'il est
+        « Motul France », détaillé. Les salariés avancent en fenêtre glissante, sans lots ni pause : la file de
+        requêtes ne se vide qu'à la toute fin. Une erreur fatale (HrisError) annule les salariés non commencés.
         """
         self.client.get_token()
         employees = self.get_all_employees()
@@ -1951,7 +1977,8 @@ class TalentSoftExtractor:
             except BaseException:
                 employee_pool.shutdown(wait=True, cancel_futures=True)
                 raise
-        self.stats.inc("duplicates_merged", len(employees) - len(all_employee_data))
+        retained = self.stats.counters["retained_phase1"]
+        self.stats.inc("duplicates_merged", retained - len(all_employee_data))
         self.stats.inc("records", len(all_employee_data))
         return list(all_employee_data.values())
 
@@ -1987,11 +2014,19 @@ def completeness_anomalies(stats: dict) -> List[dict]:
         add("SCHEMA_CHANGE", "BLOCKING", c["directory_schema_unexpected"], "FAIL", "réponse annuaire inattendue")
     records = c.get("records", 0)
     add("EMPTY_EXTRACTION", "BLOCKING", records, "FAIL" if records == 0 else "PASS",
-        "aucun salarié extrait" if records == 0 else f"{records} salariés extraits")
+        "aucun salarié retenu" if records == 0 else f"{records} salariés retenus")
+    tech_phase1 = c.get("phase1_situation_unavailable", 0) + c.get("phase1_situation_error", 0) + \
+        c.get("phase1_position_unavailable", 0) + c.get("phase1_position_error", 0)
+    add("TS_FILTER_TECHNICAL_FAILURE", "BLOCKING", tech_phase1, "FAIL" if tech_phase1 else "PASS",
+        "salariés non qualifiables (Situation/Position indisponible) : le filtre Motul France est incertain"
+        if tech_phase1 else "filtre Motul France évalué pour tous les salariés")
+    nf_phase1 = c.get("phase1_situation_404", 0) + c.get("phase1_position_404", 0)
+    add("TS_FILTER_NOT_FOUND", "WARNING", nf_phase1, "FAIL" if nf_phase1 else "PASS",
+        f"{nf_phase1} réponses 404 au filtrage (salariés exclus, statut à qualifier D-TS-01)")
     failures = 0
     not_found = 0
     for ep, statuses in stats.get("endpoint_status", {}).items():
-        if not (ep.startswith("hub_") or ep in ("postaladdress", "phase2_position")):
+        if not (ep.startswith("hub_") or ep == "postaladdress"):
             continue
         for st, n in statuses.items():
             if st == "200":
@@ -5373,7 +5408,7 @@ class RealAdpTransportFactory:
 # CELL ********************
 
 # ============= MODULE hris.steps =============
-register_hris_module('hris.steps', '60d319f2e7144293f18932c6c28fcbecf0d1f56a5d1f2f7a01646d4e41648540', r'''"""hris.steps — étapes du pipeline (logique des notebooks), appelées à l'identique par les notebooks et par
+register_hris_module('hris.steps', '9a492212bed76d1b3aec96a5efcba8f76a149c87c0ae0f0b217170cb0103ee7f', r'''"""hris.steps — étapes du pipeline (logique des notebooks), appelées à l'identique par les notebooks et par
 les tests d'intégration Fabric (schéma isolé). Aucune sortie de donnée personnelle : compteurs seulement."""
 from __future__ import annotations
 
@@ -5390,8 +5425,9 @@ from hris.common import HrisError, PROCESS_CODE, safe_error, utc_now
 from hris.model import COMPARE_COLUMNS, Tables
 from hris.ts_acquire import completeness_anomalies, to_raw_row
 
-TS_OWNED_CONTROLS = ["EXTRACTION_INCOMPLETE", "SCHEMA_CHANGE", "EMPTY_EXTRACTION", "TS_ENDPOINT_FAILURE",
-                     "TS_ENDPOINT_NOT_FOUND", "TS_PROCESSING_ERROR", "TS_CIRCUIT_OPEN", "TS_SECRET_RESOLUTION"]
+TS_OWNED_CONTROLS = ["EXTRACTION_INCOMPLETE", "SCHEMA_CHANGE", "EMPTY_EXTRACTION", "TS_FILTER_TECHNICAL_FAILURE",
+                     "TS_FILTER_NOT_FOUND", "TS_ENDPOINT_FAILURE", "TS_ENDPOINT_NOT_FOUND", "TS_PROCESSING_ERROR",
+                     "TS_CIRCUIT_OPEN", "TS_SECRET_RESOLUTION"]
 TRANSFORM_OWNED = ["MAPPING_TABLE_MISSING", "MAPPING_SCHEMA", "MAPPING_TABLE_EMPTY", "MAPPING_KEY_DUPLICATE",
                    "TRANSFORM_NOT_EXECUTED", "CONVERSION_ERROR"]
 
@@ -5446,7 +5482,7 @@ def store_acquisition(spark, T: Tables, run: dict, records: List[dict], stats: d
     failed = [a["control_code"] for a in anomalies if a["severity"] == "BLOCKING" and a["outcome"] == "FAIL"]
     IO.update_run(spark, T, run_id, status="ACQUIRED")
     step.succeeded(rows_out=len(raw_rows), counters_only=True, message=json.dumps({
-        "source": source, "scope": "ALL_DIRECTORY_EMPLOYEES", "mode": "full_extraction_no_period_filter",
+        "source": source, "scope": "LegalStructure=Motul France", "mode": "full_extraction_no_period_filter",
         "rows_persisted": len(raw_rows), "distinct_employee_numbers": distinct_keys,
         "stats": stats, "blocking_failures": failed}))
     return {"status": "ACQUIRED" if not failed else "ACQUIRED_INCOMPLETE", "rows": len(raw_rows),
