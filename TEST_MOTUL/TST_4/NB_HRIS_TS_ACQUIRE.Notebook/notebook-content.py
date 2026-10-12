@@ -147,7 +147,7 @@ def run_preflight(ts_base_url: str, kv_url: str, raw_table: str, workspace_name:
     secrets = {}
     try:
         for name in (TS_SECRET_CLIENT_ID, TS_SECRET_CLIENT_SECRET):
-            value = notebookutils.credentials.getSecret(kv_url, name)
+            # value = notebookutils.credentials.getSecret(kv_url, name)
             # if not value:
             #     raise HrisError("TS_SECRET_EMPTY", name)
             if name == TS_SECRET_CLIENT_ID :
