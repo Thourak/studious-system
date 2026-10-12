@@ -1,0 +1,330 @@
+"Nom de l'activité","Statut de l'activité","Erreur","Début de l'exécution","Durée","Entrée","Sortie"
+"RunStart","Opération réussie","","10/8/2026, 11:31:57 AM","4m 46s","{
+    ""notebookId"": ""38b81659-954d-40a1-8269-54dc1ee8d22c"",
+    ""workspaceId"": ""ae7ab5de-5b10-4c67-b87c-03c0c1be9dc3"",
+    ""parameters"": {
+        ""p_mode"": {
+            ""value"": ""START"",
+            ""type"": ""string""
+        },
+        ""p_run_id"": {
+            ""value"": ""a124f919-88c1-4545-9ef7-ea2b3c8ca031"",
+            ""type"": ""string""
+        },
+        ""p_process_code"": {
+            ""value"": ""TS_ADP_EMPLOYEE"",
+            ""type"": ""string""
+        },
+        ""p_run_mode"": {
+            ""value"": ""NORMAL"",
+            ""type"": ""string""
+        },
+        ""p_target_run_id"": {
+            ""value"": """",
+            ""type"": ""string""
+        },
+        ""p_trigger_time"": {
+            ""value"": ""2026-10-08T09:31:42.1358949Z"",
+            ""type"": ""string""
+        },
+        ""p_business_timezone"": {
+            ""value"": ""Europe/Paris"",
+            ""type"": ""string""
+        },
+        ""p_lock_lease_minutes"": {
+            ""value"": ""240"",
+            ""type"": ""string""
+        },
+        ""p_business_date_override"": {
+            ""value"": """",
+            ""type"": ""string""
+        },
+        ""p_pipeline_name"": {
+            ""value"": ""T3_PL_HRIS_ORCHESTRATOR"",
+            ""type"": ""string""
+        },
+        ""p_env_code"": {
+            ""value"": ""DEV"",
+            ""type"": ""string""
+        },
+        ""p_lakehouse_name"": {
+            ""value"": ""MOTUL_LH_HRIS"",
+            ""type"": ""string""
+        }
+    }
+}","{
+    ""status"": ""Succeeded"",
+    ""result"": {
+        ""runId"": ""8416db99-0d31-4b5f-b684-d4808d005f0c"",
+        ""runStatus"": ""Succeeded"",
+        ""sessionId"": ""53f9a7ee-9984-4812-96ce-369b177a8fb8"",
+        ""sparkPool"": ""ae7ab5de-5b10-4c67-b87c-03c0c1be9dc3"",
+        ""error"": null,
+        ""lastCheckedOn"": ""2026-10-08T09:36:38.4966667Z"",
+        ""metadata"": {
+            ""isForPipeline"": null,
+            ""runStartTime"": ""2026-10-08T09:32:14.6503476Z"",
+            ""runEndTime"": ""2026-10-08T09:36:38.4966995Z""
+        },
+        ""highConcurrencyModeStatus"": null,
+        ""exitValue"": ""{\""status\"":\""OK\"",\""run_id\"":\""a124f919-88c1-4545-9ef7-ea2b3c8ca031\"",\""business_date\"":\""2026-10-08\"",\""run_seq_in_day\"":1,\""run_mode\"":\""NORMAL\""}""
+    },
+    ""message"": ""Notebook execution is in Succeeded state, runId: 8416db99-0d31-4b5f-b684-d4808d005f0c"",
+    ""SparkMonitoringURL"": ""workloads/de-ds/sparkmonitor/38b81659-954d-40a1-8269-54dc1ee8d22c/53f9a7ee-9984-4812-96ce-369b177a8fb8"",
+    ""sessionSource"": """",
+    ""sessionTag"": """",
+    ""executionDuration"": 269
+}"
+"IfStarted","Opération réussie","","10/8/2026, 11:36:44 AM","46m 0s","{}","{}"
+"Acquire","Opération réussie","","10/8/2026, 11:36:45 AM","20m 28s","{
+    ""notebookId"": ""e2be504b-48c4-4a95-a66c-6146c3bfde3a"",
+    ""workspaceId"": ""ae7ab5de-5b10-4c67-b87c-03c0c1be9dc3"",
+    ""parameters"": {
+        ""p_run_id"": {
+            ""value"": ""a124f919-88c1-4545-9ef7-ea2b3c8ca031"",
+            ""type"": ""string""
+        },
+        ""p_kv_url_ts"": {
+            ""value"": ""https://kvt-mge-azr-hris-ts-prd.vault.azure.net/"",
+            ""type"": ""string""
+        },
+        ""p_ts_base_url"": {
+            ""value"": ""https://motul.talent-soft.com"",
+            ""type"": ""string""
+        },
+        ""p_lakehouse_name"": {
+            ""value"": ""MOTUL_LH_HRIS"",
+            ""type"": ""string""
+        }
+    }
+}","{
+    ""status"": ""Succeeded"",
+    ""result"": {
+        ""runId"": ""45aec443-7f42-46b5-95a4-c83ad90637a9"",
+        ""runStatus"": ""Succeeded"",
+        ""sessionId"": ""ece76358-7eb9-4612-bedd-5a349c521979"",
+        ""sparkPool"": ""ae7ab5de-5b10-4c67-b87c-03c0c1be9dc3"",
+        ""error"": null,
+        ""lastCheckedOn"": ""2026-10-08T09:56:52.9166667Z"",
+        ""metadata"": {
+            ""isForPipeline"": null,
+            ""runStartTime"": ""2026-10-08T09:36:51.332125Z"",
+            ""runEndTime"": ""2026-10-08T09:56:41.4968069Z""
+        },
+        ""highConcurrencyModeStatus"": null,
+        ""exitValue"": ""{\""run_id\"":\""a124f919-88c1-4545-9ef7-ea2b3c8ca031\"",\""preflight\"":{\""source\"":\""PRD_OK\"",\""secrets\"":\""RESOLVED\"",\""network\"":\""TCP_443_OK\"",\""destination\"":{\""workspace_name\"":\""Sandbox - Fabric BI backend\"",\""default_lakehouse\"":null,\""raw_table\"":\""`Sandbox - Fabric BI backend`.`MOTUL_LH_HRIS`.stg.ts_employee_raw\""}},\""status\"":\""ACQUIRED_INCOMPLETE\"",\""rows\"":431,\""distinct_keys\"":431,\""total_count\"":1882,\""blocking_failures\"":[\""TS_FILTER_TECHNICAL_FAILURE\""]}""
+    },
+    ""message"": ""Notebook execution is in Succeeded state, runId: 45aec443-7f42-46b5-95a4-c83ad90637a9"",
+    ""SparkMonitoringURL"": ""workloads/de-ds/sparkmonitor/e2be504b-48c4-4a95-a66c-6146c3bfde3a/ece76358-7eb9-4612-bedd-5a349c521979"",
+    ""sessionSource"": """",
+    ""sessionTag"": """",
+    ""executionDuration"": 1222
+}"
+"Transform","Opération réussie","","10/8/2026, 11:57:14 AM","5m 11s","{
+    ""notebookId"": ""dc49a902-9978-4139-bc62-04ae9efa0e23"",
+    ""workspaceId"": ""ae7ab5de-5b10-4c67-b87c-03c0c1be9dc3"",
+    ""parameters"": {
+        ""p_run_id"": {
+            ""value"": ""a124f919-88c1-4545-9ef7-ea2b3c8ca031"",
+            ""type"": ""string""
+        },
+        ""p_lakehouse_name"": {
+            ""value"": ""MOTUL_LH_HRIS"",
+            ""type"": ""string""
+        }
+    }
+}","{
+    ""status"": ""Succeeded"",
+    ""result"": {
+        ""runId"": ""c236f253-2d5f-4439-b575-179b976862b1"",
+        ""runStatus"": ""Succeeded"",
+        ""sessionId"": ""35dd68be-fb12-4d46-945e-4d43104c9e6a"",
+        ""sparkPool"": ""ae7ab5de-5b10-4c67-b87c-03c0c1be9dc3"",
+        ""error"": null,
+        ""lastCheckedOn"": ""2026-10-08T10:02:12.1333333Z"",
+        ""metadata"": {
+            ""isForPipeline"": null,
+            ""runStartTime"": ""2026-10-08T09:57:22.9053778Z"",
+            ""runEndTime"": ""2026-10-08T10:02:12.1365659Z""
+        },
+        ""highConcurrencyModeStatus"": null,
+        ""exitValue"": ""{\""run_id\"":\""a124f919-88c1-4545-9ef7-ea2b3c8ca031\"",\""status\"":\""BLOCKED_MAPPINGS\"",\""rows_raw\"":431,\""blocked_by\"":[\""MAPPING_TABLE_EMPTY\"",\""MAPPING_TABLE_EMPTY\"",\""MAPPING_TABLE_EMPTY\"",\""MAPPING_TABLE_EMPTY\"",\""MAPPING_TABLE_EMPTY\"",\""MAPPING_TABLE_EMPTY\"",\""MAPPING_TABLE_EMPTY\"",\""MAPPING_TABLE_EMPTY\"",\""MAPPING_TABLE_EMPTY\"",\""MAPPING_TABLE_EMPTY\"",\""MAPPING_TABLE_EMPTY\"",\""MAPPING_TABLE_EMPTY\"",\""MAPPING_TABLE_EMPTY\""]}""
+    },
+    ""message"": ""Notebook execution is in Succeeded state, runId: c236f253-2d5f-4439-b575-179b976862b1"",
+    ""SparkMonitoringURL"": ""workloads/de-ds/sparkmonitor/dc49a902-9978-4139-bc62-04ae9efa0e23/35dd68be-fb12-4d46-945e-4d43104c9e6a"",
+    ""sessionSource"": """",
+    ""sessionTag"": """",
+    ""executionDuration"": 301
+}"
+"Compare","Opération réussie","","10/8/2026, 12:02:28 PM","4m 25s","{
+    ""notebookId"": ""5c47c97e-34e6-4ebf-9ba7-7b553b05a315"",
+    ""workspaceId"": ""ae7ab5de-5b10-4c67-b87c-03c0c1be9dc3"",
+    ""parameters"": {
+        ""p_run_id"": {
+            ""value"": ""a124f919-88c1-4545-9ef7-ea2b3c8ca031"",
+            ""type"": ""string""
+        },
+        ""p_run_mode"": {
+            ""value"": ""NORMAL"",
+            ""type"": ""string""
+        },
+        ""p_lakehouse_name"": {
+            ""value"": ""MOTUL_LH_HRIS"",
+            ""type"": ""string""
+        }
+    }
+}","{
+    ""status"": ""Succeeded"",
+    ""result"": {
+        ""runId"": ""6ad0d9b1-0506-4102-b702-32ee917b9f34"",
+        ""runStatus"": ""Succeeded"",
+        ""sessionId"": ""7404e910-7253-428e-86f9-1c6cdd903c26"",
+        ""sparkPool"": ""ae7ab5de-5b10-4c67-b87c-03c0c1be9dc3"",
+        ""error"": null,
+        ""lastCheckedOn"": ""2026-10-08T10:06:41.3366667Z"",
+        ""metadata"": {
+            ""isForPipeline"": null,
+            ""runStartTime"": ""2026-10-08T10:02:37.2266973Z"",
+            ""runEndTime"": ""2026-10-08T10:06:41.3367937Z""
+        },
+        ""highConcurrencyModeStatus"": null,
+        ""exitValue"": ""{\""decision\"":\""BLOCKED\"",\""recomputed\"":true,\""blocking\"":[\""MAPPING_TABLE_EMPTY\"",\""REFERENCE_ABSENTE\"",\""TRANSFORM_NOT_EXECUTED\"",\""TS_FILTER_TECHNICAL_FAILURE\""],\""nb_new\"":0,\""nb_modified\"":0,\""nb_absent\"":0,\""nb_rejected\"":0,\""nb_unchanged\"":0,\""run_id\"":\""a124f919-88c1-4545-9ef7-ea2b3c8ca031\""}""
+    },
+    ""message"": ""Notebook execution is in Succeeded state, runId: 6ad0d9b1-0506-4102-b702-32ee917b9f34"",
+    ""SparkMonitoringURL"": ""workloads/de-ds/sparkmonitor/5c47c97e-34e6-4ebf-9ba7-7b553b05a315/7404e910-7253-428e-86f9-1c6cdd903c26"",
+    ""sessionSource"": """",
+    ""sessionTag"": """",
+    ""executionDuration"": 255
+}"
+"Promote","Opération réussie","","10/8/2026, 12:06:55 PM","4m 55s","{
+    ""notebookId"": ""3b8ab5ca-5df3-46e9-be6b-c5572aebb742"",
+    ""workspaceId"": ""ae7ab5de-5b10-4c67-b87c-03c0c1be9dc3"",
+    ""parameters"": {
+        ""p_run_id"": {
+            ""value"": ""a124f919-88c1-4545-9ef7-ea2b3c8ca031"",
+            ""type"": ""string""
+        },
+        ""p_run_mode"": {
+            ""value"": ""NORMAL"",
+            ""type"": ""string""
+        },
+        ""p_lakehouse_name"": {
+            ""value"": ""MOTUL_LH_HRIS"",
+            ""type"": ""string""
+        }
+    }
+}","{
+    ""status"": ""Succeeded"",
+    ""result"": {
+        ""runId"": ""bde4cc4e-b832-460c-9c08-a2f7b778d5fd"",
+        ""runStatus"": ""Succeeded"",
+        ""sessionId"": ""65542436-d211-4105-8d0e-62413b989f0a"",
+        ""sparkPool"": ""ae7ab5de-5b10-4c67-b87c-03c0c1be9dc3"",
+        ""error"": null,
+        ""lastCheckedOn"": ""2026-10-08T10:11:44.16Z"",
+        ""metadata"": {
+            ""isForPipeline"": null,
+            ""runStartTime"": ""2026-10-08T10:07:03.3056758Z"",
+            ""runEndTime"": ""2026-10-08T10:11:44.1624712Z""
+        },
+        ""highConcurrencyModeStatus"": null,
+        ""exitValue"": ""{\""promoted\"":false,\""reason\"":\""STATUS_BLOCKED\"",\""nb_outbox\"":0,\""run_id\"":\""a124f919-88c1-4545-9ef7-ea2b3c8ca031\""}""
+    },
+    ""message"": ""Notebook execution is in Succeeded state, runId: bde4cc4e-b832-460c-9c08-a2f7b778d5fd"",
+    ""SparkMonitoringURL"": ""workloads/de-ds/sparkmonitor/3b8ab5ca-5df3-46e9-be6b-c5572aebb742/65542436-d211-4105-8d0e-62413b989f0a"",
+    ""sessionSource"": """",
+    ""sessionTag"": """",
+    ""executionDuration"": 287
+}"
+"Publish","Opération réussie","","10/8/2026, 12:11:52 PM","2m 48s","{
+    ""notebookId"": ""ed10d274-ce8b-43c3-8ad8-394907722a05"",
+    ""workspaceId"": ""ae7ab5de-5b10-4c67-b87c-03c0c1be9dc3"",
+    ""parameters"": {
+        ""p_run_id"": {
+            ""value"": ""a124f919-88c1-4545-9ef7-ea2b3c8ca031"",
+            ""type"": ""string""
+        },
+        ""p_run_mode"": {
+            ""value"": ""NORMAL"",
+            ""type"": ""string""
+        },
+        ""p_lakehouse_name"": {
+            ""value"": ""MOTUL_LH_HRIS"",
+            ""type"": ""string""
+        },
+        ""p_kv_url_adp"": {
+            ""value"": """",
+            ""type"": ""string""
+        },
+        ""p_max_attempts"": {
+            ""value"": ""3"",
+            ""type"": ""string""
+        }
+    }
+}","{
+    ""status"": ""Succeeded"",
+    ""result"": {
+        ""runId"": ""77d77374-c798-45cc-a4d1-a1f87a03f974"",
+        ""runStatus"": ""Succeeded"",
+        ""sessionId"": ""c52caaa3-fba8-4433-89c3-eeeac01473bb"",
+        ""sparkPool"": ""ae7ab5de-5b10-4c67-b87c-03c0c1be9dc3"",
+        ""error"": null,
+        ""lastCheckedOn"": ""2026-10-08T10:14:33.9533333Z"",
+        ""metadata"": {
+            ""isForPipeline"": null,
+            ""runStartTime"": ""2026-10-08T10:11:57.4692611Z"",
+            ""runEndTime"": ""2026-10-08T10:14:33.9567847Z""
+        },
+        ""highConcurrencyModeStatus"": null,
+        ""exitValue"": ""{\""run_id\"":\""a124f919-88c1-4545-9ef7-ea2b3c8ca031\"",\""mode\"":\""NORMAL\"",\""status\"":\""SKIPPED_NOT_PROMOTED_BLOCKED\""}""
+    },
+    ""message"": ""Notebook execution is in Succeeded state, runId: 77d77374-c798-45cc-a4d1-a1f87a03f974"",
+    ""SparkMonitoringURL"": ""workloads/de-ds/sparkmonitor/ed10d274-ce8b-43c3-8ad8-394907722a05/c52caaa3-fba8-4433-89c3-eeeac01473bb"",
+    ""sessionSource"": """",
+    ""sessionTag"": """",
+    ""executionDuration"": 162
+}"
+"RunEnd","Opération réussie","","10/8/2026, 12:14:42 PM","7m 59s","{
+    ""notebookId"": ""38b81659-954d-40a1-8269-54dc1ee8d22c"",
+    ""workspaceId"": ""ae7ab5de-5b10-4c67-b87c-03c0c1be9dc3"",
+    ""parameters"": {
+        ""p_mode"": {
+            ""value"": ""END"",
+            ""type"": ""string""
+        },
+        ""p_run_id"": {
+            ""value"": ""a124f919-88c1-4545-9ef7-ea2b3c8ca031"",
+            ""type"": ""string""
+        },
+        ""p_env_code"": {
+            ""value"": ""DEV"",
+            ""type"": ""string""
+        },
+        ""p_lakehouse_name"": {
+            ""value"": ""MOTUL_LH_HRIS"",
+            ""type"": ""string""
+        }
+    }
+}","{
+    ""status"": ""Succeeded"",
+    ""result"": {
+        ""runId"": ""2d8e91d4-e8d1-4ede-9e38-1f4da46eb3c8"",
+        ""runStatus"": ""Succeeded"",
+        ""sessionId"": ""f7ec6d4b-5cec-49b1-9ec3-8912db26bb2a"",
+        ""sparkPool"": ""ae7ab5de-5b10-4c67-b87c-03c0c1be9dc3"",
+        ""error"": null,
+        ""lastCheckedOn"": ""2026-10-08T10:22:37.88Z"",
+        ""metadata"": {
+            ""isForPipeline"": null,
+            ""runStartTime"": ""2026-10-08T10:14:47.1364887Z"",
+            ""runEndTime"": ""2026-10-08T10:22:37.8808368Z""
+        },
+        ""highConcurrencyModeStatus"": null,
+        ""exitValue"": ""{\""status\"":\""BLOCKED\"",\""run_id\"":\""a124f919-88c1-4545-9ef7-ea2b3c8ca031\"",\""lock_released\"":true,\""notification\"":{\""type\"":\""ERROR\"",\""env\"":\""DEV\"",\""run_id\"":\""a124f919-88c1-4545-9ef7-ea2b3c8ca031\"",\""business_date\"":\""2026-10-08\"",\""status\"":\""BLOCKED\"",\""inserts\"":0,\""rejects\"":0,\""outbox\"":0,\""error_code\"":\""BLOCKING_ANOMALY\"",\""sent\"":false,\""send_blocked_reason\"":\""D-NOT-01/D-NOT-02 non décidés\""}}""
+    },
+    ""message"": ""Notebook execution is in Succeeded state, runId: 2d8e91d4-e8d1-4ede-9e38-1f4da46eb3c8"",
+    ""SparkMonitoringURL"": ""workloads/de-ds/sparkmonitor/38b81659-954d-40a1-8269-54dc1ee8d22c/f7ec6d4b-5cec-49b1-9ec3-8912db26bb2a"",
+    ""sessionSource"": """",
+    ""sessionTag"": """",
+    ""executionDuration"": 474
+}"
