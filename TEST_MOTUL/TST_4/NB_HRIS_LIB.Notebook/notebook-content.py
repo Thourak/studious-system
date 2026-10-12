@@ -1235,11 +1235,16 @@ def normalize_type(t: str) -> str:
 # CELL ********************
 
 # ============= MODULE hris.ts_acquire =============
-register_hris_module('hris.ts_acquire', '2b32899f92949347bb603a100996cbdda9a916320c1dee29c7ff9ba1f0f13c3c', r'''"""hris.ts_acquire — portage de la Function TalentSoft (ts-function-app/function_app.py, PRJ @ 5541490).
+register_hris_module('hris.ts_acquire', '205d641407b9f7f05805d93619ffd784e2298bb30ce830abb3dbd06714e2e953', r'''"""hris.ts_acquire — portage de la Function TalentSoft (ts-function-app/function_app.py, PRJ @ 5541490).
 
 Parité (A01, R-TS-007 à R-TS-030) : endpoints, règle de « valeur courante » dépendant de l'ordre,
-conversion « falsy », sentinelle 1900-01-01, Hors_France, Level sans %, filtre « Motul France »,
-retries 429/503/réseau avec backoff, disjoncteur global, lots de 75, 5 requêtes simultanées par hôte.
+conversion « falsy », sentinelle 1900-01-01, Hors_France, Level sans %,
+retries 429/503/réseau avec backoff, disjoncteur global.
+
+Écarts volontaires avec l'existant (extraction de TOUS les salariés de l'annuaire, plus rapide) : plus de
+filtre « Motul France » ni de phase 1 séquentielle ; plus de lots de 75 ni de pause entre lots (fenêtre
+glissante) ; concurrence configurable (par défaut 8 salariés et 10 requêtes simultanées, contre 2 et 5) ;
+jeton renouvelé selon son âge ; les trois entités de santé ne sont plus appelées (jamais persistées).
 
 Améliorations techniques (A08 D-TS-02, À CONFIRMER, sans effet sur les données si l'API se comporte
 comme attendu) : appels synchrones bornés (pas d'asyncio dans un notebook) ; renouvellement du jeton
@@ -1264,21 +1269,19 @@ from hris.common import TS_PRD_BASE_URL, HrisError, SecretValue
 from hris.model import RAW_KEYS
 from hris.parity import json_value_repr
 
-BATCH_SIZE = 75          # ts:L253
-EMPLOYEE_CONCURRENCY = 2  # ts:L254 (max_concurrent par lot)
-PER_HOST_LIMIT = 5        # ts:L100 (limit_per_host)
-BATCH_PAUSE_SECONDS = 2   # ts:L275
-MOTUL_FRANCE = "Motul France"
+EMPLOYEE_CONCURRENCY = 8  # salariés traités en même temps (ts:L254 : 2 par lot dans l'existant)
+PER_HOST_LIMIT = 10       # requêtes HTTP simultanées vers TalentSoft (ts:L100 : 5 dans l'existant)
+TOKEN_MAX_AGE_SECONDS = 300  # jeton renouvelé au-delà (l'existant le renouvelait à chaque lot de 75)
 HUB_ENTITIES = {
-    "situation": "Situation", "keydate": "KeyDates", "disability": "Disability",
-    "workaccident": "WorkAccident", "medicalcheckup": "MedicalCheckUp", "legacyid": "EmployeeIDs",
+    "situation": "Situation", "keydate": "KeyDates", "legacyid": "EmployeeIDs",
     "qualification": "Qualification", "mainpostaladdress": "MainPostalAddress",
     "contactinfo": "ContactInformation", "maritalstatus": "FamilyStatus", "contract": "Contract",
     "bankdetails": "BankDetails", "probation": "ProbationaryPeriod", "salary": "Compensation",
     "civilregistration": "CivilRegistration", "identity": "Identity",
 }
-# Les entités de santé sont appelées en parité (mêmes appels que l'existant) mais leur résultat
-# n'est jamais persisté (A08 D-SEC-02) : seules les clés RAW_KEYS sont conservées.
+# Les entités de santé (Disability, WorkAccident, MedicalCheckUp) ne sont plus appelées : l'existant les lisait
+# par parité mais leur résultat n'était jamais persisté (A08 D-SEC-02, seules les clés RAW_KEYS sont conservées).
+# Les fonctions process_* correspondantes restent disponibles (voir PROCESSORS).
 
 
 def assert_prd_source(base_url: str) -> str:
@@ -1365,7 +1368,9 @@ class TsClient:
                  timeout: Tuple[float, float] = (30.0, 60.0),
                  network_errors: Tuple[type, ...] = (OSError,),
                  breaker: Optional[CircuitBreaker] = None,
-                 max_retry_after: float = 60.0):
+                 max_retry_after: float = 60.0,
+                 max_concurrency: int = PER_HOST_LIMIT,
+                 clock: Callable[[], float] = time.monotonic):
         self.base_url = assert_prd_source(base_url)
         self._client_id = client_id
         self._client_secret = client_secret
@@ -1377,8 +1382,12 @@ class TsClient:
         self.breaker = breaker or CircuitBreaker()
         self._token: Optional[SecretValue] = None
         self._token_lock = threading.Lock()
+        self._refresh_lock = threading.Lock()
+        self._clock = clock
+        self._token_obtained_at = 0.0
         self._max_retry_after = max_retry_after
-        self._limiter = threading.BoundedSemaphore(PER_HOST_LIMIT)
+        self.max_concurrency = max(1, int(max_concurrency))
+        self._limiter = threading.BoundedSemaphore(self.max_concurrency)
 
     def __repr__(self) -> str:
         return "TsClient(<prd>)"
@@ -1398,11 +1407,22 @@ class TsClient:
         if status == 200 and token_data and token_data.get("access_token"):
             with self._token_lock:
                 self._token = SecretValue("Bearer " + token_data.get("access_token"))
+                self._token_obtained_at = self._clock()
             self.stats.inc("token_obtained")
             return
         raise HrisError("TS_AUTH_FAILED", f"statut {status}")
 
+    def _token_is_stale(self) -> bool:
+        with self._token_lock:
+            return self._token is not None and self._clock() - self._token_obtained_at > TOKEN_MAX_AGE_SECONDS
+
     def _auth_headers(self) -> dict:
+        # Renouvellement périodique (remplace le renouvellement par lot de l'existant) : un seul fil renouvelle,
+        # les autres attendent puis réutilisent le nouveau jeton. Appelé hors sémaphore : aucun blocage croisé.
+        if self._token_is_stale():
+            with self._refresh_lock:
+                if self._token_is_stale():
+                    self.get_token()
         with self._token_lock:
             token = self._token.reveal() if self._token else None
         if not token:
@@ -1764,13 +1784,11 @@ PROCESSORS = {
 # Orchestration de l'extraction (ts:L186-616)
 # ---------------------------------------------------------------------------
 class TalentSoftExtractor:
-    def __init__(self, client: TsClient, sleep: Callable[[float], None] = time.sleep,
-                 batch_size: int = BATCH_SIZE, employee_concurrency: int = EMPLOYEE_CONCURRENCY):
+    def __init__(self, client: TsClient, employee_concurrency: int = EMPLOYEE_CONCURRENCY):
         self.client = client
         self.stats = client.stats
-        self._sleep = sleep
-        self.batch_size = batch_size
-        self.employee_concurrency = employee_concurrency
+        self.employee_concurrency = max(1, int(employee_concurrency))
+        self.request_concurrency = client.max_concurrency   # une seule source de vérité : la limite du client
 
     # -- liste (ts:L367-405) -------------------------------------------------------
     def get_all_employees(self) -> List[dict]:
@@ -1803,20 +1821,6 @@ class TalentSoftExtractor:
         else:
             self.stats.inc(f"{endpoint}_unavailable")
 
-    def get_situation(self, employee_number) -> dict:
-        try:
-            data, status = self.client.get(f"/api/hub/v2/employees/{employee_number}/Situation",
-                                           "phase1_situation", max_retries=2, initial_delay=1)
-            if status == 200 and data:
-                return process_situation_data(data)
-            self._classify_unavailable("phase1_situation", status)
-            return {}
-        except HrisError:
-            raise
-        except Exception:
-            self.stats.inc("phase1_situation_error")
-            return {}
-
     def get_position(self, position_code, date, endpoint: str) -> dict:
         try:
             if "T" not in date:
@@ -1833,34 +1837,7 @@ class TalentSoftExtractor:
             self.stats.inc(f"{endpoint}_error")
             return {}
 
-    # -- filtre « Motul France » (phase 1, séquentielle, ts:L217-246) ----------------
-    def filter_motul_france(self, employees: List[dict]) -> List[dict]:
-        filtered = []
-        for employee in employees:
-            employee_number = employee.get("employeeNumber")
-            if not employee_number:
-                self.stats.inc("excluded_no_employee_number")
-                continue
-            situation = self.get_situation(employee_number)
-            if not situation:
-                self.stats.inc("excluded_no_situation")  # échec technique OU absence : voir contrôles
-                continue
-            position_code = situation.get("Position")
-            situation_date = situation.get("Situation_starDate")
-            if not (position_code and situation_date):
-                self.stats.inc("excluded_missing_position_or_date")
-                continue
-            position_data = self.get_position(position_code, situation_date, "phase1_position")
-            if position_data and str(position_data.get("LegalStructure")) == MOTUL_FRANCE:
-                filtered.append(employee)
-            elif not position_data:
-                self.stats.inc("excluded_no_position_data")
-            else:
-                self.stats.inc("excluded_not_motul_france")
-        self.stats.inc("retained_phase1", len(filtered))
-        return filtered
-
-    # -- détail d'un salarié (phase 2, ts:L440-616) --------------------------------
+    # -- détail d'un salarié (ts:L440-616) ---------------------------------------------
     def get_employee_data(self, employee: dict, pool: ThreadPoolExecutor) -> dict:
         employee_number = employee.get("employeeNumber")
         if not employee_number:
@@ -1943,43 +1920,38 @@ class TalentSoftExtractor:
             self.stats.inc("employee_error_defaults")  # parité : enregistrement par défaut (ts:L613-616)
             return {employee_number: initialize_employee_fields(str(employee_number))}
 
-    def process_batch(self, employees: List[dict], request_pool: ThreadPoolExecutor) -> dict:
-        out: Dict[Any, dict] = {}
-
-        def one(emp):
-            try:
-                return self.get_employee_data(emp, request_pool)
-            except HrisError:
-                raise
-            except Exception:
-                self.stats.inc("employee_dropped")
-                return {}
-
-        with ThreadPoolExecutor(max_workers=self.employee_concurrency) as emp_pool:
-            for result in emp_pool.map(one, employees):
-                if isinstance(result, dict) and result:
-                    out.update(result)
-        return out
+    def _extract_one(self, employee: dict, request_pool: ThreadPoolExecutor) -> dict:
+        try:
+            return self.get_employee_data(employee, request_pool)
+        except HrisError:
+            raise
+        except Exception:
+            self.stats.inc("employee_dropped")
+            return {}
 
     def run(self) -> List[dict]:
-        """Extraction complète ; renvoie les enregistrements bruts (dictionnaires de l'existant)."""
+        """Extraction complète de l'annuaire, sans filtre de structure juridique ; renvoie les enregistrements bruts.
+
+        Tous les salariés renvoyés par l'annuaire sont détaillés (anciens salariés compris si TalentSoft les
+        renvoie). Les salariés avancent en fenêtre glissante, sans lots ni pause : la file de requêtes ne se vide
+        qu'à la toute fin. Une erreur fatale (HrisError) annule les salariés non commencés.
+        """
         self.client.get_token()
         employees = self.get_all_employees()
         if not employees:
             self.stats.inc("no_employees")
             return []
-        filtered = self.filter_motul_france(employees)
-        if not filtered:
-            return []
         all_employee_data: Dict[Any, dict] = {}
-        with ThreadPoolExecutor(max_workers=PER_HOST_LIMIT) as request_pool:
-            for i in range(0, len(filtered), self.batch_size):
-                batch = filtered[i:i + self.batch_size]
-                all_employee_data.update(self.process_batch(batch, request_pool))
-                self.client.get_token()  # parité : jeton renouvelé à chaque lot
-                if i + self.batch_size < len(filtered):
-                    self._sleep(BATCH_PAUSE_SECONDS)
-        self.stats.inc("duplicates_merged", len(filtered) - len(all_employee_data))
+        with ThreadPoolExecutor(max_workers=self.request_concurrency) as request_pool, \
+                ThreadPoolExecutor(max_workers=self.employee_concurrency) as employee_pool:
+            try:
+                for result in employee_pool.map(lambda emp: self._extract_one(emp, request_pool), employees):
+                    if isinstance(result, dict) and result:
+                        all_employee_data.update(result)
+            except BaseException:
+                employee_pool.shutdown(wait=True, cancel_futures=True)
+                raise
+        self.stats.inc("duplicates_merged", len(employees) - len(all_employee_data))
         self.stats.inc("records", len(all_employee_data))
         return list(all_employee_data.values())
 
@@ -2015,15 +1987,7 @@ def completeness_anomalies(stats: dict) -> List[dict]:
         add("SCHEMA_CHANGE", "BLOCKING", c["directory_schema_unexpected"], "FAIL", "réponse annuaire inattendue")
     records = c.get("records", 0)
     add("EMPTY_EXTRACTION", "BLOCKING", records, "FAIL" if records == 0 else "PASS",
-        "aucun salarié retenu" if records == 0 else f"{records} salariés retenus")
-    tech_phase1 = c.get("phase1_situation_unavailable", 0) + c.get("phase1_situation_error", 0) + \
-        c.get("phase1_position_unavailable", 0) + c.get("phase1_position_error", 0)
-    add("TS_FILTER_TECHNICAL_FAILURE", "BLOCKING", tech_phase1, "FAIL" if tech_phase1 else "PASS",
-        "salariés non qualifiables (Situation/Position indisponible) : le filtre Motul France est incertain"
-        if tech_phase1 else "filtre Motul France évalué pour tous les salariés")
-    nf_phase1 = c.get("phase1_situation_404", 0) + c.get("phase1_position_404", 0)
-    add("TS_FILTER_NOT_FOUND", "WARNING", nf_phase1, "FAIL" if nf_phase1 else "PASS",
-        f"{nf_phase1} réponses 404 au filtrage (salariés exclus, statut à qualifier D-TS-01)")
+        "aucun salarié extrait" if records == 0 else f"{records} salariés extraits")
     failures = 0
     not_found = 0
     for ep, statuses in stats.get("endpoint_status", {}).items():
@@ -5409,7 +5373,7 @@ class RealAdpTransportFactory:
 # CELL ********************
 
 # ============= MODULE hris.steps =============
-register_hris_module('hris.steps', '9a492212bed76d1b3aec96a5efcba8f76a149c87c0ae0f0b217170cb0103ee7f', r'''"""hris.steps — étapes du pipeline (logique des notebooks), appelées à l'identique par les notebooks et par
+register_hris_module('hris.steps', '60d319f2e7144293f18932c6c28fcbecf0d1f56a5d1f2f7a01646d4e41648540', r'''"""hris.steps — étapes du pipeline (logique des notebooks), appelées à l'identique par les notebooks et par
 les tests d'intégration Fabric (schéma isolé). Aucune sortie de donnée personnelle : compteurs seulement."""
 from __future__ import annotations
 
@@ -5426,9 +5390,8 @@ from hris.common import HrisError, PROCESS_CODE, safe_error, utc_now
 from hris.model import COMPARE_COLUMNS, Tables
 from hris.ts_acquire import completeness_anomalies, to_raw_row
 
-TS_OWNED_CONTROLS = ["EXTRACTION_INCOMPLETE", "SCHEMA_CHANGE", "EMPTY_EXTRACTION", "TS_FILTER_TECHNICAL_FAILURE",
-                     "TS_FILTER_NOT_FOUND", "TS_ENDPOINT_FAILURE", "TS_ENDPOINT_NOT_FOUND", "TS_PROCESSING_ERROR",
-                     "TS_CIRCUIT_OPEN", "TS_SECRET_RESOLUTION"]
+TS_OWNED_CONTROLS = ["EXTRACTION_INCOMPLETE", "SCHEMA_CHANGE", "EMPTY_EXTRACTION", "TS_ENDPOINT_FAILURE",
+                     "TS_ENDPOINT_NOT_FOUND", "TS_PROCESSING_ERROR", "TS_CIRCUIT_OPEN", "TS_SECRET_RESOLUTION"]
 TRANSFORM_OWNED = ["MAPPING_TABLE_MISSING", "MAPPING_SCHEMA", "MAPPING_TABLE_EMPTY", "MAPPING_KEY_DUPLICATE",
                    "TRANSFORM_NOT_EXECUTED", "CONVERSION_ERROR"]
 
@@ -5483,7 +5446,7 @@ def store_acquisition(spark, T: Tables, run: dict, records: List[dict], stats: d
     failed = [a["control_code"] for a in anomalies if a["severity"] == "BLOCKING" and a["outcome"] == "FAIL"]
     IO.update_run(spark, T, run_id, status="ACQUIRED")
     step.succeeded(rows_out=len(raw_rows), counters_only=True, message=json.dumps({
-        "source": source, "scope": "LegalStructure=Motul France", "mode": "full_extraction_no_period_filter",
+        "source": source, "scope": "ALL_DIRECTORY_EMPLOYEES", "mode": "full_extraction_no_period_filter",
         "rows_persisted": len(raw_rows), "distinct_employee_numbers": distinct_keys,
         "stats": stats, "blocking_failures": failed}))
     return {"status": "ACQUIRED" if not failed else "ACQUIRED_INCOMPLETE", "rows": len(raw_rows),

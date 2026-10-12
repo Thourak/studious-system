@@ -572,11 +572,13 @@ if __name__ == "__main__":
 # CELL ********************
 
 # ============= MODULE test_ts_acquire =============
-register_hris_module('test_ts_acquire', '096584d0970044b5076b2a1cbb0a711288131e316f7c29565e8df2491456dabb', r'''"""TU-07 — acquisition TalentSoft (JDD-01) contre un faux serveur HTTP en mémoire. Aucun appel réseau."""
+register_hris_module('test_ts_acquire', '26ef54079e89bc34eb70af3377d42d05a6b7465b5720db26ce30fca639591c3e', r'''"""TU-07 — acquisition TalentSoft (JDD-01) contre un faux serveur HTTP en mémoire. Aucun appel réseau."""
 import json
 import os
 import re
 import sys
+import threading
+import time
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -602,21 +604,44 @@ def hub(field, value, start, **kw):
     return dict({"field": field, "value": value, "startDate": start}, **kw)
 
 
-class FakeTalentSoft:
-    """Faux TalentSoft : 3 salariés fictifs, dont 1 hors « Motul France »."""
+class FakeClock:
+    """Horloge monotone pilotable (renouvellement du jeton selon son âge)."""
 
-    def __init__(self, total_override=None, scripted=None):
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+class FakeTalentSoft:
+    """Faux TalentSoft : 3 salariés fictifs, dont 1 hors « Motul France » (conservé : plus de filtre).
+
+    n_employees : génère n salariés fictifs (tous en position P1) à la place des 3 salariés de base.
+    latency : durée simulée de chaque appel GET (mesure de la concurrence réelle).
+    fail_after : lève une HrisError fatale au n-ième appel GET.
+    """
+
+    def __init__(self, total_override=None, scripted=None, n_employees=None, latency=0.0, fail_after=None):
         self.calls = []
         self.scripted = scripted or {}   # chemin (regex) -> liste de statuts à renvoyer d'abord
         self.total_override = total_override
         self.closed = False
-        self.employees = [
-            {"employeeNumber": "E1", "referenceAdmissionDate": "2019-01-07T00:00:00",
-             "individual": {"extras": {"hubSocialSecurityNumber": 1234567890123}, "user": {"username": "u1"}}},
-            {"employeeNumber": "E2", "referenceAdmissionDate": "2020-02-01T00:00:00",
-             "individual": {"extras": {}, "user": {}}},
-            {"employeeNumber": "E3", "individual": {}},
-        ]
+        self.latency = latency
+        self.fail_after = fail_after
+        self._lock = threading.Lock()
+        self._in_flight = 0
+        self.max_in_flight = 0
+        if n_employees:
+            self.employees = [{"employeeNumber": f"N{i}", "individual": {}} for i in range(n_employees)]
+        else:
+            self.employees = [
+                {"employeeNumber": "E1", "referenceAdmissionDate": "2019-01-07T00:00:00",
+                 "individual": {"extras": {"hubSocialSecurityNumber": 1234567890123}, "user": {"username": "u1"}}},
+                {"employeeNumber": "E2", "referenceAdmissionDate": "2020-02-01T00:00:00",
+                 "individual": {"extras": {}, "user": {}}},
+                {"employeeNumber": "E3", "individual": {}},
+            ]
 
     def close(self):
         self.closed = True
@@ -640,6 +665,20 @@ class FakeTalentSoft:
         self.calls.append(("GET", url))
         assert allow_redirects is False
         assert headers["Authorization"].startswith("Bearer ")
+        if self.fail_after is not None and len(self.calls) > self.fail_after:
+            raise HrisError("TS_FAKE_FATAL")
+        with self._lock:
+            self._in_flight += 1
+            self.max_in_flight = max(self.max_in_flight, self._in_flight)
+        try:
+            if self.latency:
+                time.sleep(self.latency)
+            return self._answer(url)
+        finally:
+            with self._lock:
+                self._in_flight -= 1
+
+    def _answer(self, url):
         s = self._scripted(url)
         if s:
             return s
@@ -664,7 +703,7 @@ class FakeTalentSoft:
 
     def entity(self, emp, entity):
         if entity == "Situation":
-            pos = {"E1": "P1", "E2": "P2", "E3": "P3"}[emp]
+            pos = {"E1": "P1", "E2": "P2", "E3": "P3"}.get(emp, "P1")
             return [hub("WorkingType", "Ingénieur", "2023-01-01"), hub("Position", pos, "2023-01-01"),
                     hub("WorkingType", "Ancien", "2020-01-01")]
         if entity == "Identity":   # ordre de l'API : l'item plus ancien APRÈS le plus récent est ignoré
@@ -681,11 +720,16 @@ class FakeTalentSoft:
         return []
 
 
-def make(fake, **kw):
+def make(fake, employee_concurrency=None, **kw):
     stats = A.AcquisitionStats()
     client = A.TsClient(TS_PRD_BASE_URL, SecretValue("id-fictif"), SecretValue("secret-fictif"),
                         session_factory=lambda: fake, stats=stats, sleep=lambda s: None, **kw)
-    return A.TalentSoftExtractor(client, sleep=lambda s: None), stats
+    extractor_kw = {} if employee_concurrency is None else {"employee_concurrency": employee_concurrency}
+    return A.TalentSoftExtractor(client, **extractor_kw), stats
+
+
+def gets(fake, suffix):
+    return [url for method, url in fake.calls if method == "GET" and url.endswith(suffix)]
 
 
 class SourceIsPrdOnly(unittest.TestCase):
@@ -703,7 +747,8 @@ class Extraction(unittest.TestCase):
         ex, stats = make(fake)
         records = ex.run()
         by = {r["employeeNumber"]: r for r in records}
-        self.assertEqual(sorted(by), ["E1", "E2"])                      # E3 hors Motul France (R-TS-010)
+        self.assertEqual(sorted(by), ["E1", "E2", "E3"])                # plus de filtre : E3 (Motul SA) est extrait
+        self.assertEqual(by["E3"]["LegalStructure"], "Motul SA")        # la structure juridique reste persistée
         e1 = by["E1"]
         self.assertEqual(e1["LastName"], "NOM")                         # R-TS-018 : item ancien ignoré
         self.assertEqual(e1["Gender"], "")                              # R-TS-020 : falsy -> ''
@@ -754,7 +799,58 @@ class Extraction(unittest.TestCase):
         ex.run()
         self.assertGreater(stats.counters["network_error"], 0)
         a = {x["control_code"]: x for x in A.completeness_anomalies(stats.as_dict())}
-        self.assertEqual(a["TS_FILTER_TECHNICAL_FAILURE"]["outcome"], "FAIL")
+        self.assertEqual(a["TS_ENDPOINT_FAILURE"]["outcome"], "FAIL")
+        self.assertNotIn("TS_FILTER_TECHNICAL_FAILURE", a)              # le filtre n'existe plus
+
+    def test_no_legal_structure_filter_and_no_duplicate_calls(self):
+        fake = FakeTalentSoft()
+        ex, _ = make(fake)
+        ex.run()
+        for emp in ("E1", "E2", "E3"):
+            self.assertEqual(len(gets(fake, f"/employees/{emp}/Situation")), 1)   # plus de lecture de filtrage
+        positions = [u for m, u in fake.calls if "/positions/" in u]
+        self.assertEqual(len(positions), 3)                                       # une position par salarié
+
+    def test_health_entities_are_not_requested(self):
+        fake = FakeTalentSoft()
+        ex, _ = make(fake)
+        ex.run()
+        for entity in ("Disability", "WorkAccident", "MedicalCheckUp"):
+            self.assertEqual([u for m, u in fake.calls if u.endswith("/" + entity)], [], entity)
+
+    def test_all_employees_extracted_with_bounded_concurrency(self):
+        fake = FakeTalentSoft(n_employees=40, latency=0.005)
+        ex, stats = make(fake, employee_concurrency=6, max_concurrency=3)
+        records = ex.run()
+        self.assertEqual(len(records), 40)
+        self.assertEqual(stats.counters["records"], 40)
+        self.assertLessEqual(fake.max_in_flight, 3)                     # plafond = limite du client
+        self.assertGreater(fake.max_in_flight, 1)                       # et le parallélisme existe bien
+
+    def test_concurrency_does_not_change_the_data(self):
+        slow = {r["employeeNumber"]: r for r in make(FakeTalentSoft(), employee_concurrency=1, max_concurrency=1)[0].run()}
+        fast = {r["employeeNumber"]: r for r in make(FakeTalentSoft(), employee_concurrency=8, max_concurrency=12)[0].run()}
+        self.assertEqual(slow, fast)
+
+    def test_token_is_renewed_by_age_only_once(self):
+        clock = FakeClock()
+        fake = FakeTalentSoft()
+        ex, _ = make(fake, clock=clock)
+        client = ex.client
+        client.get_token()
+        client.get("/api/v1/directory/employees?count=1&offset=0", "directory_count")
+        self.assertEqual(len([c for c in fake.calls if c[0] == "POST"]), 1)   # jeton encore frais
+        clock.now += A.TOKEN_MAX_AGE_SECONDS + 1
+        client.get("/api/v1/directory/employees?count=1&offset=0", "directory_count")
+        client.get("/api/v1/directory/employees?count=1&offset=0", "directory_count")
+        self.assertEqual(len([c for c in fake.calls if c[0] == "POST"]), 2)   # un seul renouvellement
+
+    def test_fatal_error_stops_pending_employees(self):
+        fake = FakeTalentSoft(n_employees=200, latency=0.002, fail_after=60)
+        ex, _ = make(fake, employee_concurrency=2, max_concurrency=2)
+        with self.assertRaises(HrisError):
+            ex.run()
+        self.assertLess(len(fake.calls), 200 * 14 // 4)                 # les salariés non commencés sont annulés
 
     def test_token_failure_raises(self):
         fake = FakeTalentSoft(scripted={r"/api/token$": [400]})

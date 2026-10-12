@@ -17,17 +17,17 @@
 # # **Chemin dans le dépôt**
 # # TEST_MOTUL/TST_4/NB_HRIS_TS_ACQUIRE.Notebook/notebook-content.py
 # # **Description fonctionnelle**
-# # Ce notebook extrait tous les salariés de la société Motul France depuis le tenant de production de TalentSoft, l'outil de gestion des ressources humaines, et les dépose dans le Lakehouse pour le run en cours. La source est toujours la production, quel que soit l'environnement d'exécution : toute autre adresse est refusée et il n'existe aucun repli vers un tenant de test. Il reprend fidèlement les règles de l'ancienne fonction d'extraction : lecture du nombre total de salariés, lecture de la liste complète, filtre sur la structure juridique Motul France, puis lecture de seize entités de détail par salarié. Seules les soixante-dix clés utilisées en aval sont conservées, si bien qu'aucune donnée de santé n'est persistée. Des contrôles de complétude garantissent qu'une extraction partielle n'est jamais présentée comme complète.
+# # Ce notebook extrait tous les salariés de l'annuaire du tenant de production de TalentSoft, l'outil de gestion des ressources humaines, quelle que soit leur société, et les dépose dans le Lakehouse pour le run en cours. La source est toujours la production, quel que soit l'environnement d'exécution : toute autre adresse est refusée et il n'existe aucun repli vers un tenant de test. Il reprend les règles de lecture et de calcul de l'ancienne fonction d'extraction, sans son filtre sur la structure juridique Motul France : lecture du nombre total de salariés, lecture de la liste complète, puis, pour chaque salarié, lecture de treize entités de détail, de l'adresse postale et de la position. Les trois entités de santé (handicap, accident du travail, visite médicale) ne sont plus appelées, car leur résultat n'a jamais été conservé. La structure juridique reste une donnée persistée que les traitements suivants peuvent utiliser. Seules les soixante-dix clés utilisées en aval sont conservées, si bien qu'aucune donnée de santé n'est persistée. Des contrôles de complétude garantissent qu'une extraction partielle n'est jamais présentée comme complète.
 # # **Dépendances**
 # # Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB et utilise ses modules d'acquisition, d'étapes, d'écriture Delta, de modèle de données et de journal des cellules. Il appelle l'interface de programmation de TalentSoft par la bibliothèque requests, avec deux secrets, l'identifiant et le secret de l'application, lus dans le coffre de secrets désigné par le paramètre p_kv_url_ts au moyen de notebookutils. Il lit le registre ctl.run, renseigné par T3_NB_HRIS_RUN_CONTROL. Il écrit les données brutes stg.ts_employee_raw et les contrôles log.anomaly, met à jour ctl.run, consigne l'étape dans ctl.run_step et ajoute ses traces dans log.cell_execution.
 # # **Fonctionnement et logique de traitement**
-# # La configuration lit le contexte réel du notebook, résout les noms complets des tables, ouvre le journal des cellules, applique les réglages de session Spark et réduit le niveau de journalisation des bibliothèques réseau pour qu'aucune adresse n'apparaisse dans les sorties. La cellule de pré-contrôle lit le run, puis vérifie, sans appeler l'interface de TalentSoft, que la source est bien la production, que les deux secrets sont lisibles, que le serveur est joignable et quelle table recevra les données. La cellule d'acquisition traite ensuite cinq cas. En pré-contrôle seul, elle trace le résultat sous un identifiant dédié. Si le run est inconnu, elle échoue. En mode de reprise de publication, ou si le run n'est plus au statut STARTED, elle renvoie un statut de saut. Sinon, elle extrait les salariés avec des appels limités en parallèle et en débit, des reprises sur erreur temporaire et un disjoncteur, puis écrit les données et les contrôles. Si les secrets ne sont pas résolus, un contrôle bloquant est écrit avant l'échec. La clôture écrit les traces du journal puis renvoie le résultat.
+# # La configuration lit le contexte réel du notebook, résout les noms complets des tables, ouvre le journal des cellules, applique les réglages de session Spark et réduit le niveau de journalisation des bibliothèques réseau pour qu'aucune adresse n'apparaisse dans les sorties. La cellule de pré-contrôle lit le run, puis vérifie, sans appeler l'interface de TalentSoft, que la source est bien la production, que les deux secrets sont lisibles, que le serveur est joignable et quelle table recevra les données. La cellule d'acquisition traite ensuite cinq cas. En pré-contrôle seul, elle trace le résultat sous un identifiant dédié. Si le run est inconnu, elle échoue. En mode de reprise de publication, ou si le run n'est plus au statut STARTED, elle renvoie un statut de saut. Sinon, elle extrait tous les salariés en fenêtre glissante, sans lots ni pause : le nombre de salariés traités en parallèle et le nombre de requêtes simultanées sont réglables par paramètre, avec des reprises sur erreur temporaire, un disjoncteur et un renouvellement périodique du jeton. Elle écrit ensuite les données, les contrôles et la durée de l'extraction. Si les secrets ne sont pas résolus, un contrôle bloquant est écrit avant l'échec. La clôture écrit les traces du journal puis renvoie le résultat.
 # # **Paramètres**
-# # Le paramètre p_run_id reçoit l'identifiant d'exécution du pipeline ; il est obligatoire, sauf en pré-contrôle seul. Le paramètre p_kv_url_ts donne l'adresse du coffre de secrets de TalentSoft, issue de la variable kv_url_ts de la bibliothèque de variables VL_HRIS ; il ne contient jamais le secret lui-même. Le paramètre p_ts_base_url donne l'adresse du tenant TalentSoft et seule l'adresse de production est acceptée. Le paramètre p_preflight_only vaut false par défaut ; à true, le notebook vérifie les accès sans extraire aucune donnée. Le paramètre p_test_schema redirige toutes les tables vers un schéma de test et reste vide en exploitation. Le paramètre p_lakehouse_name donne le Lakehouse cible et il est obligatoire, car aucun Lakehouse par défaut n'est attaché. Le paramètre p_log_cell_success vaut true par défaut et active les traces de réussite des cellules ; les échecs sont toujours tracés.
+# # Le paramètre p_run_id reçoit l'identifiant d'exécution du pipeline ; il est obligatoire, sauf en pré-contrôle seul. Le paramètre p_kv_url_ts donne l'adresse du coffre de secrets de TalentSoft, issue de la variable kv_url_ts de la bibliothèque de variables VL_HRIS ; il ne contient jamais le secret lui-même. Le paramètre p_ts_base_url donne l'adresse du tenant TalentSoft et seule l'adresse de production est acceptée. Le paramètre p_preflight_only vaut false par défaut ; à true, le notebook vérifie les accès sans extraire aucune donnée. Le paramètre p_test_schema redirige toutes les tables vers un schéma de test et reste vide en exploitation. Le paramètre p_lakehouse_name donne le Lakehouse cible et il est obligatoire, car aucun Lakehouse par défaut n'est attaché. Le paramètre p_log_cell_success vaut true par défaut et active les traces de réussite des cellules ; les échecs sont toujours tracés. Le paramètre p_ts_request_concurrency vaut 10 par défaut (de 1 à 40) et fixe le nombre de requêtes simultanées vers TalentSoft ; l'ancienne fonction en faisait 5. Le paramètre p_ts_employee_concurrency vaut 8 par défaut et fixe le nombre de salariés traités en parallèle. Si les compteurs http_429 ou http_503 apparaissent dans la trace de l'étape, il faut baisser la première valeur ; sinon, on peut la monter pour accélérer.
 # # **Sorties produites**
-# # Le notebook écrit stg.ts_employee_raw, qui contient des données personnelles et reste en accès restreint, ainsi que log.anomaly. Il met à jour ctl.run et ctl.run_step et ajoute ses traces dans log.cell_execution. Sa valeur de sortie est un texte structuré qui contient le résultat du pré-contrôle, le statut, le nombre de lignes, le nombre de clés distinctes, le total annoncé par TalentSoft et la liste des contrôles bloquants en échec, sans aucun matricule, aucune adresse ni aucune valeur.
+# # Le notebook écrit stg.ts_employee_raw, qui contient des données personnelles et reste en accès restreint, ainsi que log.anomaly. Il met à jour ctl.run et ctl.run_step et ajoute ses traces dans log.cell_execution. Sa valeur de sortie est un texte structuré qui contient le résultat du pré-contrôle, le statut, le nombre de lignes, le nombre de clés distinctes, le total annoncé par TalentSoft, la durée et la concurrence de l'extraction et la liste des contrôles bloquants en échec, sans aucun matricule, aucune adresse ni aucune valeur.
 # # **Limitations connues et points d'attention**
-# # L'extraction est complète à chaque run, sans pagination ni filtre de période. Lors du run du 8 octobre 2026, elle a duré une vingtaine de minutes pour un annuaire de 1882 salariés, dont 431 ont été persistés pour Motul France. Ce run s'est terminé avec le statut ACQUIRED_INCOMPLETE, car le contrôle bloquant TS_FILTER_TECHNICAL_FAILURE était en échec : le filtre sur la structure juridique n'a pas pu être évalué pour au moins un salarié. Lors de ce run, les identifiants TalentSoft étaient écrits dans le code de la version précédente pour contourner le coffre ; cette version les lit uniquement dans le coffre de secrets. Tant que le workspace d'exécution ne peut pas lire ce coffre, qui appartient à un autre tenant, l'acquisition échoue avec le contrôle bloquant TS_SECRET_RESOLUTION. Les secrets sont encapsulés et ne sont jamais affichés, passés en paramètre ni journalisés.
+# # L'extraction est complète à chaque run, sans pagination ni filtre de période ni filtre de société. Elle contient les anciens salariés seulement si l'annuaire de TalentSoft les renvoie, ce qui reste à vérifier sur les données. Lors du run du 8 octobre 2026, réalisé avec la version précédente qui filtrait sur Motul France, elle a duré une vingtaine de minutes pour un annuaire de 1882 salariés, dont 431 ont été persistés. Ce run s'est terminé avec le statut ACQUIRED_INCOMPLETE, car le contrôle bloquant TS_FILTER_TECHNICAL_FAILURE, supprimé depuis avec le filtre, était en échec. La durée de la version actuelle n'a pas encore été mesurée sur le vrai tenant ; elle est tracée dans le compteur extraction de la trace de l'étape. Les traitements suivants (transformation, comparaison, publication) ont été conçus pour le périmètre Motul France : leur comportement sur l'ensemble des salariés reste à valider. Lors de ce run, les identifiants TalentSoft étaient écrits dans le code de la version précédente pour contourner le coffre ; cette version les lit uniquement dans le coffre de secrets. Tant que le workspace d'exécution ne peut pas lire ce coffre, qui appartient à un autre tenant, l'acquisition échoue avec le contrôle bloquant TS_SECRET_RESOLUTION. Les secrets sont encapsulés et ne sont jamais affichés, passés en paramètre ni journalisés.
 # # **Responsable et contact**
 # # Thibault Delalande, développeur du hub. Le responsable définitif de la maintenance reste à confirmer par l'équipe en charge des ressources humaines.
 
@@ -50,6 +50,7 @@
 import json
 import logging
 import socket
+import time
 import uuid
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlparse
@@ -84,6 +85,8 @@ p_preflight_only = "false"                      # true : vérifie source, secret
 p_test_schema = ""                              # tests uniquement : schéma d'isolement ; vide = tables réelles
 p_lakehouse_name = ""                           # VL_HRIS.lakehouse_name : Lakehouse cible (obligatoire, aucun Lakehouse par défaut)
 p_log_cell_success = "true"                     # VL_HRIS.log_cell_success : true = trace aussi les cellules réussies
+p_ts_request_concurrency = "10"                 # requêtes HTTP simultanées vers TalentSoft (1 à 40 ; l'existant faisait 5)
+p_ts_employee_concurrency = "8"                 # salariés traités en parallèle (1 à 40) ; la limite effective reste celle des requêtes
 
 # METADATA ********************
 
@@ -179,10 +182,24 @@ def run_preflight(ts_base_url: str, kv_url: str, raw_table: str, workspace_name:
 
 # CELL ********************
 
-def build_http_session() -> requests.Session:
-    """Session HTTP de l'acquisition : pool de 10 connexions, aucune reprise automatique de la bibliothèque."""
+MAX_CONCURRENCY = 40   # garde-fou : au-delà, le risque de limitation par TalentSoft (429/503) l'emporte sur le gain
+
+
+def as_concurrency(value: Any, name: str) -> int:
+    """Convertit un paramètre de concurrence (texte du pipeline) en entier borné, sinon erreur explicite."""
+    try:
+        number = int(str(value).strip())
+    except ValueError:
+        raise HrisError("PARAM_INVALID", name) from None
+    if not 1 <= number <= MAX_CONCURRENCY:
+        raise HrisError("PARAM_INVALID", f"{name} hors de 1..{MAX_CONCURRENCY}")
+    return number
+
+
+def build_http_session(pool_size: int) -> requests.Session:
+    """Session HTTP de l'acquisition : pool de connexions aussi grand que la concurrence, aucune reprise automatique."""
     session = requests.Session()
-    session.mount("https://", HTTPAdapter(pool_connections=10, pool_maxsize=10, max_retries=0))
+    session.mount("https://", HTTPAdapter(pool_connections=pool_size, pool_maxsize=pool_size, max_retries=0))
     return session
 
 # METADATA ********************
@@ -240,16 +257,26 @@ try:
                     "message": "secrets TalentSoft non résolus : " + preflight_report["secrets"]}],
                     steps.TS_OWNED_CONTROLS)
                 raise HrisError("TS_SECRETS_UNAVAILABLE", preflight_report["secrets"])
+            request_concurrency = as_concurrency(p_ts_request_concurrency, "p_ts_request_concurrency")
+            employee_concurrency = as_concurrency(p_ts_employee_concurrency, "p_ts_employee_concurrency")
             stats = ts_acquire.AcquisitionStats()
             client = ts_acquire.TsClient(p_ts_base_url, secrets[TS_SECRET_CLIENT_ID], secrets[TS_SECRET_CLIENT_SECRET],
-                                         session_factory=build_http_session, stats=stats,
-                                         network_errors=(requests.exceptions.RequestException, OSError))
+                                         session_factory=lambda: build_http_session(request_concurrency), stats=stats,
+                                         network_errors=(requests.exceptions.RequestException, OSError),
+                                         max_concurrency=request_concurrency)
+            started = time.perf_counter()
             try:
-                records = ts_acquire.TalentSoftExtractor(client).run()
+                records = ts_acquire.TalentSoftExtractor(client, employee_concurrency=employee_concurrency).run()
             finally:
                 client.close()
-            result.update(steps.store_acquisition(spark, tables, run, records, stats.as_dict(), step,
+            stats_report = stats.as_dict()
+            # Réglage : durée et concurrence tracées avec les compteurs (ctl.run_step) ; surveiller http_429 / http_503.
+            stats_report["extraction"] = {"seconds": round(time.perf_counter() - started),
+                                          "request_concurrency": request_concurrency,
+                                          "employee_concurrency": employee_concurrency}
+            result.update(steps.store_acquisition(spark, tables, run, records, stats_report, step,
                                                   source=steps.SOURCE_REAL))
+            result["extraction"] = stats_report["extraction"]
             del records
         except Exception as exc:
             step.failed(exc)
