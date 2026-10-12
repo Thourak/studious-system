@@ -6,6 +6,7 @@
     "description": "Parsing, correspondances, rejets, format ADP (parité SQL de production)."
   },
   "config": {
-    "version": "2.0"
+    "version": "2.0",
+    "logicalId": "84201418-a7ef-a5bb-416a-ae6e7c56b845"
   }
 }

@@ -6,6 +6,7 @@
     "description": "Comparaison staging finale / référence ; contrôles ; décision."
   },
   "config": {
-    "version": "2.0"
+    "version": "2.0",
+    "logicalId": "964907e6-6812-a516-422a-c1bcf3219e75"
   }
 }

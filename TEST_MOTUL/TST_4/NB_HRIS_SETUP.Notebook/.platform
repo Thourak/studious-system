@@ -6,6 +6,7 @@
     "description": "Création idempotente des schémas et tables du Lakehouse ; graines de configuration."
   },
   "config": {
-    "version": "2.0"
+    "version": "2.0",
+    "logicalId": "e2e23678-995a-939e-4b0a-dfb2c6ab33a3"
   }
 }

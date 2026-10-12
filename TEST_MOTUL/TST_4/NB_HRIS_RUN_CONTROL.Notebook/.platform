@@ -6,6 +6,7 @@
     "description": "Contrôle de run : START (verrou, registre), END, FAIL."
   },
   "config": {
-    "version": "2.0"
+    "version": "2.0",
+    "logicalId": "a5b5af21-5176-891d-46e4-f97ff6f70d1e"
   }
 }

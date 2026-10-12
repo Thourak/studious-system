@@ -6,6 +6,7 @@
     "description": "Publication ADP : garde-fou PRD, intention durable par opération ; activation non approuvée."
   },
   "config": {
-    "version": "2.0"
+    "version": "2.0",
+    "logicalId": "3bd28915-2d76-a0ab-40ed-ca5222f9b530"
   }
 }

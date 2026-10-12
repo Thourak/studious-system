@@ -6,6 +6,7 @@
     "description": "Promotion de la référence (MERGE) et outbox de publication."
   },
   "config": {
-    "version": "2.0"
+    "version": "2.0",
+    "logicalId": "d4fe8f05-97a3-abe2-41d4-dd99837cb75d"
   }
 }

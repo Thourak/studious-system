@@ -6,6 +6,7 @@
     "description": "Extraction TalentSoft PRD -> stg.ts_employee_raw ; contrôles de complétude."
   },
   "config": {
-    "version": "2.0"
+    "version": "2.0",
+    "logicalId": "54d21360-6af1-83a5-480e-ebc010448c10"
   }
 }

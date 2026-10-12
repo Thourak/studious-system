@@ -6,6 +6,7 @@
     "description": "Tests sur données fictives (unitaires, parité Spark, intégration Delta en schéma isolé)."
   },
   "config": {
-    "version": "2.0"
+    "version": "2.0",
+    "logicalId": "96328a6f-7e12-9e20-4cb4-051daf01970e"
   }
 }
