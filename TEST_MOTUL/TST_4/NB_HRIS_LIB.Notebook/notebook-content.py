@@ -11,44 +11,25 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-#
-# T4_NB_HRIS_LIB. C'est le nom affiché dans Microsoft Fabric et celui que les autres notebooks utilisent pour le charger. Le dossier du dépôt garde son nom historique NB_HRIS_LIB.Notebook afin de ne déplacer aucun fichier. Le préfixe T3 désigne la version des objets de ce dossier, comme pour tous les autres objets qui l'accompagnent.
-#
-# **Type d'objet**
-#
-# Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Il n'est jamais lancé seul par le pipeline. Chaque notebook du flux le charge au début de son exécution par la commande magique %run, qui exécute ses cellules dans le même interpréteur que le notebook appelant.
-#
-# **Chemin dans le dépôt**
-#
-# TEST_MOTUL/TST_4/NB_HRIS_LIB.Notebook/notebook-content.py
-#
-# **Description fonctionnelle**
-#
-# Ce notebook est la bibliothèque commune du hub d'intégration des ressources humaines de Motul. Ce hub extrait les salariés depuis TalentSoft, applique les règles de transformation de l'existant, compare le résultat à l'état validé précédent et prépare la publication vers l'outil de paie ADP. Le notebook contient l'unique copie du code métier, organisé en dix-huit modules Python regroupés sous le nom hris. Auparavant, chaque notebook embarquait sa propre copie complète de ce code ; la copie unique supprime ce dédoublement et garantit que tous les notebooks exécutent exactement le même code. Le notebook ne lit et n'écrit aucune donnée et ne prépare aucune configuration d'environnement : il rend seulement des fonctions disponibles.
-#
-# **Dépendances**
-#
-# Le notebook n'appelle aucun autre notebook et ne lit aucune table. Pour vérifier l'empreinte de chaque module et l'enregistrer dans l'interpréteur, il n'utilise que la bibliothèque standard de Python. Les modules s'appuient ensuite, au moment où les notebooks métier les appellent, sur Spark et sur le format de table Delta fournis par Fabric, ainsi que sur la bibliothèque requests pour les appels réseau de l'acquisition. Huit notebooks dépendent de celui-ci par la commande %run T4_NB_HRIS_LIB : T3_NB_HRIS_SETUP, T3_NB_HRIS_RUN_CONTROL, T3_NB_HRIS_TS_ACQUIRE, T3_NB_HRIS_TRANSFORM, T3_NB_HRIS_COMPARE, T3_NB_HRIS_PROMOTE, T3_NB_HRIS_PUBLISH_ADP et T3_NB_HRIS_TESTS. Tout renommage de ce notebook impose de corriger cette commande dans chacun d'eux.
-#
-# **Fonctionnement et logique de traitement**
-#
-# La première cellule de code importe les quatre bibliothèques standard nécessaires. La cellule suivante définit la fonction register_hris_module. Celle-ci vérifie l'empreinte cryptographique du texte d'un module, calculée avec l'algorithme de hachage sécurisé SHA-256, puis crée le module dans l'interpréteur et l'exécute. En cas d'erreur, elle affiche le nom du module et la trace complète avant de relancer l'erreur. Chacune des dix-huit cellules suivantes enregistre un module, dans l'ordre de leurs dépendances : constantes et assainissement des messages, émulation des règles du langage de requête de l'existant, modèle de données, acquisition TalentSoft, transformation, comparaison, contrôle du run, publication, étapes du pipeline, lecture des journaux historiques, puis journal des cellules. La dernière cellule rassemble les empreintes chargées et affiche une ligne de synthèse. Pour modifier un module, il faut remplacer son texte puis recalculer son empreinte. Une empreinte qui ne correspond pas bloque le chargement, ce qui empêche d'exécuter un code modifié par erreur.
-#
-# **Paramètres**
-#
-# Ce notebook n'a aucun paramètre. Il s'exécute dans le contexte du notebook qui le charge et partage ses variables. Aucun nom de workspace, de Lakehouse ou de secret n'y est lu.
-#
-# **Sorties produites**
-#
-# Le notebook ne produit ni table ni fichier. Il enregistre les modules hris dans l'interpréteur du notebook appelant. Il définit aussi la fonction register_hris_module, que le notebook de tests réutilise pour charger ses propres modules, et le dictionnaire hris_library_digests, qui associe chaque module à son empreinte et prouve la version exécutée.
-#
-# **Limitations connues et points d'attention**
-#
-# Le chargement par %run se fait par le nom affiché du notebook dans le même workspace. Si le préfixe de version change, les commandes %run de tous les notebooks doivent être mises à jour. Faute de quoi, les notebooks échouent dès leur deuxième cellule, ce qui est préférable au chargement silencieux d'une autre version. Le texte des modules n'est plus produit par l'outil build_notebooks.py du dossier d'implémentation externe : ce notebook fait désormais référence et cet outil ne doit plus servir à régénérer ce dossier. Le simulateur de l'outil de paie n'est volontairement pas présent ici : il n'existe que dans le notebook de tests. Le temps de chargement dans Fabric n'a pas été mesuré.
-#
-# **Responsable et contact**
-#
-# Thibault Delalande, développeur du hub. Le responsable définitif de la maintenance reste à confirmer par l'équipe en charge des ressources humaines.
+# # T4_NB_HRIS_LIB. C'est le nom affiché dans Microsoft Fabric et celui que les autres notebooks utilisent pour le charger. Le dossier du dépôt garde son nom historique NB_HRIS_LIB.Notebook afin de ne déplacer aucun fichier. Le préfixe T3 désigne la version des objets de ce dossier, comme pour tous les autres objets qui l'accompagnent.
+# # **Type d'objet**
+# # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Il n'est jamais lancé seul par le pipeline. Chaque notebook du flux le charge au début de son exécution par la commande magique %run, qui exécute ses cellules dans le même interpréteur que le notebook appelant.
+# # **Chemin dans le dépôt**
+# # TEST_MOTUL/TST_4/NB_HRIS_LIB.Notebook/notebook-content.py
+# # **Description fonctionnelle**
+# # Ce notebook est la bibliothèque commune du hub d'intégration des ressources humaines de Motul. Ce hub extrait les salariés depuis TalentSoft, applique les règles de transformation de l'existant, compare le résultat à l'état validé précédent et prépare la publication vers l'outil de paie ADP. Le notebook contient l'unique copie du code métier, organisé en dix-huit modules Python regroupés sous le nom hris. Auparavant, chaque notebook embarquait sa propre copie complète de ce code ; la copie unique supprime ce dédoublement et garantit que tous les notebooks exécutent exactement le même code. Le notebook ne lit et n'écrit aucune donnée et ne prépare aucune configuration d'environnement : il rend seulement des fonctions disponibles.
+# # **Dépendances**
+# # Le notebook n'appelle aucun autre notebook et ne lit aucune table. Pour vérifier l'empreinte de chaque module et l'enregistrer dans l'interpréteur, il n'utilise que la bibliothèque standard de Python. Les modules s'appuient ensuite, au moment où les notebooks métier les appellent, sur Spark et sur le format de table Delta fournis par Fabric, ainsi que sur la bibliothèque requests pour les appels réseau de l'acquisition. Huit notebooks dépendent de celui-ci par la commande %run T4_NB_HRIS_LIB : T3_NB_HRIS_SETUP, T3_NB_HRIS_RUN_CONTROL, T3_NB_HRIS_TS_ACQUIRE, T3_NB_HRIS_TRANSFORM, T3_NB_HRIS_COMPARE, T3_NB_HRIS_PROMOTE, T3_NB_HRIS_PUBLISH_ADP et T3_NB_HRIS_TESTS. Tout renommage de ce notebook impose de corriger cette commande dans chacun d'eux.
+# # **Fonctionnement et logique de traitement**
+# # La première cellule de code importe les quatre bibliothèques standard nécessaires. La cellule suivante définit la fonction register_hris_module. Celle-ci vérifie l'empreinte cryptographique du texte d'un module, calculée avec l'algorithme de hachage sécurisé SHA-256, puis crée le module dans l'interpréteur et l'exécute. En cas d'erreur, elle affiche le nom du module et la trace complète avant de relancer l'erreur. Chacune des dix-huit cellules suivantes enregistre un module, dans l'ordre de leurs dépendances : constantes et assainissement des messages, émulation des règles du langage de requête de l'existant, modèle de données, acquisition TalentSoft, transformation, comparaison, contrôle du run, publication, étapes du pipeline, lecture des journaux historiques, puis journal des cellules. La dernière cellule rassemble les empreintes chargées et affiche une ligne de synthèse. Pour modifier un module, il faut remplacer son texte puis recalculer son empreinte. Une empreinte qui ne correspond pas bloque le chargement, ce qui empêche d'exécuter un code modifié par erreur.
+# # **Paramètres**
+# # Ce notebook n'a aucun paramètre. Il s'exécute dans le contexte du notebook qui le charge et partage ses variables. Aucun nom de workspace, de Lakehouse ou de secret n'y est lu.
+# # **Sorties produites**
+# # Le notebook ne produit ni table ni fichier. Il enregistre les modules hris dans l'interpréteur du notebook appelant. Il définit aussi la fonction register_hris_module, que le notebook de tests réutilise pour charger ses propres modules, et le dictionnaire hris_library_digests, qui associe chaque module à son empreinte et prouve la version exécutée.
+# # **Limitations connues et points d'attention**
+# # Le chargement par %run se fait par le nom affiché du notebook dans le même workspace. Si le préfixe de version change, les commandes %run de tous les notebooks doivent être mises à jour. Faute de quoi, les notebooks échouent dès leur deuxième cellule, ce qui est préférable au chargement silencieux d'une autre version. Le texte des modules n'est plus produit par l'outil build_notebooks.py du dossier d'implémentation externe : ce notebook fait désormais référence et cet outil ne doit plus servir à régénérer ce dossier. Le simulateur de l'outil de paie n'est volontairement pas présent ici : il n'existe que dans le notebook de tests. Le temps de chargement dans Fabric n'a pas été mesuré.
+# # **Responsable et contact**
+# # Thibault Delalande, développeur du hub. Le responsable définitif de la maintenance reste à confirmer par l'équipe en charge des ressources humaines.
 
 # CELL ********************
 

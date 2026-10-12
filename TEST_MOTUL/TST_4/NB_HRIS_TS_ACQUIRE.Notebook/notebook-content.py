@@ -11,44 +11,25 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-#
-# T3_NB_HRIS_TS_ACQUIRE. C'est le nom affiché dans Microsoft Fabric pour le notebook d'acquisition du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_TS_ACQUIRE.Notebook.
-#
-# **Type d'objet**
-#
-# Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline T3_PL_HRIS_ORCHESTRATOR l'appelle dans l'activité Acquire, quand l'ouverture du run a réussi.
-#
-# **Chemin dans le dépôt**
-#
-# TEST_MOTUL/TST_4/NB_HRIS_TS_ACQUIRE.Notebook/notebook-content.py
-#
-# **Description fonctionnelle**
-#
-# Ce notebook extrait tous les salariés de la société Motul France depuis le tenant de production de TalentSoft, l'outil de gestion des ressources humaines, et les dépose dans le Lakehouse pour le run en cours. La source est toujours la production, quel que soit l'environnement d'exécution : toute autre adresse est refusée et il n'existe aucun repli vers un tenant de test. Il reprend fidèlement les règles de l'ancienne fonction d'extraction : lecture du nombre total de salariés, lecture de la liste complète, filtre sur la structure juridique Motul France, puis lecture de seize entités de détail par salarié. Seules les soixante-dix clés utilisées en aval sont conservées, si bien qu'aucune donnée de santé n'est persistée. Des contrôles de complétude garantissent qu'une extraction partielle n'est jamais présentée comme complète.
-#
-# **Dépendances**
-#
-# Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB et utilise ses modules d'acquisition, d'étapes, d'écriture Delta, de modèle de données et de journal des cellules. Il appelle l'interface de programmation de TalentSoft par la bibliothèque requests, avec deux secrets, l'identifiant et le secret de l'application, lus dans le coffre de secrets désigné par le paramètre p_kv_url_ts au moyen de notebookutils. Il lit le registre ctl.run, renseigné par T3_NB_HRIS_RUN_CONTROL. Il écrit les données brutes stg.ts_employee_raw et les contrôles log.anomaly, met à jour ctl.run, consigne l'étape dans ctl.run_step et ajoute ses traces dans log.cell_execution.
-#
-# **Fonctionnement et logique de traitement**
-#
-# La configuration lit le contexte réel du notebook, résout les noms complets des tables, ouvre le journal des cellules, applique les réglages de session Spark et réduit le niveau de journalisation des bibliothèques réseau pour qu'aucune adresse n'apparaisse dans les sorties. La cellule de pré-contrôle lit le run, puis vérifie, sans appeler l'interface de TalentSoft, que la source est bien la production, que les deux secrets sont lisibles, que le serveur est joignable et quelle table recevra les données. La cellule d'acquisition traite ensuite cinq cas. En pré-contrôle seul, elle trace le résultat sous un identifiant dédié. Si le run est inconnu, elle échoue. En mode de reprise de publication, ou si le run n'est plus au statut STARTED, elle renvoie un statut de saut. Sinon, elle extrait les salariés avec des appels limités en parallèle et en débit, des reprises sur erreur temporaire et un disjoncteur, puis écrit les données et les contrôles. Si les secrets ne sont pas résolus, un contrôle bloquant est écrit avant l'échec. La clôture écrit les traces du journal puis renvoie le résultat.
-#
-# **Paramètres**
-#
-# Le paramètre p_run_id reçoit l'identifiant d'exécution du pipeline ; il est obligatoire, sauf en pré-contrôle seul. Le paramètre p_kv_url_ts donne l'adresse du coffre de secrets de TalentSoft, issue de la variable kv_url_ts de la bibliothèque de variables VL_HRIS ; il ne contient jamais le secret lui-même. Le paramètre p_ts_base_url donne l'adresse du tenant TalentSoft et seule l'adresse de production est acceptée. Le paramètre p_preflight_only vaut false par défaut ; à true, le notebook vérifie les accès sans extraire aucune donnée. Le paramètre p_test_schema redirige toutes les tables vers un schéma de test et reste vide en exploitation. Le paramètre p_lakehouse_name donne le Lakehouse cible et il est obligatoire, car aucun Lakehouse par défaut n'est attaché. Le paramètre p_log_cell_success vaut true par défaut et active les traces de réussite des cellules ; les échecs sont toujours tracés.
-#
-# **Sorties produites**
-#
-# Le notebook écrit stg.ts_employee_raw, qui contient des données personnelles et reste en accès restreint, ainsi que log.anomaly. Il met à jour ctl.run et ctl.run_step et ajoute ses traces dans log.cell_execution. Sa valeur de sortie est un texte structuré qui contient le résultat du pré-contrôle, le statut, le nombre de lignes, le nombre de clés distinctes, le total annoncé par TalentSoft et la liste des contrôles bloquants en échec, sans aucun matricule, aucune adresse ni aucune valeur.
-#
-# **Limitations connues et points d'attention**
-#
-# L'extraction est complète à chaque run, sans pagination ni filtre de période. Lors du run du 8 octobre 2026, elle a duré une vingtaine de minutes pour un annuaire de 1882 salariés, dont 431 ont été persistés pour Motul France. Ce run s'est terminé avec le statut ACQUIRED_INCOMPLETE, car le contrôle bloquant TS_FILTER_TECHNICAL_FAILURE était en échec : le filtre sur la structure juridique n'a pas pu être évalué pour au moins un salarié. Lors de ce run, les identifiants TalentSoft étaient écrits dans le code de la version précédente pour contourner le coffre ; cette version les lit uniquement dans le coffre de secrets. Tant que le workspace d'exécution ne peut pas lire ce coffre, qui appartient à un autre tenant, l'acquisition échoue avec le contrôle bloquant TS_SECRET_RESOLUTION. Les secrets sont encapsulés et ne sont jamais affichés, passés en paramètre ni journalisés.
-#
-# **Responsable et contact**
-#
-# Thibault Delalande, développeur du hub. Le responsable définitif de la maintenance reste à confirmer par l'équipe en charge des ressources humaines.
+# # T3_NB_HRIS_TS_ACQUIRE. C'est le nom affiché dans Microsoft Fabric pour le notebook d'acquisition du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_TS_ACQUIRE.Notebook.
+# # **Type d'objet**
+# # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline T3_PL_HRIS_ORCHESTRATOR l'appelle dans l'activité Acquire, quand l'ouverture du run a réussi.
+# # **Chemin dans le dépôt**
+# # TEST_MOTUL/TST_4/NB_HRIS_TS_ACQUIRE.Notebook/notebook-content.py
+# # **Description fonctionnelle**
+# # Ce notebook extrait tous les salariés de la société Motul France depuis le tenant de production de TalentSoft, l'outil de gestion des ressources humaines, et les dépose dans le Lakehouse pour le run en cours. La source est toujours la production, quel que soit l'environnement d'exécution : toute autre adresse est refusée et il n'existe aucun repli vers un tenant de test. Il reprend fidèlement les règles de l'ancienne fonction d'extraction : lecture du nombre total de salariés, lecture de la liste complète, filtre sur la structure juridique Motul France, puis lecture de seize entités de détail par salarié. Seules les soixante-dix clés utilisées en aval sont conservées, si bien qu'aucune donnée de santé n'est persistée. Des contrôles de complétude garantissent qu'une extraction partielle n'est jamais présentée comme complète.
+# # **Dépendances**
+# # Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB et utilise ses modules d'acquisition, d'étapes, d'écriture Delta, de modèle de données et de journal des cellules. Il appelle l'interface de programmation de TalentSoft par la bibliothèque requests, avec deux secrets, l'identifiant et le secret de l'application, lus dans le coffre de secrets désigné par le paramètre p_kv_url_ts au moyen de notebookutils. Il lit le registre ctl.run, renseigné par T3_NB_HRIS_RUN_CONTROL. Il écrit les données brutes stg.ts_employee_raw et les contrôles log.anomaly, met à jour ctl.run, consigne l'étape dans ctl.run_step et ajoute ses traces dans log.cell_execution.
+# # **Fonctionnement et logique de traitement**
+# # La configuration lit le contexte réel du notebook, résout les noms complets des tables, ouvre le journal des cellules, applique les réglages de session Spark et réduit le niveau de journalisation des bibliothèques réseau pour qu'aucune adresse n'apparaisse dans les sorties. La cellule de pré-contrôle lit le run, puis vérifie, sans appeler l'interface de TalentSoft, que la source est bien la production, que les deux secrets sont lisibles, que le serveur est joignable et quelle table recevra les données. La cellule d'acquisition traite ensuite cinq cas. En pré-contrôle seul, elle trace le résultat sous un identifiant dédié. Si le run est inconnu, elle échoue. En mode de reprise de publication, ou si le run n'est plus au statut STARTED, elle renvoie un statut de saut. Sinon, elle extrait les salariés avec des appels limités en parallèle et en débit, des reprises sur erreur temporaire et un disjoncteur, puis écrit les données et les contrôles. Si les secrets ne sont pas résolus, un contrôle bloquant est écrit avant l'échec. La clôture écrit les traces du journal puis renvoie le résultat.
+# # **Paramètres**
+# # Le paramètre p_run_id reçoit l'identifiant d'exécution du pipeline ; il est obligatoire, sauf en pré-contrôle seul. Le paramètre p_kv_url_ts donne l'adresse du coffre de secrets de TalentSoft, issue de la variable kv_url_ts de la bibliothèque de variables VL_HRIS ; il ne contient jamais le secret lui-même. Le paramètre p_ts_base_url donne l'adresse du tenant TalentSoft et seule l'adresse de production est acceptée. Le paramètre p_preflight_only vaut false par défaut ; à true, le notebook vérifie les accès sans extraire aucune donnée. Le paramètre p_test_schema redirige toutes les tables vers un schéma de test et reste vide en exploitation. Le paramètre p_lakehouse_name donne le Lakehouse cible et il est obligatoire, car aucun Lakehouse par défaut n'est attaché. Le paramètre p_log_cell_success vaut true par défaut et active les traces de réussite des cellules ; les échecs sont toujours tracés.
+# # **Sorties produites**
+# # Le notebook écrit stg.ts_employee_raw, qui contient des données personnelles et reste en accès restreint, ainsi que log.anomaly. Il met à jour ctl.run et ctl.run_step et ajoute ses traces dans log.cell_execution. Sa valeur de sortie est un texte structuré qui contient le résultat du pré-contrôle, le statut, le nombre de lignes, le nombre de clés distinctes, le total annoncé par TalentSoft et la liste des contrôles bloquants en échec, sans aucun matricule, aucune adresse ni aucune valeur.
+# # **Limitations connues et points d'attention**
+# # L'extraction est complète à chaque run, sans pagination ni filtre de période. Lors du run du 8 octobre 2026, elle a duré une vingtaine de minutes pour un annuaire de 1882 salariés, dont 431 ont été persistés pour Motul France. Ce run s'est terminé avec le statut ACQUIRED_INCOMPLETE, car le contrôle bloquant TS_FILTER_TECHNICAL_FAILURE était en échec : le filtre sur la structure juridique n'a pas pu être évalué pour au moins un salarié. Lors de ce run, les identifiants TalentSoft étaient écrits dans le code de la version précédente pour contourner le coffre ; cette version les lit uniquement dans le coffre de secrets. Tant que le workspace d'exécution ne peut pas lire ce coffre, qui appartient à un autre tenant, l'acquisition échoue avec le contrôle bloquant TS_SECRET_RESOLUTION. Les secrets sont encapsulés et ne sont jamais affichés, passés en paramètre ni journalisés.
+# # **Responsable et contact**
+# # Thibault Delalande, développeur du hub. Le responsable définitif de la maintenance reste à confirmer par l'équipe en charge des ressources humaines.
 
 # CELL ********************
 

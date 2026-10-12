@@ -11,44 +11,25 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-#
-# T3_NB_HRIS_TESTS. C'est le nom affiché dans Microsoft Fabric pour le notebook de tests du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_TESTS.Notebook.
-#
-# **Type d'objet**
-#
-# Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Il n'est pas appelé par le pipeline : on le lance à la main avant une mise en service ou après une modification du code.
-#
-# **Chemin dans le dépôt**
-#
-# TEST_MOTUL/TST_4/NB_HRIS_TESTS.Notebook/notebook-content.py
-#
-# **Description fonctionnelle**
-#
-# Ce notebook vérifie le code du hub sur des données entièrement fictives. Il exécute les tests unitaires des règles de transformation, de l'acquisition TalentSoft contre un faux serveur, de la publication vers l'outil de paie ADP avec des clients simulés et du journal des cellules. Il vérifie aussi que la transformation Spark donne les mêmes résultats que l'implémentation de référence des règles de l'existant. Il peut enfin dérouler des scénarios d'intégration complets dans un schéma isolé du Lakehouse, sans jamais lire ni écrire une table réelle. Il apporte la preuve, dans le contexte réel du workspace, que le code se comporte comme attendu avant de traiter des données de salariés.
-#
-# **Dépendances**
-#
-# Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB, puis enregistre onze modules propres aux tests : le simulateur de l'outil de paie, le jeu de données fictif et neuf modules de tests. Ces modules restent dans ce notebook pour qu'aucun simulateur ne soit jamais présent dans le code de production. Le Lakehouse désigné par le paramètre p_lakehouse_name reçoit, dans le schéma isolé hris_tst, des copies de test de toutes les tables, recréées à chaque campagne, ainsi que la table de rapport zz_test_report. Le contexte d'exécution de Fabric fournit le nom réel du workspace, indispensable aux tests du garde-fou de publication.
-#
-# **Fonctionnement et logique de traitement**
-#
-# Après le chargement de la bibliothèque et des modules de test, la cellule de configuration relève d'abord les réglages par défaut de la session Spark, avant toute modification, car ils font partie des vérifications de plateforme. Elle résout ensuite les noms de tables du schéma de test, ouvre le journal des cellules, applique les réglages de session requis par la transformation et transmet le contexte aux tests d'intégration. La cellule d'exécution construit la liste des tests, éventuellement filtrée, la lance et affiche le compte rendu, les versions des bibliothèques et les réglages relevés. La cellule de rapport écrit ce compte rendu, sans aucune donnée de salarié, dans la table zz_test_report du schéma de test. La clôture écrit les traces du journal puis renvoie un résumé au format texte structuré.
-#
-# **Paramètres**
-#
-# Le paramètre p_test_schema désigne le schéma isolé ; sa valeur par défaut est hris_tst et il ne doit jamais être vide, sous peine d'écrire dans les tables réelles. Le paramètre p_lakehouse_name donne le nom du Lakehouse cible, en pratique la variable lakehouse_name de la bibliothèque de variables VL_HRIS ; il est obligatoire puisqu'aucun Lakehouse par défaut n'est attaché. Le paramètre p_run_integration vaut true par défaut et active les scénarios d'intégration avec écriture dans le schéma de test ; à false, seuls les tests sans écriture de table sont lancés. Le paramètre p_only, vide par défaut, restreint la campagne aux tests dont l'identifiant contient l'un des fragments donnés, séparés par des virgules. Le paramètre p_log_cell_success vaut true par défaut et active les traces de réussite des cellules ; les échecs sont toujours tracés.
-#
-# **Sorties produites**
-#
-# Le notebook ajoute une ligne de compte rendu dans la table zz_test_report du schéma de test et des traces dans la copie de test du journal des cellules. Sa valeur de sortie est un texte structuré qui contient le nombre de tests exécutés, la liste des échecs, des erreurs et des tests ignorés, les informations de plateforme et, au plus, dix extraits de traces d'échec. Aucune de ces sorties ne contient de donnée réelle de salarié.
-#
-# **Limitations connues et points d'attention**
-#
-# Les tables du schéma de test sont supprimées puis recréées à chaque campagne d'intégration, y compris la copie de test du journal des cellules : ce schéma ne doit contenir aucune donnée à conserver. Le test de cohérence des marqueurs du contrat de publication est ignoré dans Fabric parce que son document de référence n'est pas présent dans le workspace ; il reste exécuté en local. Une campagne complète dure plusieurs minutes, surtout à cause des écritures Delta des scénarios d'intégration.
-#
-# **Responsable et contact**
-#
-# Thibault Delalande, développeur du hub. Le responsable définitif de la maintenance reste à confirmer par l'équipe en charge des ressources humaines.
+# # T3_NB_HRIS_TESTS. C'est le nom affiché dans Microsoft Fabric pour le notebook de tests du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_TESTS.Notebook.
+# # **Type d'objet**
+# # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Il n'est pas appelé par le pipeline : on le lance à la main avant une mise en service ou après une modification du code.
+# # **Chemin dans le dépôt**
+# # TEST_MOTUL/TST_4/NB_HRIS_TESTS.Notebook/notebook-content.py
+# # **Description fonctionnelle**
+# # Ce notebook vérifie le code du hub sur des données entièrement fictives. Il exécute les tests unitaires des règles de transformation, de l'acquisition TalentSoft contre un faux serveur, de la publication vers l'outil de paie ADP avec des clients simulés et du journal des cellules. Il vérifie aussi que la transformation Spark donne les mêmes résultats que l'implémentation de référence des règles de l'existant. Il peut enfin dérouler des scénarios d'intégration complets dans un schéma isolé du Lakehouse, sans jamais lire ni écrire une table réelle. Il apporte la preuve, dans le contexte réel du workspace, que le code se comporte comme attendu avant de traiter des données de salariés.
+# # **Dépendances**
+# # Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB, puis enregistre onze modules propres aux tests : le simulateur de l'outil de paie, le jeu de données fictif et neuf modules de tests. Ces modules restent dans ce notebook pour qu'aucun simulateur ne soit jamais présent dans le code de production. Le Lakehouse désigné par le paramètre p_lakehouse_name reçoit, dans le schéma isolé hris_tst, des copies de test de toutes les tables, recréées à chaque campagne, ainsi que la table de rapport zz_test_report. Le contexte d'exécution de Fabric fournit le nom réel du workspace, indispensable aux tests du garde-fou de publication.
+# # **Fonctionnement et logique de traitement**
+# # Après le chargement de la bibliothèque et des modules de test, la cellule de configuration relève d'abord les réglages par défaut de la session Spark, avant toute modification, car ils font partie des vérifications de plateforme. Elle résout ensuite les noms de tables du schéma de test, ouvre le journal des cellules, applique les réglages de session requis par la transformation et transmet le contexte aux tests d'intégration. La cellule d'exécution construit la liste des tests, éventuellement filtrée, la lance et affiche le compte rendu, les versions des bibliothèques et les réglages relevés. La cellule de rapport écrit ce compte rendu, sans aucune donnée de salarié, dans la table zz_test_report du schéma de test. La clôture écrit les traces du journal puis renvoie un résumé au format texte structuré.
+# # **Paramètres**
+# # Le paramètre p_test_schema désigne le schéma isolé ; sa valeur par défaut est hris_tst et il ne doit jamais être vide, sous peine d'écrire dans les tables réelles. Le paramètre p_lakehouse_name donne le nom du Lakehouse cible, en pratique la variable lakehouse_name de la bibliothèque de variables VL_HRIS ; il est obligatoire puisqu'aucun Lakehouse par défaut n'est attaché. Le paramètre p_run_integration vaut true par défaut et active les scénarios d'intégration avec écriture dans le schéma de test ; à false, seuls les tests sans écriture de table sont lancés. Le paramètre p_only, vide par défaut, restreint la campagne aux tests dont l'identifiant contient l'un des fragments donnés, séparés par des virgules. Le paramètre p_log_cell_success vaut true par défaut et active les traces de réussite des cellules ; les échecs sont toujours tracés.
+# # **Sorties produites**
+# # Le notebook ajoute une ligne de compte rendu dans la table zz_test_report du schéma de test et des traces dans la copie de test du journal des cellules. Sa valeur de sortie est un texte structuré qui contient le nombre de tests exécutés, la liste des échecs, des erreurs et des tests ignorés, les informations de plateforme et, au plus, dix extraits de traces d'échec. Aucune de ces sorties ne contient de donnée réelle de salarié.
+# # **Limitations connues et points d'attention**
+# # Les tables du schéma de test sont supprimées puis recréées à chaque campagne d'intégration, y compris la copie de test du journal des cellules : ce schéma ne doit contenir aucune donnée à conserver. Le test de cohérence des marqueurs du contrat de publication est ignoré dans Fabric parce que son document de référence n'est pas présent dans le workspace ; il reste exécuté en local. Une campagne complète dure plusieurs minutes, surtout à cause des écritures Delta des scénarios d'intégration.
+# # **Responsable et contact**
+# # Thibault Delalande, développeur du hub. Le responsable définitif de la maintenance reste à confirmer par l'équipe en charge des ressources humaines.
 
 # CELL ********************
 

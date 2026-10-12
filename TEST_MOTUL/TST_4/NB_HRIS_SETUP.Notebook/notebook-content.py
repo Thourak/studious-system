@@ -11,44 +11,25 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-#
-# T3_NB_HRIS_SETUP. C'est le nom affiché dans Microsoft Fabric pour le notebook qui installe le socle du Lakehouse du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_SETUP.Notebook.
-#
-# **Type d'objet**
-#
-# Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Il n'est pas appelé par le pipeline : on le lance à la main lors de l'installation et après toute évolution du modèle de données.
-#
-# **Chemin dans le dépôt**
-#
-# TEST_MOTUL/TST_4/NB_HRIS_SETUP.Notebook/notebook-content.py
-#
-# **Description fonctionnelle**
-#
-# Ce notebook prépare le Lakehouse dont dépendent tous les autres notebooks du hub. Il crée, s'ils n'existent pas, les six schémas cfg, stg, ref, pub, ctl et log, puis les quarante-trois tables du modèle de données, dont la table de journal des cellules log.cell_execution ajoutée par cette version. Il insère ensuite, uniquement si elles sont absentes, la ligne de paramétrage du processus et la ligne de verrou à l'état libéré. Une table existante n'est jamais supprimée, vidée, remplacée ni modifiée : son schéma est comparé à la définition attendue et tout écart est signalé comme incompatible, sans correction automatique. Les dix-sept tables de correspondance sont créées vides, car leur contenu validé n'est pas encore disponible.
-#
-# **Dépendances**
-#
-# Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB et utilise le modèle de données, les fonctions d'écriture Delta, les étapes du pipeline pour les graines et le journal des cellules. Il agit uniquement sur le Lakehouse désigné par le paramètre p_lakehouse_name dans le workspace courant, dont le nom réel est lu dans le contexte d'exécution de Fabric. Il lit cfg.process et ctl.process_lock pour décider des graines. Aucun secret n'est lu.
-#
-# **Fonctionnement et logique de traitement**
-#
-# La configuration lit le contexte réel du notebook, résout les noms complets des tables, ouvre le journal des cellules et applique les réglages de session Spark. La cellule de socle crée les schémas puis, table par table, crée ce qui manque ou contrôle la conformité de ce qui existe. Elle insère ensuite les graines absentes et calcule un résultat : le statut vaut INCOMPATIBLE dès qu'une table existante diffère de sa définition, OK sinon. Le résultat et l'action menée sur chaque table sont affichés. La clôture écrit les traces du journal puis renvoie le résultat.
-#
-# **Paramètres**
-#
-# Le paramètre p_test_schema, vide par défaut, redirige toutes les tables vers un schéma de test isolé ; il reste vide pour installer les tables réelles. Le paramètre p_lakehouse_name donne le nom du Lakehouse cible, en pratique la variable lakehouse_name de la bibliothèque de variables VL_HRIS ; il est obligatoire puisqu'aucun Lakehouse par défaut n'est attaché. Le paramètre p_log_cell_success vaut true par défaut et active les traces de réussite des cellules ; les échecs sont toujours tracés.
-#
-# **Sorties produites**
-#
-# Le notebook crée les schémas et les tables manquants et les deux graines, puis ajoute ses traces dans log.cell_execution. Sa valeur de sortie est un texte structuré qui donne le statut, le nombre de tables créées et existantes, la liste des tables incompatibles et l'insertion éventuelle des graines.
-#
-# **Limitations connues et points d'attention**
-#
-# Le contrôle de conformité compare les noms et les types de colonnes, pas les contraintes ni les commentaires. Une table incompatible doit être traitée à la main, après validation, car le notebook ne la corrige jamais. Lors de la première exécution qui suit cette version, la table log.cell_execution est créée et apparaît dans le compteur des tables créées.
-#
-# **Responsable et contact**
-#
-# Thibault Delalande, développeur du hub. Le responsable définitif de la maintenance reste à confirmer par l'équipe en charge des ressources humaines.
+# # T3_NB_HRIS_SETUP. C'est le nom affiché dans Microsoft Fabric pour le notebook qui installe le socle du Lakehouse du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_SETUP.Notebook.
+# # **Type d'objet**
+# # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Il n'est pas appelé par le pipeline : on le lance à la main lors de l'installation et après toute évolution du modèle de données.
+# # **Chemin dans le dépôt**
+# # TEST_MOTUL/TST_4/NB_HRIS_SETUP.Notebook/notebook-content.py
+# # **Description fonctionnelle**
+# # Ce notebook prépare le Lakehouse dont dépendent tous les autres notebooks du hub. Il crée, s'ils n'existent pas, les six schémas cfg, stg, ref, pub, ctl et log, puis les quarante-trois tables du modèle de données, dont la table de journal des cellules log.cell_execution ajoutée par cette version. Il insère ensuite, uniquement si elles sont absentes, la ligne de paramétrage du processus et la ligne de verrou à l'état libéré. Une table existante n'est jamais supprimée, vidée, remplacée ni modifiée : son schéma est comparé à la définition attendue et tout écart est signalé comme incompatible, sans correction automatique. Les dix-sept tables de correspondance sont créées vides, car leur contenu validé n'est pas encore disponible.
+# # **Dépendances**
+# # Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB et utilise le modèle de données, les fonctions d'écriture Delta, les étapes du pipeline pour les graines et le journal des cellules. Il agit uniquement sur le Lakehouse désigné par le paramètre p_lakehouse_name dans le workspace courant, dont le nom réel est lu dans le contexte d'exécution de Fabric. Il lit cfg.process et ctl.process_lock pour décider des graines. Aucun secret n'est lu.
+# # **Fonctionnement et logique de traitement**
+# # La configuration lit le contexte réel du notebook, résout les noms complets des tables, ouvre le journal des cellules et applique les réglages de session Spark. La cellule de socle crée les schémas puis, table par table, crée ce qui manque ou contrôle la conformité de ce qui existe. Elle insère ensuite les graines absentes et calcule un résultat : le statut vaut INCOMPATIBLE dès qu'une table existante diffère de sa définition, OK sinon. Le résultat et l'action menée sur chaque table sont affichés. La clôture écrit les traces du journal puis renvoie le résultat.
+# # **Paramètres**
+# # Le paramètre p_test_schema, vide par défaut, redirige toutes les tables vers un schéma de test isolé ; il reste vide pour installer les tables réelles. Le paramètre p_lakehouse_name donne le nom du Lakehouse cible, en pratique la variable lakehouse_name de la bibliothèque de variables VL_HRIS ; il est obligatoire puisqu'aucun Lakehouse par défaut n'est attaché. Le paramètre p_log_cell_success vaut true par défaut et active les traces de réussite des cellules ; les échecs sont toujours tracés.
+# # **Sorties produites**
+# # Le notebook crée les schémas et les tables manquants et les deux graines, puis ajoute ses traces dans log.cell_execution. Sa valeur de sortie est un texte structuré qui donne le statut, le nombre de tables créées et existantes, la liste des tables incompatibles et l'insertion éventuelle des graines.
+# # **Limitations connues et points d'attention**
+# # Le contrôle de conformité compare les noms et les types de colonnes, pas les contraintes ni les commentaires. Une table incompatible doit être traitée à la main, après validation, car le notebook ne la corrige jamais. Lors de la première exécution qui suit cette version, la table log.cell_execution est créée et apparaît dans le compteur des tables créées.
+# # **Responsable et contact**
+# # Thibault Delalande, développeur du hub. Le responsable définitif de la maintenance reste à confirmer par l'équipe en charge des ressources humaines.
 
 # CELL ********************
 
