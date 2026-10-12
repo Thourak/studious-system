@@ -6,7 +6,6 @@
     "description": "Paramètres HRIS par environnement (aucun secret). Value set actif : défaut (DEV)."
   },
   "config": {
-    "version": "2.0",
-    "logicalId": "a832849e-1486-b36e-4510-6ba55f3f8d1b"
+    "version": "2.0"
   }
 }
