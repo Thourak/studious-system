@@ -31,6 +31,7 @@
 # # **Responsable et contact**
 # # Thibault Delalande, développeur du hub. Le responsable définitif de la maintenance reste à confirmer par l'équipe en charge des ressources humaines.
 
+
 # CELL ********************
 
 %run T4_NB_HRIS_LIB
