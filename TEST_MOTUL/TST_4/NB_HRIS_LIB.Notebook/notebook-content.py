@@ -10,19 +10,106 @@
 
 # MARKDOWN ********************
 
-# # NB_HRIS_LIB — bibliothèque commune HRIS TalentSoft → ADP
-# # Contient la bibliothèque `hris` (modules de `implementation/src/hris`), **embarquée à l'identique** dans
-# chaque notebook du flux par `tools/build_notebooks.py` (empreintes SHA-256 vérifiées au chargement).
-# Ce notebook n'est pas une activité du pipeline : il sert à l'usage interactif et à la revue.
-# # Le simulateur ADP (`hris.adp_sim`) n'est **pas** inclus ici : il n'existe que dans `NB_HRIS_TESTS`.
+# **Nom de l'objet**
+#
+# T4_NB_HRIS_LIB. C'est le nom affiché dans Microsoft Fabric et celui que les autres notebooks utilisent pour le charger. Le dossier du dépôt garde son nom historique NB_HRIS_LIB.Notebook afin de ne déplacer aucun fichier. Le préfixe T3 désigne la version des objets de ce dossier, comme pour tous les autres objets qui l'accompagnent.
+#
+# **Type d'objet**
+#
+# Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Il n'est jamais lancé seul par le pipeline. Chaque notebook du flux le charge au début de son exécution par la commande magique %run, qui exécute ses cellules dans le même interpréteur que le notebook appelant.
+#
+# **Chemin dans le dépôt**
+#
+# TEST_MOTUL/TST_4/NB_HRIS_LIB.Notebook/notebook-content.py
+#
+# **Description fonctionnelle**
+#
+# Ce notebook est la bibliothèque commune du hub d'intégration des ressources humaines de Motul. Ce hub extrait les salariés depuis TalentSoft, applique les règles de transformation de l'existant, compare le résultat à l'état validé précédent et prépare la publication vers l'outil de paie ADP. Le notebook contient l'unique copie du code métier, organisé en dix-huit modules Python regroupés sous le nom hris. Auparavant, chaque notebook embarquait sa propre copie complète de ce code ; la copie unique supprime ce dédoublement et garantit que tous les notebooks exécutent exactement le même code. Le notebook ne lit et n'écrit aucune donnée et ne prépare aucune configuration d'environnement : il rend seulement des fonctions disponibles.
+#
+# **Dépendances**
+#
+# Le notebook n'appelle aucun autre notebook et ne lit aucune table. Pour vérifier l'empreinte de chaque module et l'enregistrer dans l'interpréteur, il n'utilise que la bibliothèque standard de Python. Les modules s'appuient ensuite, au moment où les notebooks métier les appellent, sur Spark et sur le format de table Delta fournis par Fabric, ainsi que sur la bibliothèque requests pour les appels réseau de l'acquisition. Huit notebooks dépendent de celui-ci par la commande %run T4_NB_HRIS_LIB : T3_NB_HRIS_SETUP, T3_NB_HRIS_RUN_CONTROL, T3_NB_HRIS_TS_ACQUIRE, T3_NB_HRIS_TRANSFORM, T3_NB_HRIS_COMPARE, T3_NB_HRIS_PROMOTE, T3_NB_HRIS_PUBLISH_ADP et T3_NB_HRIS_TESTS. Tout renommage de ce notebook impose de corriger cette commande dans chacun d'eux.
+#
+# **Fonctionnement et logique de traitement**
+#
+# La première cellule de code importe les quatre bibliothèques standard nécessaires. La cellule suivante définit la fonction register_hris_module. Celle-ci vérifie l'empreinte cryptographique du texte d'un module, calculée avec l'algorithme de hachage sécurisé SHA-256, puis crée le module dans l'interpréteur et l'exécute. En cas d'erreur, elle affiche le nom du module et la trace complète avant de relancer l'erreur. Chacune des dix-huit cellules suivantes enregistre un module, dans l'ordre de leurs dépendances : constantes et assainissement des messages, émulation des règles du langage de requête de l'existant, modèle de données, acquisition TalentSoft, transformation, comparaison, contrôle du run, publication, étapes du pipeline, lecture des journaux historiques, puis journal des cellules. La dernière cellule rassemble les empreintes chargées et affiche une ligne de synthèse. Pour modifier un module, il faut remplacer son texte puis recalculer son empreinte. Une empreinte qui ne correspond pas bloque le chargement, ce qui empêche d'exécuter un code modifié par erreur.
+#
+# **Paramètres**
+#
+# Ce notebook n'a aucun paramètre. Il s'exécute dans le contexte du notebook qui le charge et partage ses variables. Aucun nom de workspace, de Lakehouse ou de secret n'y est lu.
+#
+# **Sorties produites**
+#
+# Le notebook ne produit ni table ni fichier. Il enregistre les modules hris dans l'interpréteur du notebook appelant. Il définit aussi la fonction register_hris_module, que le notebook de tests réutilise pour charger ses propres modules, et le dictionnaire hris_library_digests, qui associe chaque module à son empreinte et prouve la version exécutée.
+#
+# **Limitations connues et points d'attention**
+#
+# Le chargement par %run se fait par le nom affiché du notebook dans le même workspace. Si le préfixe de version change, les commandes %run de tous les notebooks doivent être mises à jour. Faute de quoi, les notebooks échouent dès leur deuxième cellule, ce qui est préférable au chargement silencieux d'une autre version. Le texte des modules n'est plus produit par l'outil build_notebooks.py du dossier d'implémentation externe : ce notebook fait désormais référence et cet outil ne doit plus servir à régénérer ce dossier. Le simulateur de l'outil de paie n'est volontairement pas présent ici : il n'existe que dans le notebook de tests. Le temps de chargement dans Fabric n'a pas été mesuré.
+#
+# **Responsable et contact**
+#
+# Thibault Delalande, développeur du hub. Le responsable définitif de la maintenance reste à confirmer par l'équipe en charge des ressources humaines.
 
 # CELL ********************
 
-# Bibliothèque HRIS embarquée — GÉNÉRÉE par tools/build_notebooks.py, ne pas modifier ici.
-# Source testée : implementation/src/hris/*.py ; empreintes vérifiées au chargement.
-import hashlib as _hl, sys as _sys, types as _types
-_HRIS_MODULES = [
-    ('hris.common', 'da64004aee4e83cbbedd33fdfbbed057845a34037de058aa2c8d68b3df1051db', r'''"""hris.common — constantes, erreurs, assainissement et utilitaires partagés.
+# ============= IMPORTS =============
+# Standard libraries
+import hashlib
+import sys
+import traceback
+import types
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+def register_hris_module(name: str, digest: str, source: str) -> str:
+    """
+    Vérifie l'empreinte d'un module, l'enregistre dans l'interpréteur puis l'exécute.
+
+    Args:
+        name: Nom complet du module (« hris.common » ; les modules de test n'ont pas de préfixe).
+        digest: Empreinte SHA-256 attendue du texte du module.
+        source: Texte Python du module.
+
+    Returns:
+        L'empreinte vérifiée, conservée sur le module (attribut __hris_digest__).
+    """
+    try:
+        if hashlib.sha256(source.encode("utf-8")).hexdigest() != digest:
+            raise RuntimeError("empreinte invalide : " + name)
+        package = sys.modules.get("hris") or types.ModuleType("hris")
+        package.__path__ = []
+        sys.modules["hris"] = package
+        module = types.ModuleType(name)
+        module.__file__ = name.replace(".", "/") + ".py"
+        module.__hris_digest__ = digest
+        sys.modules[name] = module
+        exec(compile(source, module.__file__, "exec"), module.__dict__)
+        if name.startswith("hris."):
+            setattr(package, name.split(".", 1)[1], module)
+        return digest
+    except Exception as error:
+        print(f"[T4_NB_HRIS_LIB] ❌ chargement du module {name} impossible : {type(error).__name__}")
+        traceback.print_exc()
+        raise
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.common =============
+register_hris_module('hris.common', 'da64004aee4e83cbbedd33fdfbbed057845a34037de058aa2c8d68b3df1051db', r'''"""hris.common — constantes, erreurs, assainissement et utilitaires partagés.
 
 Python pur (aucune dépendance Spark) : importable en local pour les tests et
 embarqué tel quel dans les notebooks Fabric (voir tools/build_notebooks.py).
@@ -188,8 +275,19 @@ class SecretValue:
         return "SecretValue(***)"
 
     __str__ = __repr__
-'''),
-    ('hris.parity', '12d5d086c85cf5a0c61aadd96e0bd3edbf1a17fa2ecbedc7346161bbb6a7854b', r'''"""hris.parity — émulation Python des sémantiques T-SQL du SQL de production (A09).
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.parity =============
+register_hris_module('hris.parity', '12d5d086c85cf5a0c61aadd96e0bd3edbf1a17fa2ecbedc7346161bbb6a7854b', r'''"""hris.parity — émulation Python des sémantiques T-SQL du SQL de production (A09).
 
 Implémentation de RÉFÉRENCE (Python pur) des règles A02 ; la version Spark
 (hris.transform) doit produire exactement les mêmes résultats sur les jeux de tests
@@ -397,8 +495,19 @@ def utf8_truncate(text: Optional[str], max_bytes: int) -> Optional[str]:
     if len(raw) <= max_bytes:
         return text
     return raw[:max_bytes].decode("utf-8", "ignore")
-'''),
-    ('hris.model', '6a943353e2b932c5dc9858fdc9ef903dc056e99d113e8115fee20a49046875a7', r'''"""hris.model — contrat de données : colonnes, correspondances, règles de rejet, DDL.
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.model =============
+register_hris_module('hris.model', 'ba23e6a8b8cb7a74132007d77c5c272f3e6f2511fee3fd8f8e8f2ae87e0c6d83', r'''"""hris.model — contrat de données : colonnes, correspondances, règles de rejet, DDL.
 
 Sources : A02 (R-SQL-004, § 4, § 5, R-SQL-056), A03 (17 tables), A07, 05 (DDL des tables
 de contrôle et de log, qui fait foi). Python pur.
@@ -407,7 +516,9 @@ Extensions par rapport au DDL documenté (signalées dans docs/ECARTS_ET_DECISIO
   * ctl.run.target_run_id (mode RETRY_PUBLICATION) ;
   * tables PROPOSÉES de publication par opération (pub.adp_operation, pub.adp_attempt,
     pub.adp_reconciliation, log.adp_manual_decision) : leur sémantique dépend du contrat
-    final ADP, absent (docs/CONTRAT_ADP_POINTS_D_USAGE.md).
+    final ADP, absent (docs/CONTRAT_ADP_POINTS_D_USAGE.md) ;
+  * log.cell_execution : journal des cellules de code exécutées (hris.cell_log), sans donnée
+    personnelle (refactorisation TST_4).
 """
 from __future__ import annotations
 
@@ -1029,8 +1140,30 @@ status STRING
 sent_at_utc TIMESTAMP
 error_summary STRING
 """)
+TABLES["log.cell_execution"] = _cols("""
+event_id STRING
+run_id STRING
+operation_id STRING
+notebook_name STRING
+notebook_id STRING
+cell_code STRING
+cell_seq INT
+status STRING
+started_at_utc TIMESTAMP
+ended_at_utc TIMESTAMP
+duration_ms BIGINT
+workspace_name STRING
+workspace_id STRING
+lakehouse_name STRING
+is_for_pipeline BOOLEAN
+error_type STRING
+error_code STRING
+error_message STRING
+error_location STRING
+logged_at_utc TIMESTAMP
+""")
 
-SCHEMAS = ["cfg", "stg", "ref", "pub", "ctl", "log"]
+SCHEMAS =["cfg", "stg", "ref", "pub", "ctl", "log"]
 
 # Tables à données personnelles (accès restreint, 05 § 4 ; D-SEC-03)
 PERSONAL_DATA_TABLES = [
@@ -1109,8 +1242,19 @@ def normalize_type(t: str) -> str:
     t = t.strip().lower().replace(" ", "")
     return {"int": "int", "integer": "int", "bigint": "bigint", "long": "bigint", "string": "string",
             "boolean": "boolean", "date": "date", "timestamp": "timestamp"}.get(t, t)
-'''),
-    ('hris.ts_acquire', '2b32899f92949347bb603a100996cbdda9a916320c1dee29c7ff9ba1f0f13c3c', r'''"""hris.ts_acquire — portage de la Function TalentSoft (ts-function-app/function_app.py, PRJ @ 5541490).
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.ts_acquire =============
+register_hris_module('hris.ts_acquire', '2b32899f92949347bb603a100996cbdda9a916320c1dee29c7ff9ba1f0f13c3c', r'''"""hris.ts_acquire — portage de la Function TalentSoft (ts-function-app/function_app.py, PRJ @ 5541490).
 
 Parité (A01, R-TS-007 à R-TS-030) : endpoints, règle de « valeur courante » dépendant de l'ordre,
 conversion « falsy », sentinelle 1900-01-01, Hors_France, Level sans %, filtre « Motul France »,
@@ -1923,8 +2067,19 @@ def completeness_anomalies(stats: dict) -> List[dict]:
     if c.get("circuit_open_skip"):
         add("TS_CIRCUIT_OPEN", "BLOCKING", c["circuit_open_skip"], "FAIL", "requêtes ignorées par le disjoncteur")
     return out
-'''),
-    ('hris.transform_ref', '2fe8bb63d4b2f4b141e4dac0b7f9f6af9ea5c2273caf7fafde1927caf9c1caae', r'''"""hris.transform_ref — implémentation de RÉFÉRENCE (Python pur) des procédures SQL de production.
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.transform_ref =============
+register_hris_module('hris.transform_ref', '2fe8bb63d4b2f4b141e4dac0b7f9f6af9ea5c2273caf7fafde1927caf9c1caae', r'''"""hris.transform_ref — implémentation de RÉFÉRENCE (Python pur) des procédures SQL de production.
 
 Chaque fonction reproduit une procédure de A09 (PROC1 à PROC5) ligne à ligne, avec les sémantiques
 T-SQL émulées par hris.parity. Elle sert :
@@ -2106,8 +2261,19 @@ def summary(inserted_keys: Iterable[str], rejects: Iterable[dict], dt_resume: dt
     return {"dt_resume": dt_resume, "cd_source": "TalentSoft", "cd_target": "ADP", "mt_lignes_inserts": n_ins,
             "mt_lignes_rejets": n_rej, "mt_lignes_lues": lues, "pc_lignes_rejets": pc,
             "ds_type_rejets": P.utf8_truncate(ds_type, 50)}
-'''),
-    ('hris.spark_io', 'd6aececfa4dfaec8f69b974eba9fe21320ec7eecd66848473edafe628fdfae0f', r'''"""hris.spark_io — écritures Delta idempotentes, journal des étapes, anomalies, socle.
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.spark_io =============
+register_hris_module('hris.spark_io', 'd6aececfa4dfaec8f69b974eba9fe21320ec7eecd66848473edafe628fdfae0f', r'''"""hris.spark_io — écritures Delta idempotentes, journal des étapes, anomalies, socle.
 
 Toutes les écritures passent par Spark (un seul moteur d'écriture par table, A06 F2).
 Idempotence : `replaceWhere run_id = …` pour les tables à grain « run », MERGE sur clé naturelle
@@ -2346,8 +2512,19 @@ def set_once_promoted(spark, T: Tables, run_id: str, when: dt.datetime) -> None:
     (DeltaTable.forName(spark, T("ctl.run")).alias("t")
      .update(condition=(F.col("t.run_id") == F.lit(run_id)) & F.col("t.promoted_at_utc").isNull(),
              set={"promoted_at_utc": F.lit(to_utc_naive(when)).cast("timestamp")}))
-'''),
-    ('hris.transform', '91a7ba2c70cda0430f5c5d60970c9f02dc7207393cdf7069ebd0732f19e9f152', r'''"""hris.transform — implémentation Spark des procédures SQL de production (A02, A09).
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.transform =============
+register_hris_module('hris.transform', '91a7ba2c70cda0430f5c5d60970c9f02dc7207393cdf7069ebd0732f19e9f152', r'''"""hris.transform — implémentation Spark des procédures SQL de production (A02, A09).
 
 Doit produire exactement les résultats de hris.transform_ref (test de parité sur données fictives).
 Guide T-SQL -> Spark appliqué (A02 § 8) : espaces de fin (rtrim), NULL vs '', troncature à 50,
@@ -2668,8 +2845,19 @@ def adp_df(enriched, rejects, dt_transforme):
 def row_hash_expr(columns):
     F = _F()
     return F.sha2(F.concat_ws("\u001f", *[F.coalesce(F.col(c).cast("string"), F.lit("\u0000")) for c in columns]), 256)
-'''),
-    ('hris.compare', '44fbebdd86edfc03c67e3a93e7085e98da1800e48b52aca7ec7702ef0106e03c', r'''"""hris.compare — comparaison staging finale <-> référence du dernier run validé, puis promotion.
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.compare =============
+register_hris_module('hris.compare', '44fbebdd86edfc03c67e3a93e7085e98da1800e48b52aca7ec7702ef0106e03c', r'''"""hris.compare — comparaison staging finale <-> référence du dernier run validé, puis promotion.
 
 Règles (01 § 4.5-4.8, 03 § 7, A08 D-CMP-01 à 07 — À CONFIRMER, valeurs par défaut appliquées) :
   * catégories NEW / MODIFIED / UNCHANGED / ABSENT / REJECTED sur id_unique et row_hash ;
@@ -2941,8 +3129,19 @@ def promote(spark, T: Tables, run_id: str, run_mode: str) -> dict:
     set_once_promoted(spark, T, run_id, now)
     update_run(spark, T, run_id, status=RUN_PROMOTED)
     return {"promoted": True, "nb_outbox": nb_outbox, "mode": run_mode}
-'''),
-    ('hris.run_control', '3dc91ff068c000a4fe73d5a5825dbc08944bed3b9e1a8641aad9d46e4e262e5f', r'''"""hris.run_control — modes START / END / FAIL de NB_HRIS_RUN_CONTROL.
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.run_control =============
+register_hris_module('hris.run_control', '3dc91ff068c000a4fe73d5a5825dbc08944bed3b9e1a8641aad9d46e4e262e5f', r'''"""hris.run_control — modes START / END / FAIL de NB_HRIS_RUN_CONTROL.
 
 Verrou applicatif ctl.process_lock (A07 § 2) : MERGE conditionnel puis relecture ; un conflit de
 concurrence Delta ou une relecture différente = verrou non obtenu -> SKIPPED_CONCURRENT (pas d'échec,
@@ -3135,8 +3334,19 @@ def fail(spark, T: Tables, run_id: str, error_message: str) -> dict:
     return {"status": RUN_FAILED, "run_id": run_id, "lock_released": released,
             "notification": {"type": "ERROR", "run_id": run_id, "sent": False,
                              "send_blocked_reason": "D-NOT-01/D-NOT-02 non décidés"}}
-'''),
-    ('hris.adp_gate', 'e78ceb69b7fd6fdceccc8018e16154788bc7e3bc55436de34f03145142fbd6f8', r'''"""hris.adp_gate — condition d'environnement de la publication ADP (D-ENV-01).
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.adp_gate =============
+register_hris_module('hris.adp_gate', 'e78ceb69b7fd6fdceccc8018e16154788bc7e3bc55436de34f03145142fbd6f8', r'''"""hris.adp_gate — condition d'environnement de la publication ADP (D-ENV-01).
 
 Règle (inchangée, littérale) : la condition d'environnement est satisfaite si et seulement si le
 nom RÉEL du workspace d'exécution du notebook de publication contient la sous-chaîne "PRD"
@@ -3259,8 +3469,19 @@ def evaluate_gate(context_provider: Callable[[], Mapping[str, Any]],
         is_for_pipeline=ws.is_for_pipeline if isinstance(ws.is_for_pipeline, bool) else None,
         notebook_name=ws.notebook_name if isinstance(ws.notebook_name, str) else None,
         rule_version=RULE_VERSION, evaluated_at_utc=clock())
-'''),
-    ('hris.adp_transport', 'aa2ae8bba6efa3bc1336cdc19e21151712fa2a2894f4618a0ddadad0622e556e', r'''"""hris.adp_transport — transport HTTP de publication ADP, classification des résultats, instrumentation.
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.adp_transport =============
+register_hris_module('hris.adp_transport', 'aa2ae8bba6efa3bc1336cdc19e21151712fa2a2894f4618a0ddadad0622e556e', r'''"""hris.adp_transport — transport HTTP de publication ADP, classification des résultats, instrumentation.
 
 Principes (mandat § 8) :
   * aucun retry automatique (y compris bibliothèque), aucune redirection suivie, aucun renvoi
@@ -3509,8 +3730,19 @@ class NetworkSentinel:
         socket.socket.connect = self._saved["socket_connect"]
         http.client.HTTPConnection.connect = self._saved["http_connect"]
         return False
-'''),
-    ('hris.adp_ops', '58585e7444141ad671315c630cc21636577579a49f7c1203f9808ed76779a78e', r'''"""hris.adp_ops — opérations de publication ADP : identité, intention durable, exécution, réconciliation.
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.adp_ops =============
+register_hris_module('hris.adp_ops', '58585e7444141ad671315c630cc21636577579a49f7c1203f9808ed76779a78e', r'''"""hris.adp_ops — opérations de publication ADP : identité, intention durable, exécution, réconciliation.
 
 PROPOSITION soumise à validation : le contrat final de publication et de reprise est absent.
 Chaque point qui en dépend porte un marqueur `CONTRAT-ADP:Cxx` recensé dans
@@ -3807,8 +4039,19 @@ def apply_manual_decision(op_row: dict, decision: str, decided_by: str, basis: s
               "employee_key": op_row["employee_key"], "decision": decision, "decided_by": decided_by,
               "decided_at_utc": now, "basis": basis, "reference": reference}
     return updated, record
-'''),
-    ('hris.adp_port', 'db8a126b982c68ac552b5a00bcc288fadf42508e44a9e0f1845ca081fb6a696d', r'''"""hris.adp_port — portage de la logique métier de la Function ADP (adp-function-app/function_app.py,
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.adp_port =============
+register_hris_module('hris.adp_port', 'db8a126b982c68ac552b5a00bcc288fadf42508e44a9e0f1845ca081fb6a696d', r'''"""hris.adp_port — portage de la logique métier de la Function ADP (adp-function-app/function_app.py,
 PRJ @ 5541490, main() L4234-5031 et fonctions appelées), pour UN salarié.
 
 Parité par défaut (A05 § 3) : mêmes lectures (17 G3 + G1/G2/G4/G5/G6), mêmes comparaisons brutes,
@@ -4795,8 +5038,19 @@ def _hire_payload_impl(self, worker_id, citizenship, nir, given, family, birth_n
                 "stringFields": [{"itemID": "SAD_LIB34", "stringValue": matricule_it}]}},
         "eventReasonCode": {"codeValue": "ACQ"}}}}}]}
 
-'''),
-    ('hris.adp_publish', '60c09780945f4bb6bd6b748b05f0283444aa39bcf153f54ca241f06a21ce651b', r'''"""hris.adp_publish — orchestration de la publication ADP d'un run (outbox -> opérations).
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.adp_publish =============
+register_hris_module('hris.adp_publish', '60c09780945f4bb6bd6b748b05f0283444aa39bcf153f54ca241f06a21ce651b', r'''"""hris.adp_publish — orchestration de la publication ADP d'un run (outbox -> opérations).
 
 Ordre imposé :
   1. décision du garde-fou (nom réel du workspace) écrite AVANT toute autre action ;
@@ -4989,8 +5243,19 @@ def _last_code(executor) -> str:
         if detail:
             return str(detail)[:100]
     return "NO_OPERATION"
-'''),
-    ('hris.adp_spark', '8366cf0b1f5d716d82ab0d707bbc927278fbd623b9a7c9c3e0a69e935620be36', r'''"""hris.adp_spark — dépôts Delta de la publication ADP et fabriques du transport réel.
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.adp_spark =============
+register_hris_module('hris.adp_spark', '8366cf0b1f5d716d82ab0d707bbc927278fbd623b9a7c9c3e0a69e935620be36', r'''"""hris.adp_spark — dépôts Delta de la publication ADP et fabriques du transport réel.
 
 Chaque upsert d'opération est un commit Delta distinct (MERGE) : l'intention est durable AVANT
 le transport. Le transport réel et le lecteur réel ne se construisent que si l'activation est
@@ -5151,8 +5416,19 @@ class RealAdpTransportFactory:
         if not ADP_ACTIVATION_APPROVED:
             raise HrisError("ADP_ACTIVATION_NOT_APPROVED", "aucune lecture de secret ADP ni aucun jeton")
         raise HrisError("ADP_REAL_TRANSPORT_NOT_WIRED", "câblage réel à valider avec le contrat final")  # pragma: no cover
-'''),
-    ('hris.steps', '9a492212bed76d1b3aec96a5efcba8f76a149c87c0ae0f0b217170cb0103ee7f', r'''"""hris.steps — étapes du pipeline (logique des notebooks), appelées à l'identique par les notebooks et par
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.steps =============
+register_hris_module('hris.steps', '9a492212bed76d1b3aec96a5efcba8f76a149c87c0ae0f0b217170cb0103ee7f', r'''"""hris.steps — étapes du pipeline (logique des notebooks), appelées à l'identique par les notebooks et par
 les tests d'intégration Fabric (schéma isolé). Aucune sortie de donnée personnelle : compteurs seulement."""
 from __future__ import annotations
 
@@ -5410,8 +5686,19 @@ def run_publish(spark, T: Tables, run_id: str, run_mode: str, *, context_provide
         step.failed(exc)
         IO.update_run(spark, T, run_id, error_code="PUBLISH_FAILED", error_summary=safe_error(exc))
         raise
-'''),
-    ('hris.legacy_logs', '23e7cd84abb562bf3097d258b4c17af8515a2074394ff3ecd146c2ab8d6c1409', r'''"""hris.legacy_logs — lecture des logs historiques de l'ancienne Function ADP (import unique, D-LOG-00).
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.legacy_logs =============
+register_hris_module('hris.legacy_logs', '23e7cd84abb562bf3097d258b4c17af8515a2074394ff3ecd146c2ab8d6c1409', r'''"""hris.legacy_logs — lecture des logs historiques de l'ancienne Function ADP (import unique, D-LOG-00).
 
 Reprise des fonctions du prototype NB_HRIS_IMPORT_LOGS_HISTORIQUES (TEST_2/notebooks) sous forme
 testable. Lecture seule : aucun fichier n'est produit, modifié ni supprimé. Les lignes rejetées sont
@@ -5557,24 +5844,7 @@ def process_folder(local_root: str, uri_prefix: str, extensions: set, already_im
                 entry["status"] = "IMPORTED"
         ledger.append(entry)
     return records, rejects, ledger
-'''),
-]
-def _hris_load(entries):
-    pkg = _sys.modules.get('hris') or _types.ModuleType('hris')
-    pkg.__path__ = []
-    _sys.modules['hris'] = pkg
-    for name, digest, src in entries:
-        if _hl.sha256(src.encode('utf-8')).hexdigest() != digest:
-            raise RuntimeError('empreinte invalide : ' + name)
-        mod = _types.ModuleType(name)
-        mod.__file__ = name.replace('.', '/') + '.py'
-        _sys.modules[name] = mod
-        exec(compile(src, mod.__file__, 'exec'), mod.__dict__)
-        if name.startswith('hris.'):
-            setattr(pkg, name.split('.', 1)[1], mod)
-    return {n: d for n, d, _ in entries}
-HRIS_LIBRARY_DIGESTS = _hris_load(_HRIS_MODULES)
-print('bibliothèque HRIS chargée :', len(HRIS_LIBRARY_DIGESTS), 'modules')
+''')
 
 # METADATA ********************
 
@@ -5585,9 +5855,213 @@ print('bibliothèque HRIS chargée :', len(HRIS_LIBRARY_DIGESTS), 'modules')
 
 # CELL ********************
 
-import hris.adp_transport as _t
-print({"modules": sorted(HRIS_LIBRARY_DIGESTS), "adp_activation_approved": _t.ADP_ACTIVATION_APPROVED,
-       "adp_read_policy_established": _t.ADP_READ_POLICY_ESTABLISHED})
+# ============= MODULE hris.cell_log =============
+register_hris_module('hris.cell_log', '753f215b9da90c692337f729a62af15d6baadf7882559746639b6f9346aeddc9', r'''"""hris.cell_log — journal des cellules de code exécutées (table log.cell_execution).
+
+Une ligne par cellule de code terminée, avec le contexte non sensible du notebook :
+  * SUCCEEDED : le code Python de la cellule s'est terminé sans exception. Les écritures Delta lancées
+    par la cellule sont alors terminées ; un DataFrame seulement déclaré (calcul Spark différé) n'est PAS
+    validé par ce statut. Traces optionnelles (paramètre p_log_cell_success des notebooks).
+  * FAILED : toujours journalisé, AVANT que la cellule ne propage l'erreur.
+Une cellule qui n'a pas été exécutée ne produit aucune ligne.
+
+Coût : aucune action Spark (ni count, ni collect) n'est lancée pour produire un événement. Les événements
+restent en mémoire et sont écrits en UNE seule écriture Delta (append) : à la clôture du notebook pour les
+réussites, immédiatement en cas d'échec (réussites en attente + échec). Tant que cette écriture n'a pas eu
+lieu, une trace n'est PAS persistée.
+
+Robustesse : une écriture de journal en échec ne lève jamais d'exception, l'erreur métier n'est donc jamais
+masquée ; un diagnostic expurgé est affiché et `write_failed` passe à True (limite de traçabilité).
+Contenu : identifiants techniques, horodatages, statut, type d'erreur, message assaini (littéraux entre
+guillemets masqués, puis hris.common.sanitize) et emplacement fichier:fonction:ligne. Jamais de secret, de
+jeton, de ligne RH ni de valeur de paramètre.
+"""
+from __future__ import annotations
+
+import os
+import re
+import time
+import traceback
+import uuid
+from typing import Any, Callable, List, Optional
+
+from hris.common import HrisError, safe_error, sanitize, utc_now
+
+LOGICAL_TABLE = "log.cell_execution"
+STATUS_SUCCEEDED = "SUCCEEDED"   # mêmes statuts que ctl.run_step
+STATUS_FAILED = "FAILED"
+
+_QUOTED = [re.compile(r"'[^'\n]*'"), re.compile(r'"[^"\n]*"')]
+
+
+def context_value(context: Any, key: str) -> Optional[str]:
+    """Valeur du contexte d'exécution Fabric (notebookutils.runtime.context), None si absente ou illisible."""
+    try:
+        value = context.get(key)
+    except Exception:
+        return None
+    return None if value in (None, "") else str(value)
+
+
+def _context_flag(context: Any, key: str) -> Optional[bool]:
+    try:
+        value = context.get(key)
+    except Exception:
+        return None
+    if value is None or value == "":
+        return None
+    return value if isinstance(value, bool) else str(value).strip().lower() == "true"
+
+
+def redact_error(error: BaseException) -> str:
+    """Raison publiable d'une erreur. HrisError : code + message construit par le code (safe_error).
+    Autres erreurs : classe + message dont les littéraux entre guillemets (valeurs possibles) sont masqués,
+    puis assaini (URL, e-mails, IBAN, jetons, nombres de 4 chiffres ou plus)."""
+    if isinstance(error, HrisError):
+        return safe_error(error)
+    text = " ".join(str(error).split())
+    for pattern in _QUOTED:
+        text = pattern.sub("'***'", text)
+    if isinstance(error, ImportError) and error.name:   # nom de module : identifiant de code, jamais une donnée
+        text = f"{text} (module {error.name})"
+    return f"{type(error).__name__}: {sanitize(text, 300)}"
+
+
+def error_location(error: BaseException) -> str:
+    """Dernière frame de la bibliothèque hris (sinon la plus profonde) : fichier:fonction:ligne, sans valeur."""
+    frames = traceback.extract_tb(error.__traceback__) if error.__traceback__ is not None else []
+    if not frames:
+        return ""
+    chosen = next((f for f in reversed(frames) if f.filename.replace("\\", "/").startswith("hris/")), frames[-1])
+    name = chosen.filename.replace("\\", "/")
+    name = name if name.startswith("hris/") else os.path.basename(name)
+    return sanitize(f"{name}:{chosen.name}:{chosen.lineno}", 200, mask_numbers=False)
+
+
+def report_unlogged_failure(cell_code: str, error: BaseException) -> None:
+    """Échec survenu avant l'ouverture du journal (destination inconnue) : diagnostic expurgé affiché."""
+    print(f"[cell_log] ❌ cellule {cell_code} en échec avant l'ouverture du journal : {redact_error(error)} "
+          f"— trace NON persistée (destination de journal inconnue)")
+
+
+class CellLog:
+    """Journal des cellules d'UNE exécution de notebook : start() / success() / failure() puis flush()."""
+
+    def __init__(self, context: Any, *, lakehouse_name: str, run_id: str = "", log_success: bool = True,
+                 writer: Optional[Callable[[List[dict]], None]] = None,
+                 clock: Callable[[], float] = time.perf_counter):
+        self.base = {
+            "run_id": (run_id or "")[:100] or None,
+            "operation_id": context_value(context, "activityId"),
+            "notebook_name": context_value(context, "currentNotebookName"),
+            "notebook_id": context_value(context, "currentNotebookId"),
+            "workspace_name": context_value(context, "currentWorkspaceName"),
+            "workspace_id": context_value(context, "currentWorkspaceId"),
+            "lakehouse_name": lakehouse_name or None,
+            "is_for_pipeline": _context_flag(context, "isForPipeline"),
+        }
+        self.log_success = bool(log_success)
+        self.write_failed = False
+        self.events_written = 0
+        self.writes = 0
+        self._writer = writer
+        self._clock = clock
+        self._pending: List[dict] = []
+        self._current = None
+        self._seq = 0
+
+    def start(self, cell_code: str) -> None:
+        """Ouvre la cellule `cell_code` (identifiant stable) : horodatage de début, aucune écriture."""
+        self._current = (cell_code, utc_now(), self._clock())
+
+    def success(self) -> None:
+        """Clôt la cellule ouverte en SUCCEEDED ; gardée en mémoire (si l'option est active) jusqu'au flush."""
+        event = self._close(STATUS_SUCCEEDED, None)
+        if event is not None and self.log_success:
+            self._pending.append(event)
+
+    def failure(self, error: BaseException) -> None:
+        """Clôt la cellule ouverte en FAILED et écrit tout de suite (réussites en attente + échec).
+        Ne lève jamais d'exception : la cellule propage ensuite l'erreur d'origine par `raise`."""
+        try:
+            event = self._close(STATUS_FAILED, error)
+            if event is None:  # échec hors cellule ouverte : tracé quand même, jamais ignoré
+                self.start("UNKNOWN_CELL")
+                event = self._close(STATUS_FAILED, error)
+            self._pending.append(event)
+        except Exception as exc:  # pragma: no cover - garde ultime : ne jamais masquer l'erreur métier
+            print(f"[cell_log] ⚠ événement d'échec non construit : {type(exc).__name__}")
+            return
+        self.flush()
+
+    def flush(self) -> None:
+        """Écrit les événements en attente en UNE écriture. Ne lève jamais d'exception."""
+        if not self._pending:
+            return
+        events, self._pending = self._pending, []
+        now = utc_now()
+        for event in events:
+            event["logged_at_utc"] = now
+        if self._writer is None:
+            self._report_unwritten(events, "aucune destination de journal configurée")
+            return
+        try:
+            self._writer(events)
+            self.writes += 1
+            self.events_written += len(events)
+        except Exception as exc:
+            self.write_failed = True
+            self._report_unwritten(events, redact_error(exc))
+
+    def _close(self, status: str, error: Optional[BaseException]) -> Optional[dict]:
+        if self._current is None:
+            return None
+        cell_code, started_at, started_clock = self._current
+        self._current = None
+        self._seq += 1
+        event = dict(self.base, event_id=str(uuid.uuid4()), cell_code=cell_code, cell_seq=self._seq,
+                     status=status, started_at_utc=started_at, ended_at_utc=utc_now(),
+                     duration_ms=max(0, int(round((self._clock() - started_clock) * 1000))),
+                     error_type=None, error_code=None, error_message=None, error_location=None)
+        if error is not None:
+            event.update(error_type=type(error).__name__,
+                         error_code=error.code if isinstance(error, HrisError) else None,
+                         error_message=redact_error(error), error_location=error_location(error))
+        return event
+
+    def _report_unwritten(self, events: List[dict], reason: str) -> None:
+        cells = ", ".join(f"{e['cell_code']}={e['status']}" + (f"({e['error_type']})" if e["error_type"] else "")
+                          for e in events)
+        print(f"[cell_log] ⚠ journal NON persisté ({len(events)} événement(s)) : {reason} ; cellules : {cells}")
+
+
+def spark_writer(spark, tables) -> Callable[[List[dict]], None]:
+    """Écriture Delta en ajout dans log.cell_execution (nom à 4 parties résolu par `tables`).
+    La table est créée par NB_HRIS_SETUP ; à défaut, saveAsTable en mode append la crée au même schéma."""
+    from hris import spark_io as IO
+
+    def write(events: List[dict]) -> None:
+        IO.append(IO.rows_df(spark, events, LOGICAL_TABLE), tables(LOGICAL_TABLE), LOGICAL_TABLE)
+    return write
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= SYNTHÈSE DU CHARGEMENT =============
+try:
+    hris_library_digests = {name: getattr(sys.modules[name], "__hris_digest__", None)
+                            for name in sorted(sys.modules) if name.startswith("hris.")}
+    print("[T4_NB_HRIS_LIB] ✓ bibliothèque HRIS chargée :", len(hris_library_digests), "modules")
+except Exception:
+    traceback.print_exc()
+    raise
 
 # METADATA ********************
 

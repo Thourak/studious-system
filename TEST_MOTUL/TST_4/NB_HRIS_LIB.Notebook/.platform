@@ -2,8 +2,8 @@
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
   "metadata": {
     "type": "Notebook",
-    "displayName": "T3_NB_HRIS_LIB",
-    "description": "Bibliothèque commune HRIS (embarquée dans chaque notebook ; non exécutée par le pipeline)."
+    "displayName": "T4_NB_HRIS_LIB",
+    "description": "Bibliothèque commune HRIS (copie unique), chargée par %run T3_nb_hris_lib dans chaque notebook du flux ; jamais appelée seule par le pipeline."
   },
   "config": {
     "version": "2.0",

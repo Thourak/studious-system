@@ -91,6 +91,13 @@
                 "type": "Expression"
               },
               "type": "string"
+            },
+            "p_log_cell_success": {
+              "value": {
+                "value": "@pipeline().libraryVariables.log_cell_success",
+                "type": "Expression"
+              },
+              "type": "string"
             }
           }
         },
@@ -145,6 +152,13 @@
                       "type": "Expression"
                     },
                     "type": "string"
+                  },
+                  "p_log_cell_success": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.log_cell_success",
+                      "type": "Expression"
+                    },
+                    "type": "string"
                   }
                 }
               },
@@ -174,6 +188,13 @@
                   "p_lakehouse_name": {
                     "value": {
                       "value": "@pipeline().libraryVariables.lakehouse_name",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_log_cell_success": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.log_cell_success",
                       "type": "Expression"
                     },
                     "type": "string"
@@ -223,6 +244,13 @@
                       "type": "Expression"
                     },
                     "type": "string"
+                  },
+                  "p_log_cell_success": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.log_cell_success",
+                      "type": "Expression"
+                    },
+                    "type": "string"
                   }
                 }
               },
@@ -266,6 +294,13 @@
                   "p_lakehouse_name": {
                     "value": {
                       "value": "@pipeline().libraryVariables.lakehouse_name",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_log_cell_success": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.log_cell_success",
                       "type": "Expression"
                     },
                     "type": "string"
@@ -329,6 +364,13 @@
                       "type": "Expression"
                     },
                     "type": "string"
+                  },
+                  "p_log_cell_success": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.log_cell_success",
+                      "type": "Expression"
+                    },
+                    "type": "string"
                   }
                 }
               },
@@ -379,6 +421,13 @@
                   "p_lakehouse_name": {
                     "value": {
                       "value": "@pipeline().libraryVariables.lakehouse_name",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_log_cell_success": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.log_cell_success",
                       "type": "Expression"
                     },
                     "type": "string"
@@ -435,6 +484,13 @@
                       "type": "Expression"
                     },
                     "type": "string"
+                  },
+                  "p_log_cell_success": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.log_cell_success",
+                      "type": "Expression"
+                    },
+                    "type": "string"
                   }
                 }
               },
@@ -486,6 +542,13 @@
                   "p_error_message": {
                     "value": {
                       "value": "Échec de la clôture du run (RunEnd)",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_log_cell_success": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.log_cell_success",
                       "type": "Expression"
                     },
                     "type": "string"
@@ -612,6 +675,11 @@
       "lakehouse_name": {
         "type": "String",
         "variableName": "lakehouse_name",
+        "libraryName": "VL_HRIS"
+      },
+      "log_cell_success": {
+        "type": "String",
+        "variableName": "log_cell_success",
         "libraryName": "VL_HRIS"
       }
     }

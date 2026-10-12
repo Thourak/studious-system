@@ -54,6 +54,12 @@
       "note": "Nom du Lakehouse cible dans le workspace d'exécution (noms de tables à 4 parties ; aucun Lakehouse par défaut requis).",
       "type": "String",
       "value": "MOTUL_LH_HRIS"
+    },
+    {
+      "name": "log_cell_success",
+      "note": "Journal des cellules (log.cell_execution) : true = trace aussi les cellules réussies ; les échecs sont toujours tracés.",
+      "type": "String",
+      "value": "true"
     }
   ]
 }

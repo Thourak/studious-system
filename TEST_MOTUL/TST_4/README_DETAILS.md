@@ -9,7 +9,8 @@ et colonnes tels qu'ils apparaissent dans Fabric. Chaque affirmation indique, qu
 [Contrôle du run](#run-control) · [Acquisition](#acquisition) · [Transformation](#transformation) ·
 [Comparaison](#comparaison) · [Promotion](#promotion) · [Publication ADP](#publication) · [Tables](#tables) ·
 [Sécurité](#securite) · [Tests et preuves](#tests) · [Git et Fabric](#git) · [Exploitation](#exploitation) ·
-[Démonstration](#demo) · [Blocages](#blocages) · [Questions probables](#faq) · [Glossaire](#glossaire)
+[Journal des cellules](#journal-cellules) · [Refactorisation TST_4](#tst4) · [Démonstration](#demo) ·
+[Blocages](#blocages) · [Questions probables](#faq) · [Glossaire](#glossaire)
 
 ---
 
@@ -71,10 +72,13 @@ flowchart LR
 `TEST_MOTUL/TEST_2`. Le Lakehouse préexiste dans `TEST_MOTUL/TEST_1` ; il est réutilisé, non dupliqué (le nom
 documenté `LH_HRIS` est remplacé par le Lakehouse désigné, `MOTUL_LH_HRIS`).
 
-**Une bibliothèque, embarquée.** Le code métier vit dans une bibliothèque Python (`hris`, 17 modules de production).
-Elle est copiée **à l'identique** dans chaque notebook, avec l'empreinte SHA-256 de chaque module vérifiée au
-chargement. Raison : le support de `%run` en exécution par pipeline est documenté de façon contradictoire et n'a pas
-été vérifié. `NB_HRIS_LIB` sert à la lecture et à l'usage interactif ; le pipeline ne l'appelle pas.
+**Une bibliothèque, une seule copie.** Le code métier vit dans une bibliothèque Python (`hris`, 18 modules de
+production) portée par le notebook `T3_nb_hris_lib` (dossier `NB_HRIS_LIB.Notebook`), une cellule par module, avec
+l'empreinte SHA-256 de chaque module vérifiée au chargement. Chaque notebook la charge par `%run T3_nb_hris_lib`
+(deuxième cellule), qui exécute ses cellules dans l'interpréteur du notebook appelant. Jusqu'à la version T3, la
+bibliothèque était copiée à l'identique dans chaque notebook (environ 5 550 lignes par notebook) faute de
+vérification du `%run` en exécution par pipeline ; voir [Refactorisation TST_4](#tst4) pour ce qui reste à vérifier
+dans Fabric.
 
 **Noms de tables à quatre parties.** Les tables sont adressées par `` `workspace`.`lakehouse`.schéma.table ``. Mesuré
 dans ce workspace : sans Lakehouse par défaut attaché, les noms partiels (`ctl.run`) et à trois parties échouent
@@ -92,7 +96,7 @@ association de Lakehouse que la synchronisation Git pourrait ne pas conserver.
 | `ref` | état validé du dernier run, un instantané par salarié | promotion uniquement |
 | `pub` | outbox de publication, opérations, tentatives, réconciliations | promotion, publication |
 | `ctl` | verrou, registre des runs, étapes | contrôle du run et tous les notebooks (étapes) |
-| `log` | comparatifs, anomalies, rejets masqués, résumé, décisions du garde-fou, logs ADP | notebooks concernés |
+| `log` | comparatifs, anomalies, rejets masqués, résumé, décisions du garde-fou, logs ADP, journal des cellules | notebooks concernés |
 
 Règle d'écriture : **un seul moteur** (Spark) écrit chaque table, par `replaceWhere run_id` ou `MERGE`, jamais par
 suppression globale.
@@ -132,6 +136,7 @@ pipeline.
 | `kv_url_ts` | coffre `kvt-mge-azr-hris-ts-prd` | référence du coffre des identifiants TalentSoft |
 | `kv_url_adp` | vide | référence du coffre ADP, vide hors PRD |
 | `lakehouse_name` | `MOTUL_LH_HRIS` | Lakehouse cible |
+| `log_cell_success` | `true` | journal des cellules : `true` trace aussi les réussites ; les échecs sont toujours tracés |
 | `business_timezone` | `Europe/Paris` | fuseau de la date métier (à confirmer) |
 | `lock_lease_minutes` | `240` | durée du bail du verrou (à confirmer) |
 | `adp_max_attempts` | `3` | tentatives maximales par opération (à confirmer) |
@@ -450,7 +455,7 @@ variantes, reprise, politique des lectures, idempotence côté ADP, sens de `SEN
 document restent cohérents. **C00 (le verrou d'activation) se lève en dernier.**
 
 <a id="tables"></a>
-## Les 42 tables du Lakehouse
+## Les 43 tables du Lakehouse
 
 | Schéma | Tables | Écrite par | Données personnelles |
 |---|---|---|---|
@@ -459,7 +464,7 @@ document restent cohérents. **C00 (le verrou d'activation) se lève en dernier.
 | `ref` (1) | `ts_employee_adp` | promotion | **oui** |
 | `pub` (4) | `adp_outbox`, `adp_operation`, `adp_attempt`, `adp_reconciliation` | promotion, publication | outbox et opérations : oui |
 | `ctl` (3) | `process_lock`, `run`, `run_step` | contrôle du run, tous | non |
-| `log` (11) | `comparison_summary`, `comparison_detail`, `anomaly`, `reject`, `run_summary`, `adp_gate_decision`, `adp_publication_log`, `adp_manual_decision`, `log_file_import`, `log_file_import_reject`, `notification` | notebooks concernés | détail, rejets, log ADP : oui |
+| `log` (12) | `comparison_summary`, `comparison_detail`, `anomaly`, `reject`, `run_summary`, `adp_gate_decision`, `adp_publication_log`, `adp_manual_decision`, `log_file_import`, `log_file_import_reject`, `notification`, `cell_execution` | notebooks concernés | détail, rejets, log ADP : oui ; `cell_execution` : non |
 
 Les quatre tables de publication par opération (`adp_operation`, `adp_attempt`, `adp_reconciliation`,
 `adp_manual_decision`) sont des **propositions** : leur sémantique dépend du contrat final.
@@ -535,6 +540,8 @@ workspace. Les items HRIS sont dans `TEST_MOTUL/TEST_2` ; le Lakehouse reste dan
 `<Nom>.DataPipeline/` (`pipeline-content.json` et `.platform`), `<Nom>.VariableLibrary/` (fichiers de définition). Le
 contenu des fichiers est l'**export du service Fabric**, pas une reconstitution : les cellules de code sont comparées à
 celles déployées, et le dossier est contrôlé (références, noms, absence de marqueur non résolu, `retry = 0`).
+**Exception TST_4** : les fichiers de ce dossier ont été modifiés localement lors de la refactorisation (format natif
+et `logicalId` conservés) ; ils ne sont plus un export du service tant qu'ils n'ont pas été synchronisés.
 
 **Identifiants.** Chaque item a un identifiant réel (propre au workspace) et un identifiant **logique** (celui de Git).
 Les 12 items sont créés mais non commités : leur identifiant logique n'existe pas encore. Ceux des fichiers préparés
@@ -602,6 +609,94 @@ puis relancer, **jamais de promotion forcée** sans décision tracée. Publicati
 **Retour arrière, sans perte de données.** Redéployer la version précédente du code ; ne supprimer aucune table ;
 restaurer la référence par `RESTORE` seulement avec validation distincte (journal Delta de 30 jours).
 
+<a id="journal-cellules"></a>
+## Journal des cellules — `log.cell_execution`
+
+**Principe.** Chaque cellule de **traitement** effectivement exécutée (configuration, pré-contrôle, acquisition,
+transformation, comparaison, promotion, publication, contrôle du run, socle, tests) produit au plus une ligne. Les
+cellules de définition (chargement `%run`, imports, paramètres, fonctions) ne sont pas tracées : elles n'exécutent aucun
+traitement et, pour les trois premières, s'exécutent avant que la destination du journal soit connue. La cellule de
+clôture écrit le journal puis appelle `notebookutils.notebook.exit` ; elle ne se trace pas elle-même.
+
+| Événement | Quand | Écrit |
+|---|---|---|
+| `SUCCEEDED` | le code Python de la cellule s'est terminé sans exception | **si** `p_log_cell_success` = `true` (`VL_HRIS.log_cell_success`) ; gardé en mémoire, écrit à la clôture |
+| `FAILED` | exception dans la cellule | **toujours**, immédiatement, avec les réussites en attente, **avant** que la cellule ne relance l'erreur par `raise` |
+
+`SUCCEEDED` signifie que la cellule s'est terminée : les écritures Delta qu'elle a lancées sont alors terminées, mais
+un DataFrame seulement déclaré (calcul différé) n'est pas validé par ce statut. Une cellule non exécutée ne produit
+aucune ligne.
+
+**Coût.** Aucune action Spark (ni `count`, ni `collect`) n'est ajoutée pour journaliser. Au plus **une** écriture Delta
+en ajout par exécution de notebook (à la clôture ou au premier échec), soit un petit fichier par activité notebook
+exécutée (7 pour un run nominal) ; un `OPTIMIZE` périodique de la table est conseillé. Le surcoût en temps n'a pas été mesuré dans Fabric.
+
+**Robustesse.** Une écriture de journal en échec ne lève jamais d'exception : l'erreur métier d'origine est propagée
+inchangée, un diagnostic expurgé `[cell_log] ⚠ journal NON persisté …` est affiché dans la sortie du notebook (limite
+de traçabilité). Un échec antérieur à l'ouverture du journal (Lakehouse non résolu) est affiché
+`… en échec avant l'ouverture du journal …`, sans trace en table.
+
+**Colonnes.**
+
+| Colonne | Contenu |
+|---|---|
+| `event_id` | identifiant unique de l'événement |
+| `run_id` | identifiant d'exécution du pipeline (`p_run_id`), vide pour `NB_HRIS_SETUP` |
+| `operation_id` | identifiant de l'exécution du notebook (`activityId` du contexte Fabric) |
+| `notebook_name`, `notebook_id` | notebook réel (contexte Fabric) |
+| `cell_code`, `cell_seq` | identifiant stable de la cellule (`CONFIG`, `TRANSFORM`…) et rang d'exécution |
+| `status` | `SUCCEEDED` ou `FAILED` (mêmes statuts que `ctl.run_step`) |
+| `started_at_utc`, `ended_at_utc`, `duration_ms` | horodatages UTC et durée |
+| `workspace_name`, `workspace_id`, `lakehouse_name`, `is_for_pipeline` | contexte d'exécution |
+| `error_type`, `error_code`, `error_message`, `error_location` | en échec : classe, code fonctionnel `HrisError`, raison assainie, `fichier:fonction:ligne` |
+| `logged_at_utc` | heure de l'écriture |
+
+**Données sensibles.** Aucun secret, jeton, ligne RH ni valeur de paramètre. Les messages `HrisError` sont construits par
+le code (même traitement que `ctl.run_step`) ; les autres messages ont leurs littéraux entre guillemets masqués (`'***'`),
+puis URL, e-mails, IBAN, jetons et nombres de 4 chiffres ou plus masqués. La trace complète reste visible dans la sortie
+du run Fabric, réservée aux membres du workspace.
+
+```sql
+SELECT notebook_name, cell_seq, cell_code, status, duration_ms, error_type, error_code, error_message, error_location
+FROM log.cell_execution WHERE run_id = '<run_id>' ORDER BY started_at_utc;
+```
+
+<a id="tst4"></a>
+## Refactorisation TST_4
+
+**Ce qui change.**
+
+| Sujet | Avant (T3) | TST_4 |
+|---|---|---|
+| Bibliothèque `hris` | copiée dans chaque notebook (≈ 5 550 lignes × 9) | une copie, `T3_nb_hris_lib`, chargée par `%run` ; une cellule par module |
+| Modules métier | 17 | 16 identiques à l'octet près ; `model` : ajout du DDL `log.cell_execution` ; nouveau module `cell_log` |
+| Configuration | lue dans la cellule de traitement | cellule dédiée, minimale : workspace réel (contexte), Lakehouse (`VL_HRIS`), réglages de session |
+| Structure | 1 cellule de traitement | Markdown (R01), `%run`, imports, paramètres commentés, configuration, une fonction par cellule, traitements protégés, clôture |
+| Journal | `ctl.run_step` par étape | inchangé, **plus** `log.cell_execution` par cellule |
+| Pipeline | — | paramètre `p_log_cell_success` sur les 9 activités notebook ; rien d'autre |
+
+Aucune règle métier, aucun contrat de sortie, aucune destination ni aucun garde-fou n'a été modifié ; le garde-fou ADP
+relit toujours le contexte réel du notebook au moment de la décision.
+
+**Preuves locales (sans Fabric).** Tests unitaires et NR-03 relancés sur la bibliothèque modifiée ; rejeu, ancien contre
+nouveau notebook, des 7 activités du run du 08/10/2026 avec ses paramètres et ses sorties réels : mêmes appels métier,
+même valeur de sortie, égale à la sortie réelle ; scénarios d'échec, d'option désactivée, de journal indisponible et de
+Lakehouse non résolu ; contrôles statiques des règles applicables. Le détail est dans le compte rendu de la
+refactorisation.
+
+**À vérifier dans Fabric avant de considérer le process 1 validé** (rien n'a été déployé ni exécuté) :
+
+1. Synchroniser les items (voir [Git](#git)) : `TST_4` réutilise les `logicalId` et les noms `T3_*` de `TST_3`, les deux
+   dossiers ne peuvent pas coexister dans un même workspace sans renommage et nouveaux identifiants.
+2. Lever B-01 par une voie validée (coffre lisible depuis le workspace d'exécution). Le run du 08/10 n'a obtenu ses
+   secrets que parce qu'ils étaient écrits dans le code de `TST_3` (commit `e817e10`) ; `TST_4` ne reprend pas ce
+   contournement, son acquisition échouera donc sur `TS_SECRET_RESOLUTION` tant que B-01 n'est pas levé.
+3. Exécuter `T3_NB_HRIS_SETUP` (crée `log.cell_execution`, attendu : `created = 1`, aucun `INCOMPATIBLE`).
+4. Exécuter `T3_NB_HRIS_TESTS` (attendu : 0 échec, dont `CellLogSpark`).
+5. Exécuter `T3_PL_HRIS_ORCHESTRATOR` en `NORMAL` et comparer, pour ce run, les sorties des activités, `ctl.run`,
+   `ctl.run_step`, `log.anomaly` et les volumes de `stg.ts_employee_raw` à ceux du run du 08/10, puis lire
+   `log.cell_execution`. Vérifier en particulier que `%run T3_nb_hris_lib` s'exécute en mode pipeline.
+
 <a id="demo"></a>
 ## Parcours de démonstration (15 minutes, dans le plan)
 
@@ -660,8 +755,14 @@ une personne tranche et sa décision est tracée.
 **Pourquoi un nom de workspace par sous-chaîne sensible à la casse ?** C'est la règle demandée, conservée telle quelle ;
 ses effets de bord (`PREPRD`, `prd`) sont documentés et à trancher avant activation.
 
-**Pourquoi la bibliothèque est-elle copiée dans chaque notebook ?** Pour ne pas dépendre de `%run`, dont le support en
-exécution par pipeline n'est pas vérifié ; l'intégrité est garantie par empreinte.
+**Pourquoi la bibliothèque n'est-elle plus copiée dans chaque notebook ?** Depuis TST_4, elle est chargée par
+`%run T3_nb_hris_lib` : une seule copie, donc aucune dérive possible entre notebooks, et des notebooks d'environ 200
+lignes au lieu de 5 600. La page Microsoft « Develop, execute, and manage notebooks » indique « Notebook reference works
+in both interactive mode and pipeline » (même workspace uniquement), mais une note de la même page ne liste que des
+magics de cellule (`%%pyspark`, `%%sql`, `%%configure`…) parmi celles supportées en pipeline : la documentation reste
+ambiguë. Les pipelines du dépôt `FR_BI_FABRIC` appellent déjà des notebooks qui commencent par `%run nb_shareddef`. Le
+point reste à **vérifier dans ce workspace** au premier run (voir [Refactorisation TST_4](#tst4)). L'intégrité reste
+garantie par empreinte.
 
 **Peut-on démontrer que rien n'a été envoyé à ADP ?** Applicativement oui (garde-fou journalisé, transport jamais
 construit, sentinelle réseau, aucune opération) ; une preuve réseau externe n'était pas disponible.

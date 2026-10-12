@@ -17,8 +17,9 @@ Chaque étape renvoie vers sa description détaillée dans [README_DETAILS.md](R
 | Objets créés dans le workspace non-PRD | **Fait** : 10 notebooks, 1 variable library, 1 pipeline, tables du Lakehouse | 12 items du workspace |
 | Tests dans Fabric sur données fictives | **Fait** : 71 tests, 0 échec, **sans Lakehouse par défaut** | campagne 3 |
 | Pipeline exécutable en manuel | **Fait** : 4 runs ; démarrage, enchaînement et gestion d'échec validés | historique des runs |
-| **Extraction réelle TalentSoft PRD** | **Bloquée** : les secrets sont dans un coffre d'un autre tenant (`AKV10032 Invalid issuer`) | pré-contrôle tracé dans `ctl.run_step` |
-| Transformation, comparaison, référence sur données réelles | **Non réalisés** (dépendent de l'extraction et des correspondances, vides) | — |
+| **Extraction réelle TalentSoft PRD** | **Exécutée une fois** (run du 08/10/2026, version T3) : 431 salariés persistés, statut `ACQUIRED_INCOMPLETE` (contrôle bloquant `TS_FILTER_TECHNICAL_FAILURE`). Les identifiants TalentSoft étaient alors **écrits dans le code** de `TST_3` (contournement du coffre, à proscrire) ; `TST_4` les lit uniquement dans le coffre, donc le blocage B-01 s'applique de nouveau | historique des activités de `T3_PL_HRIS_ORCHESTRATOR` dans Fabric (run du 08/10/2026) |
+| Transformation, comparaison, référence sur données réelles | **Bloquées** : correspondances vides (`BLOCKED_MAPPINGS`), référence absente (`REFERENCE_ABSENTE`) | même run |
+| Refactorisation TST_4 : bibliothèque unique par `%run`, journal des cellules | **Code modifié et testé en local** (rejeu du run du 08/10, 137 contrôles) ; **ni déployé ni exécuté dans Fabric** | [Refactorisation TST_4](README_DETAILS.md#tst4) |
 | Publication ADP | **Verrouillée dans le code** ; jamais exécutée ; contrat final absent | zéro opération ni tentative ADP |
 | Synchronisation Git ↔ Fabric | **Fichiers préparés**, rien commité ni poussé | `git status` : uniquement des ajouts |
 
@@ -45,8 +46,8 @@ Ne pas confondre : *code écrit* ≠ *objet créé* ≠ *pipeline exécutable* �
 |---|---|
 | `PL_HRIS_ORCHESTRATOR` | Le pipeline : enchaîne les étapes d'un run et gère les échecs ; lancement manuel, aucune planification. |
 | `VL_HRIS` | Les paramètres de l'environnement (aucun secret) : source TalentSoft, référence du coffre, nom du Lakehouse… |
-| `NB_HRIS_LIB` | La bibliothèque commune, embarquée à l'identique dans chaque notebook. |
-| `NB_HRIS_SETUP` | Crée, de façon idempotente, les schémas et les 42 tables. |
+| `T3_nb_hris_lib` (dossier `NB_HRIS_LIB`) | La bibliothèque commune : copie unique, chargée par `%run T3_nb_hris_lib` au début de chaque notebook. |
+| `NB_HRIS_SETUP` | Crée, de façon idempotente, les schémas et les 43 tables (dont le journal des cellules). |
 | `NB_HRIS_RUN_CONTROL` | Ouvre un run (verrou, registre), le clôture ou le déclare en échec. |
 | `NB_HRIS_TS_ACQUIRE` | Extrait les salariés de TalentSoft PRD vers le Lakehouse et contrôle la complétude. |
 | `NB_HRIS_TRANSFORM` | Reprend les règles SQL de production : correspondances, rejets, format paie. |
@@ -104,11 +105,14 @@ flowchart TD
 - **Aucun Lakehouse par défaut à attacher** : les tables sont adressées par leur nom complet
   (workspace, Lakehouse, schéma, table). [→ Détail](README_DETAILS.md#git)
 - **Rien n'est supprimé ni écrasé** sans validation distincte. [→ Détail](README_DETAILS.md#exploitation)
+- **Chaque cellule de traitement est tracée** dans `log.cell_execution` : échecs toujours, réussites selon
+  `VL_HRIS.log_cell_success`, en une seule écriture par notebook. [→ Détail](README_DETAILS.md#journal-cellules)
 
 ## Pour aller plus loin
 
 - [Contexte et vocabulaire](README_DETAILS.md#contexte)
-- [Les 42 tables du Lakehouse](README_DETAILS.md#tables)
+- [Les 43 tables du Lakehouse](README_DETAILS.md#tables)
+- [Refactorisation TST_4 : bibliothèque unique, configuration minimale, journal des cellules](README_DETAILS.md#tst4)
 - [Tests et preuves](README_DETAILS.md#tests)
 - [Intégration Git et Fabric](README_DETAILS.md#git)
 - [Relancer et vérifier un run](README_DETAILS.md#exploitation)
