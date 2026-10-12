@@ -1235,22 +1235,11 @@ def normalize_type(t: str) -> str:
 # CELL ********************
 
 # ============= MODULE hris.ts_acquire =============
-register_hris_module('hris.ts_acquire', '36ddadbe277752ddf18df9933912650036e68e98b8475509c51629e72ed6427a', r'''"""hris.ts_acquire — portage de la Function TalentSoft (ts-function-app/function_app.py, PRJ @ 5541490).
+register_hris_module('hris.ts_acquire', 'd381880b82ee3b6a7d071d8f416315677188498410fe5a9652a813409531b2ba', r'''"""hris.ts_acquire — portage de la Function TalentSoft (ts-function-app/function_app.py, PRJ @ 5541490).
 
-Parité (A01, R-TS-007 à R-TS-030) : endpoints, règle de « valeur courante » dépendant de l'ordre
-(sauf la sélection de la situation, voir ci-dessous), conversion « falsy », sentinelle 1900-01-01, Hors_France,
-Level sans %, filtre « Motul France », retries 429/503/réseau avec backoff, disjoncteur global.
-
-Écart volontaire HORS PARITÉ, défaut déjà présent dans l'existant : la sélection de la situation (select_situation).
-L'existant utilisait une seule date courante pour tous les champs : un WorkingType récent pouvait masquer une
-Position plus ancienne, Situation_starDate pouvait être la date d'un autre champ, et le résultat dépendait de l'ordre
-des éléments renvoyés. Désormais Position et WorkingType sont sélectionnés chacun selon leur propre startDate,
-indépendamment de l'ordre ; Situation_starDate est la startDate de la Position retenue, et d'elle seule (c'est la
-date à laquelle le poste est interrogé) ; un champ sans rapport n'influence pas la Position ; une date invalide ou des
-valeurs contradictoires à une même date ne sont jamais tranchées arbitrairement (SituationDataError : le salarié
-n'est pas retenu, l'anomalie est comptée à part et reprise par le contrôle bloquant TS_FILTER_TECHNICAL_FAILURE) ;
-aucun repli sur une ancienne Position si la plus récente est vide. Le filtre LegalStructure == « Motul France », les
-endpoints et les autres règles de valeur sont inchangés.
+Parité (A01, R-TS-007 à R-TS-030) : endpoints, règle de « valeur courante » dépendant de l'ordre,
+conversion « falsy », sentinelle 1900-01-01, Hors_France, Level sans %, filtre « Motul France »,
+retries 429/503/réseau avec backoff, disjoncteur global.
 
 Écarts volontaires avec l'existant (extraction plus rapide, mêmes données) : le filtre « Motul France » n'est plus
 une phase 1 séquentielle mais s'évalue salarié par salarié dans la fenêtre parallèle, et la situation et le poste
@@ -1274,7 +1263,7 @@ import threading
 import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from hris.common import TS_PRD_BASE_URL, HrisError, SecretValue
@@ -1565,62 +1554,9 @@ def initialize_employee_fields(employee_number: str) -> dict:
     }
 
 
-class SituationDataError(ValueError):
-    """Situation TalentSoft inexploitable : la sélection du poste ne peut pas être décidée de façon fiable.
-
-    code : « invalid_date » (startDate absente ou hors AAAA-MM-JJ sur Position ou WorkingType), « conflict » (deux
-    valeurs différentes à la date retenue d'un même champ) ou « malformed » (élément qui n'est pas un objet avec
-    « field », ou Position/WorkingType sans « value »). L'exception ne porte jamais de valeur, de date ni de
-    matricule : seulement le code et le nom du champ. Ce n'est PAS une HrisError : elle ne doit pas interrompre
-    l'extraction, seulement écarter le salarié concerné, de façon comptée.
-    """
-
-    def __init__(self, code: str, field: str = ""):
-        super().__init__(f"{code}:{field}" if field else code)
-        self.code = code
-        self.field = field
-
-
-class _FieldVersion(NamedTuple):
-    when: datetime.date         # date retenue, comparée comme une date
-    start: str                  # startDate telle que renvoyée par l'API (valeur de Situation_starDate)
-    value: Any                  # valeur normalisée : « falsy » -> ""
-    earlier_non_empty: bool     # une version antérieure non vide existe
-
-
-def _latest_field_version(data, field: str) -> Optional[_FieldVersion]:
-    """Version la plus récente d'un champ de la situation, d'après SA propre startDate, quel que soit l'ordre de l'API.
-
-    Les éléments d'un autre champ sont ignorés : ni leur date ni leur valeur n'interviennent. Renvoie None si le champ
-    est absent. Lève SituationDataError si une date du champ est invalide, si « value » manque, ou si deux valeurs
-    différentes portent la date retenue (jamais de choix selon l'ordre de réponse).
-    """
-    versions = []
-    for item in data:
-        if item["field"] != field:
-            continue
-        if "value" not in item:
-            raise SituationDataError("malformed", field)
-        start = item.get("startDate")
-        try:
-            when = _d(start)
-        except (TypeError, ValueError):
-            raise SituationDataError("invalid_date", field) from None
-        versions.append((when, start, item["value"] if item["value"] else ""))
-    if not versions:
-        return None
-    latest = max(version[0] for version in versions)
-    kept = [version for version in versions if version[0] == latest]
-    value = kept[0][2]
-    if any(version[2] != value for version in kept):
-        raise SituationDataError("conflict", field)
-    return _FieldVersion(latest, min(version[1] for version in kept), value,
-                         any(version[2] for version in versions if version[0] < latest))
-
-
-def _legacy_situation_selection(data) -> dict:
-    """Règle d'origine (ts:L903-935), conservée UNIQUEMENT pour mesurer l'effet de la correction (voir
-    _legacy_selection_diagnostics). Une seule date courante pour tous les champs, dépendante de l'ordre de l'API."""
+def process_situation_data(data):
+    if not data:
+        return {"WorkingType": "", "Situation_starDate": "", "Position": ""}
     latest_date = "0001-01-01"
     result = {"WorkingType": "", "Situation_starDate": "", "Position": ""}
     for item in data:
@@ -1632,78 +1568,6 @@ def _legacy_situation_selection(data) -> dict:
             elif item["field"] == "Position":
                 result["Position"] = item["value"] if item["value"] else ""
     return result
-
-
-def _legacy_selection_diagnostics(data, selected: dict) -> List[str]:
-    """Noms de compteurs agrégés : effet de la correction sur la population, comparé à la règle d'origine.
-
-    situation_legacy_recovered : l'ancienne règle ne trouvait pas de couple (poste, date) complet, la nouvelle en trouve ;
-    situation_legacy_lost : l'ancienne règle en trouvait un, la nouvelle n'en trouve plus (dernière Position vide) ;
-    situation_legacy_pair_changed : les deux en trouvent un, différent (poste ou date interrogée) ;
-    situation_legacy_working_type_changed : le WorkingType retenu diffère ;
-    situation_legacy_error : l'ancienne règle aurait échoué (date invalide sur un champ sans rapport, élément mal formé).
-    Aucune valeur, date ni matricule : uniquement des noms de compteurs.
-    """
-    try:
-        legacy = _legacy_situation_selection(data)
-    except Exception:
-        return ["situation_legacy_error"]
-    names = []
-    legacy_pair = (legacy["Position"], legacy["Situation_starDate"])
-    new_pair = (selected["Position"], selected["Situation_starDate"])
-    legacy_complete, new_complete = all(legacy_pair), all(new_pair)
-    if new_complete and not legacy_complete:
-        names.append("situation_legacy_recovered")
-    elif legacy_complete and not new_complete:
-        names.append("situation_legacy_lost")
-    elif legacy_complete and new_complete and legacy_pair != new_pair:
-        names.append("situation_legacy_pair_changed")
-    if legacy["WorkingType"] != selected["WorkingType"]:
-        names.append("situation_legacy_working_type_changed")
-    return names
-
-
-def select_situation(data) -> Tuple[dict, List[str]]:
-    """Position et WorkingType de la situation, chacun selon sa propre startDate ; indépendant de l'ordre de l'API.
-
-    - Position : version la plus récente du champ Position. Situation_starDate = startDate de CETTE version et d'elle
-      seule : c'est la date à laquelle le poste est ensuite interrogé. Aucun repli sur une Position antérieure si la
-      plus récente est vide : le salarié n'a alors pas de poste exploitable (un éventuel repli est une décision métier
-      à prendre à part ; le compteur situation_latest_position_empty_earlier_exists en mesure la portée).
-    - WorkingType : version la plus récente du champ WorkingType.
-    - Les autres champs de la situation sont ignorés.
-    Lève SituationDataError (date invalide, valeurs contradictoires, élément mal formé) : jamais de choix arbitraire.
-
-    Renvoie (résultat, diagnostics) : le résultat a les clés WorkingType, Situation_starDate (faute de frappe conservée)
-    et Position ; les diagnostics sont des noms de compteurs agrégés, sans donnée personnelle.
-    """
-    result = {"WorkingType": "", "Situation_starDate": "", "Position": ""}
-    if not data:
-        return result, []
-    for item in data:
-        if not isinstance(item, dict) or "field" not in item:
-            raise SituationDataError("malformed")
-    position = _latest_field_version(data, "Position")
-    working_type = _latest_field_version(data, "WorkingType")
-    diagnostics: List[str] = []
-    if working_type is not None:
-        result["WorkingType"] = working_type.value
-    if position is None:
-        diagnostics.append("situation_no_position_item")
-    else:
-        result["Position"] = position.value
-        result["Situation_starDate"] = position.start
-        if not position.value:
-            diagnostics.append("situation_latest_position_empty")
-            if position.earlier_non_empty:
-                diagnostics.append("situation_latest_position_empty_earlier_exists")
-    diagnostics.extend(_legacy_selection_diagnostics(data, result))
-    return result, diagnostics
-
-
-def process_situation_data(data):
-    """Sélection de la situation (WorkingType, Situation_starDate, Position) ; voir select_situation."""
-    return select_situation(data)[0]
 
 
 def process_position_data(data):
@@ -1962,24 +1826,13 @@ class TalentSoftExtractor:
             self.stats.inc(f"{endpoint}_unavailable")
 
     def get_situation(self, employee_number) -> dict:
-        """Position, WorkingType et Situation_starDate (date de la Position retenue) ; {} si indisponible.
-
-        Lève SituationDataError (date invalide, valeurs contradictoires, élément mal formé) après avoir compté la
-        cause précise : phase1_situation_invalid_date, phase1_situation_conflict ou phase1_situation_malformed.
-        """
         try:
             data, status = self.client.get(f"/api/hub/v2/employees/{employee_number}/Situation",
                                            "phase1_situation", max_retries=2, initial_delay=1)
             if status == 200 and data:
-                selection, diagnostics = select_situation(data)
-                for name in diagnostics:
-                    self.stats.inc(name)
-                return selection
+                return process_situation_data(data)
             self._classify_unavailable("phase1_situation", status)
             return {}
-        except SituationDataError as exc:
-            self.stats.inc(f"phase1_situation_{exc.code}")   # cause précise, sans valeur ni matricule
-            raise
         except HrisError:
             raise
         except Exception:
@@ -2004,22 +1857,13 @@ class TalentSoftExtractor:
 
     # -- filtre « Motul France » (ts:L217-246), évalué salarié par salarié --------------
     def qualify(self, employee_number) -> Optional[Tuple[dict, dict]]:
-        """Position la plus récente -> poste interrogé à la date de CETTE Position -> LegalStructure.
+        """Situation la plus récente -> code de poste -> poste à cette date -> LegalStructure.
 
         Renvoie (situation, poste) pour un salarié « Motul France », sinon None (exclusion comptée).
-        Mêmes règles de filtre et mêmes compteurs que la phase 1 de l'existant, mais un salarié à la fois dans la
-        fenêtre parallèle, et sans relire plus tard la situation et le poste des salariés retenus. Le couple
-        (Position, Situation_starDate) vient d'une même version de Position : le poste n'est jamais interrogé à la
-        date d'un autre champ. Une dernière Position vide exclut le salarié (excluded_missing_position_or_date,
-        détaillée par situation_latest_position_empty) : aucun repli silencieux sur un ancien poste.
+        Mêmes règles et mêmes compteurs que la phase 1 de l'existant, mais un salarié à la fois dans la
+        fenêtre parallèle, et sans relire plus tard la situation et le poste des salariés retenus.
         """
-        try:
-            situation = self.get_situation(employee_number)
-        except SituationDataError:
-            # Situation illisible (date invalide, valeurs contradictoires) : ni exclusion métier ni retenue. Comptée à
-            # part (cause : phase1_situation_*) et reprise par le contrôle bloquant TS_FILTER_TECHNICAL_FAILURE.
-            self.stats.inc("excluded_situation_unreliable")
-            return None
+        situation = self.get_situation(employee_number)
         if not situation:
             self.stats.inc("excluded_no_situation")  # échec technique OU absence : voir contrôles
             return None
@@ -2172,11 +2016,9 @@ def completeness_anomalies(stats: dict) -> List[dict]:
     add("EMPTY_EXTRACTION", "BLOCKING", records, "FAIL" if records == 0 else "PASS",
         "aucun salarié retenu" if records == 0 else f"{records} salariés retenus")
     tech_phase1 = c.get("phase1_situation_unavailable", 0) + c.get("phase1_situation_error", 0) + \
-        c.get("phase1_position_unavailable", 0) + c.get("phase1_position_error", 0) + \
-        c.get("phase1_situation_invalid_date", 0) + c.get("phase1_situation_conflict", 0) + \
-        c.get("phase1_situation_malformed", 0)
+        c.get("phase1_position_unavailable", 0) + c.get("phase1_position_error", 0)
     add("TS_FILTER_TECHNICAL_FAILURE", "BLOCKING", tech_phase1, "FAIL" if tech_phase1 else "PASS",
-        "salariés non qualifiables (Situation/Position indisponible ou incohérente) : le filtre Motul France est incertain"
+        "salariés non qualifiables (Situation/Position indisponible) : le filtre Motul France est incertain"
         if tech_phase1 else "filtre Motul France évalué pour tous les salariés")
     nf_phase1 = c.get("phase1_situation_404", 0) + c.get("phase1_position_404", 0)
     add("TS_FILTER_NOT_FOUND", "WARNING", nf_phase1, "FAIL" if nf_phase1 else "PASS",

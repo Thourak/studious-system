@@ -220,57 +220,17 @@ techniques.
 1. Lecture de `totalCount` (`directory/employees?count=1`), puis de la liste complète en **une seule page**
    (`count=totalCount`). Il n'y a pas de pagination ni de filtre de période : l'extraction est **complète à chaque
    run**.
-2. **Filtre « Motul France »** : pour chaque salarié, la **Position la plus récente** de la situation (selon sa propre
-   date de début) donne un code de poste, puis le poste **à la date de cette Position** donne `LegalStructure` ; seuls
-   les salariés dont la valeur vaut exactement `Motul France` sont retenus. Ce filtre n'est plus une phase séquentielle :
-   il s'évalue salarié par salarié dans la fenêtre parallèle (deux appels), et la situation et le poste lus sont
-   réutilisés pour le détail. Les anciens salariés sont présents **seulement si l'annuaire TalentSoft les renvoie** (à
-   vérifier sur les données). Aucun filtre « actifs uniquement », aucune borne de période, aucune comparaison à la date
-   du jour. Voir « Sélection de la situation » ci-dessous.
+2. **Filtre « Motul France »** : pour chaque salarié, la situation la plus récente donne un code de poste, puis le
+   poste à cette date donne `LegalStructure` ; seuls les salariés dont la valeur vaut exactement `Motul France` sont
+   retenus. Ce filtre n'est plus une phase séquentielle : il s'évalue salarié par salarié dans la fenêtre parallèle
+   (deux appels), et la situation et le poste lus sont réutilisés pour le détail. Les anciens salariés sont présents
+   **seulement si l'annuaire TalentSoft les renvoie** (à vérifier sur les données).
 3. **Détail** des salariés retenus : 12 entités `hub/v2` (dates clés, identités, contrat, coordonnées, banque,
    rémunération…) plus l'adresse postale, en plus de la situation et du poste déjà lus. Les 3 entités de santé ne
    sont plus appelées (jamais persistées).
-4. **Règles de valeur** : valeur courante déterminée dans l'ordre de l'API par la date de début maximale (sauf la
-   situation, désormais indépendante de l'ordre : voir « Sélection de la situation ») ; valeurs
+4. **Règles de valeur** : valeur courante déterminée dans l'ordre de l'API par la date de début maximale ; valeurs
    « falsy » converties en chaîne vide ; montants de rémunération conservés tels quels ; date de fin de contrat à
    `1900-01-01` si absente ; `Hors_France` selon le pays ; pourcentage d'imputation sans le signe `%`.
-
-**Sélection de la situation — écart volontaire à la parité historique.** L'existant (et la version précédente de
-TST_4) utilisait **une seule date courante pour tous les champs** de la situation : un `WorkingType` récent pouvait
-masquer une `Position` plus ancienne, `Situation_starDate` pouvait être la date d'un autre champ (le poste était alors
-interrogé à la mauvaise date), et le résultat **dépendait de l'ordre** des éléments renvoyés par l'API. Ce défaut est
-corrigé (`select_situation`) :
-
-| Règle | Comportement |
-|---|---|
-| Position | version la plus récente du champ `Position`, selon **sa propre** `startDate`, quel que soit l'ordre de l'API |
-| `Situation_starDate` | `startDate` de la Position retenue, et d'elle seule (clé conservée telle quelle, faute de frappe comprise) ; c'est la date à laquelle le poste est interrogé |
-| WorkingType | version la plus récente du champ `WorkingType`, selon sa propre `startDate` |
-| Autres champs | ignorés : leur date n'influence ni la Position ni `Situation_starDate` |
-| Dernière Position vide ou absente | le salarié est exclu (`excluded_missing_position_or_date`) ; **aucun repli** sur une ancienne Position non vide |
-| Date invalide (Position ou WorkingType) | `SituationDataError` (`invalid_date`) : format `AAAA-MM-JJ` strict, comme l'existant |
-| Valeurs contradictoires à la date retenue d'un même champ | `SituationDataError` (`conflict`) : jamais tranché par l'ordre de réponse |
-| Élément mal formé | `SituationDataError` (`malformed`) |
-
-Une situation en erreur n'est **ni retenue ni comptée comme une exclusion métier normale** : le salarié est écarté
-(`excluded_situation_unreliable`), la cause est comptée à part (`phase1_situation_invalid_date`,
-`phase1_situation_conflict`, `phase1_situation_malformed`) et reprise par le contrôle bloquant
-`TS_FILTER_TECHNICAL_FAILURE`. Le filtre exact `LegalStructure = « Motul France »`, les endpoints et les autres règles
-de valeur sont inchangés.
-
-*Diagnostics agrégés* (compteurs de l'étape `ACQUIRE`, sans valeur ni matricule) :
-`situation_no_position_item`, `situation_latest_position_empty`, `situation_latest_position_empty_earlier_exists`
-(taille d'un éventuel repli métier, **non activé**), et la comparaison à la règle d'origine :
-`situation_legacy_recovered` (poste retrouvé), `situation_legacy_lost` (dernière Position vide, l'ancienne règle
-retombait par accident sur l'ancien poste), `situation_legacy_pair_changed` (poste ou date interrogée différents),
-`situation_legacy_working_type_changed`, `situation_legacy_error` (l'ancienne règle aurait échoué). Ces compteurs
-mesurent l'effet de la correction ; ils pourront être retirés une fois l'écart de population expliqué.
-
-*Effet sur les données persistées* : `dt_situation_start` (issu de `Situation_starDate`) est une des 71 colonnes
-comparées et sert de date d'effet dans la publication ADP (verrouillée) ; `lb_job_title` (issu de `WorkingType`) est
-aussi comparée. Ces valeurs changent pour les salariés concernés (compteurs `situation_legacy_pair_changed` et
-`situation_legacy_working_type_changed`) : elles apparaîtront comme `MODIFIED` face à une référence construite avec
-l'ancienne règle. À valider avec le métier avant tout premier chargement de référence.
 
 **Concurrence et robustesse.**
 
@@ -286,8 +246,7 @@ l'ancienne règle. À valider avec le métier avant tout premier chargement de r
 
 **Contrôles de complétude** (écrits dans `log.anomaly`, bloquants sauf mention). Une extraction partielle n'est jamais
 présentée comme complète : `EXTRACTION_INCOMPLETE` (reçus différent de `totalCount`), `EMPTY_EXTRACTION`,
-`SCHEMA_CHANGE`, `TS_FILTER_TECHNICAL_FAILURE` (filtre indécidable : situation ou poste indisponible, ou situation
-incohérente — date invalide, valeurs contradictoires), `TS_ENDPOINT_FAILURE` (appels de détail en échec
+`SCHEMA_CHANGE`, `TS_FILTER_TECHNICAL_FAILURE` (filtre indécidable), `TS_ENDPOINT_FAILURE` (appels de détail en échec
 après reprises), `TS_PROCESSING_ERROR`, `TS_CIRCUIT_OPEN`, `TS_SECRET_RESOLUTION`. Les réponses `404` donnent un
 avertissement (`TS_FILTER_NOT_FOUND`, `TS_ENDPOINT_NOT_FOUND`). Les échecs de l'existant étaient silencieux ; ils sont
 désormais comptés.
@@ -736,9 +695,7 @@ refactorisation.
    secrets que parce qu'ils étaient écrits dans le code de `TST_3` (commit `e817e10`) ; `TST_4` ne reprend pas ce
    contournement, son acquisition échouera donc sur `TS_SECRET_RESOLUTION` tant que B-01 n'est pas levé.
 3. Exécuter `T3_NB_HRIS_SETUP` (crée `log.cell_execution`, attendu : `created = 1`, aucun `INCOMPATIBLE`).
-4. Exécuter `T3_NB_HRIS_TESTS` (attendu : 0 échec, dont `CellLogSpark`). Hors Fabric, les tests exécutables sans Spark
-   se rejouent avec `python -I TEST_MOTUL/TST_4/run_local_tests.py` (il vérifie aussi les empreintes SHA-256 des modules ;
-   `--fix-digests` les recalcule après une modification volontaire d'un module).
+4. Exécuter `T3_NB_HRIS_TESTS` (attendu : 0 échec, dont `CellLogSpark`).
 5. Exécuter `T3_PL_HRIS_ORCHESTRATOR` en `NORMAL` et comparer, pour ce run, les sorties des activités, `ctl.run`,
    `ctl.run_step`, `log.anomaly` et les volumes de `stg.ts_employee_raw` à ceux du run du 08/10, puis lire
    `log.cell_execution`. Vérifier en particulier que `%run T3_nb_hris_lib` s'exécute en mode pipeline.

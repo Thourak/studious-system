@@ -572,8 +572,7 @@ if __name__ == "__main__":
 # CELL ********************
 
 # ============= MODULE test_ts_acquire =============
-register_hris_module('test_ts_acquire', '3cd7524e3df2013c41f9db5623293ef36816e1718824b5667108b24df737d98d', r'''"""TU-07 — acquisition TalentSoft (JDD-01) contre un faux serveur HTTP en mémoire. Aucun appel réseau."""
-import itertools
+register_hris_module('test_ts_acquire', '4add74e2f2d4a5a22697e443ceda4c693d6528e7ed2bab0da2c74358a565103e', r'''"""TU-07 — acquisition TalentSoft (JDD-01) contre un faux serveur HTTP en mémoire. Aucun appel réseau."""
 import json
 import os
 import re
@@ -621,18 +620,9 @@ class FakeTalentSoft:
     n_employees : génère n salariés fictifs (tous en position P1) à la place des 3 salariés de base.
     latency : durée simulée de chaque appel GET (mesure de la concurrence réelle).
     fail_after : lève une HrisError fatale au n-ième appel GET.
-    employees : annuaire fourni tel quel (remplace les salariés de base).
-    entities : (matricule, entité hub) -> corps renvoyé, pour imposer par exemple un contrat terminé.
-    situations : matricule -> éléments renvoyés par l'endpoint Situation (dans l'ordre fourni).
-    positions : code de poste -> LegalStructure renvoyée, ou {date AAAA-MM-JJ: LegalStructure} pour un poste qui n'est
-        valable qu'à certaines dates, ou None (404). Un code absent : « Motul France » sauf P3 (« Motul SA »).
     """
 
-    def __init__(self, total_override=None, scripted=None, n_employees=None, latency=0.0, fail_after=None,
-                 employees=None, situations=None, positions=None, entities=None):
-        self.situations = situations or {}
-        self.positions = positions or {}
-        self.entities = entities or {}
+    def __init__(self, total_override=None, scripted=None, n_employees=None, latency=0.0, fail_after=None):
         self.calls = []
         self.scripted = scripted or {}   # chemin (regex) -> liste de statuts à renvoyer d'abord
         self.total_override = total_override
@@ -642,9 +632,7 @@ class FakeTalentSoft:
         self._lock = threading.Lock()
         self._in_flight = 0
         self.max_in_flight = 0
-        if employees is not None:
-            self.employees = employees
-        elif n_employees:
+        if n_employees:
             self.employees = [{"employeeNumber": f"N{i}", "individual": {}} for i in range(n_employees)]
         else:
             self.employees = [
@@ -695,8 +683,8 @@ class FakeTalentSoft:
         if s:
             return s
         path = url[len(TS_PRD_BASE_URL):]
-        if path.startswith("/api/v1/directory/employees?count=1"):   # comptage ; avec un seul salarié, c'est aussi la liste
-            return FakeResp(200, {"totalCount": self.total_override or len(self.employees), "results": self.employees[:1]})
+        if path.startswith("/api/v1/directory/employees?count=1"):
+            return FakeResp(200, {"totalCount": self.total_override or len(self.employees), "results": []})
         if path.startswith("/api/v1/directory/employees?count="):
             return FakeResp(200, {"totalCount": len(self.employees), "results": self.employees})
         m = re.match(r"/api/hub/v2/employees/(\w+)/(\w+)$", path)
@@ -705,12 +693,7 @@ class FakeTalentSoft:
             return FakeResp(200, self.entity(emp, entity))
         m = re.match(r"/api/hub/v2.0/positions/(\w+)\?date=(.*)$", path)
         if m:
-            code, date = m.group(1), m.group(2)[:10]
-            legal = self.positions.get(code, "Motul France" if code != "P3" else "Motul SA")
-            if isinstance(legal, dict):
-                legal = legal.get(date)          # poste valable seulement à certaines dates
-            if legal is None:
-                return FakeResp(404, {})
+            legal = "Motul France" if m.group(1) != "P3" else "Motul SA"
             return FakeResp(200, [{"field": "LegalStructure", "value": legal}, {"field": "Level", "value": "80 %"},
                                   {"field": "FullTimeEquivalentPercent", "value": 0},
                                   {"field": "CostCenter", "value": "CC1"}])
@@ -719,10 +702,6 @@ class FakeTalentSoft:
         return FakeResp(404, {})
 
     def entity(self, emp, entity):
-        if (emp, entity) in self.entities:
-            return self.entities[(emp, entity)]
-        if entity == "Situation" and emp in self.situations:
-            return self.situations[emp]
         if entity == "Situation":
             pos = {"E1": "P1", "E2": "P2", "E3": "P3"}.get(emp, "P1")
             return [hub("WorkingType", "Ingénieur", "2023-01-01"), hub("Position", pos, "2023-01-01"),
@@ -751,26 +730,6 @@ def make(fake, employee_concurrency=None, **kw):
 
 def gets(fake, suffix):
     return [url for method, url in fake.calls if method == "GET" and url.endswith(suffix)]
-
-
-POS_2020 = hub("Position", "P2020", "2020-03-01")
-WT_2024 = hub("WorkingType", "Cadre", "2024-05-01")
-
-
-def pos_url(code, start):
-    return f"{TS_PRD_BASE_URL}/api/hub/v2.0/positions/{code}?date={start}T00:00:00Z"
-
-
-def position_urls(fake):
-    return [url for method, url in fake.calls if method == "GET" and "/positions/" in url]
-
-
-def run_one(situation, positions=None, entities=None):
-    """Extraction d'un seul salarié (S1) dont l'endpoint Situation renvoie `situation`, dans cet ordre."""
-    fake = FakeTalentSoft(employees=[{"employeeNumber": "S1", "individual": {}}], situations={"S1": situation},
-                          positions=positions or {}, entities=entities)
-    ex, stats = make(fake)
-    return ex.run(), stats, fake
 
 
 class SourceIsPrdOnly(unittest.TestCase):
@@ -911,246 +870,6 @@ class Extraction(unittest.TestCase):
         for forbidden in ["E1", "E2", "u1", "1234567890123", "talent-soft", "tok-fictif", "secret-fictif"]:
             self.assertNotIn(forbidden, text)
         self.assertNotIn("secret-fictif", repr(ex.client))
-
-
-class SituationSelection(unittest.TestCase):
-    """Sélection de la Position et du WorkingType : chacun selon sa propre startDate, indépendamment de l'ordre de
-    l'API ; Situation_starDate = startDate de la Position retenue ; erreurs explicites, jamais de choix arbitraire."""
-
-    def test_old_position_and_recent_working_type_give_one_result_in_both_orders(self):
-        expected = {"WorkingType": "Cadre", "Situation_starDate": "2020-03-01", "Position": "P2020"}
-        for items in ([POS_2020, WT_2024], [WT_2024, POS_2020]):
-            self.assertEqual(A.process_situation_data(items), expected)
-
-    def test_latest_position_version_is_selected_whatever_the_order(self):
-        versions = [hub("Position", "P2018", "2018-01-01"), hub("Position", "P2021", "2021-06-15"),
-                    hub("Position", "P2023", "2023-09-30")]
-        for order in itertools.permutations(versions):
-            out = A.process_situation_data(list(order))
-            self.assertEqual((out["Position"], out["Situation_starDate"]), ("P2023", "2023-09-30"))
-
-    def test_unrelated_field_never_influences_the_position(self):
-        for other in (hub("Level", "N3", "2025-01-01"), hub("Level", "N3", "pas-une-date")):   # plus récent, ou invalide
-            for items in ([POS_2020, other], [other, POS_2020]):
-                self.assertEqual(A.process_situation_data(items),
-                                 {"WorkingType": "", "Situation_starDate": "2020-03-01", "Position": "P2020"})
-
-    def test_result_keeps_the_exact_historical_keys(self):
-        self.assertEqual(list(A.process_situation_data([POS_2020, WT_2024])), ["WorkingType", "Situation_starDate", "Position"])
-        empty = {"WorkingType": "", "Situation_starDate": "", "Position": ""}
-        self.assertEqual(A.process_situation_data([]), empty)
-        self.assertEqual(A.process_situation_data(None), empty)
-
-    def test_absent_position_gives_no_position_and_no_date(self):
-        out = A.process_situation_data([WT_2024])
-        self.assertEqual(out, {"WorkingType": "Cadre", "Situation_starDate": "", "Position": ""})
-        self.assertEqual(A.select_situation([WT_2024])[1], ["situation_no_position_item"])
-
-    def test_latest_empty_position_does_not_fall_back_to_an_older_one(self):
-        for empty in ("", None):
-            items = [hub("Position", "P2020", "2020-03-01"), hub("Position", empty, "2024-01-01")]
-            for order in (items, list(reversed(items))):
-                out, diagnostics = A.select_situation(order)
-                self.assertEqual(out, {"WorkingType": "", "Situation_starDate": "2024-01-01", "Position": ""})
-                self.assertEqual(diagnostics[:2], ["situation_latest_position_empty",
-                                                   "situation_latest_position_empty_earlier_exists"])
-
-    def test_invalid_dates_are_an_explicit_error_on_the_selected_fields(self):
-        # format AAAA-MM-JJ strict, comme l'existant
-        for bad in ("2020-13-45", "pas-une-date", "31/12/2020", "", None, 20200101, "2020-03-01T00:00:00"):
-            for field in ("Position", "WorkingType"):
-                other = POS_2020 if field == "WorkingType" else WT_2024
-                broken = hub(field, "x", bad)
-                for items in ([broken, other], [other, broken]):
-                    with self.assertRaises(A.SituationDataError, msg=repr(bad)) as caught:
-                        A.process_situation_data(items)
-                    self.assertEqual((caught.exception.code, caught.exception.field), ("invalid_date", field))
-
-    def test_an_invalid_date_on_a_superseded_version_is_still_an_error(self):
-        with self.assertRaises(A.SituationDataError) as caught:
-            A.process_situation_data([hub("Position", "P1", "pas-une-date"), hub("Position", "P2", "2023-01-01")])
-        self.assertEqual(caught.exception.code, "invalid_date")     # l'ordre des versions ne peut plus être établi
-
-    def test_contradictory_values_on_the_same_date_are_never_resolved_by_order(self):
-        for field in ("Position", "WorkingType"):
-            first, second = hub(field, "A", "2023-01-01"), hub(field, "B", "2023-01-01")
-            for items in ([first, second], [second, first]):
-                with self.assertRaises(A.SituationDataError) as caught:
-                    A.process_situation_data(items)
-                self.assertEqual((caught.exception.code, caught.exception.field), ("conflict", field))
-        with self.assertRaises(A.SituationDataError) as caught:      # vide contre non vide : contradictoire aussi
-            A.process_situation_data([hub("Position", "P1", "2023-01-01"), hub("Position", "", "2023-01-01")])
-        self.assertEqual(caught.exception.code, "conflict")
-
-    def test_identical_duplicates_and_old_conflicts_are_not_errors(self):
-        duplicated = A.process_situation_data([hub("Position", "P1", "2023-01-01")] * 2)
-        self.assertEqual((duplicated["Position"], duplicated["Situation_starDate"]), ("P1", "2023-01-01"))
-        old_conflict = [hub("Position", "P1", "2019-01-01"), hub("Position", "P9", "2019-01-01"),
-                        hub("Position", "P2023", "2023-01-01")]          # contradiction sur une version non retenue
-        out = A.process_situation_data(old_conflict)
-        self.assertEqual((out["Position"], out["Situation_starDate"]), ("P2023", "2023-01-01"))
-
-    def test_malformed_items_are_an_explicit_error(self):
-        for items in (["texte"], [{"startDate": "2020-01-01"}], [POS_2020, None],
-                      [{"field": "Position", "startDate": "2020-03-01"}]):      # Position sans « value »
-            with self.assertRaises(A.SituationDataError, msg=repr(items)) as caught:
-                A.process_situation_data(items)
-            self.assertEqual(caught.exception.code, "malformed")
-
-    def test_the_error_is_not_fatal_and_carries_no_data(self):
-        self.assertTrue(issubclass(A.SituationDataError, ValueError))
-        self.assertFalse(issubclass(A.SituationDataError, HrisError))   # ne doit pas interrompre l'extraction
-        with self.assertRaises(A.SituationDataError) as caught:
-            A.process_situation_data([hub("Position", "VALEUR-SECRETE", "2023-01-01"),
-                                      hub("Position", "AUTRE-VALEUR", "2023-01-01")])
-        self.assertNotIn("SECRETE", str(caught.exception))
-        self.assertNotIn("AUTRE", str(caught.exception))
-
-    def test_consistent_situations_are_unchanged_versus_the_historical_rule(self):
-        same_day = [hub("WorkingType", "Cadre", "2023-01-01"), hub("Position", "P1", "2023-01-01"),
-                    hub("WorkingType", "Ancien", "2020-01-01")]
-        for order in itertools.permutations(same_day):
-            self.assertEqual(A.process_situation_data(list(order)), A._legacy_situation_selection(list(order)))
-            self.assertEqual([n for n in A.select_situation(list(order))[1] if n.startswith("situation_legacy")], [])
-
-    def test_diagnostics_measure_the_effect_of_the_correction_versus_the_historical_rule(self):
-        def legacy(items):
-            return [n for n in A.select_situation(items)[1] if n.startswith("situation_legacy")]
-        # l'ancienne règle ignorait la Position placée après un WorkingType plus récent
-        self.assertEqual(legacy([WT_2024, POS_2020]), ["situation_legacy_recovered"])
-        # l'ancienne règle interrogeait le poste à la date du WorkingType
-        self.assertEqual(legacy([POS_2020, WT_2024]), ["situation_legacy_pair_changed"])
-        # l'ancienne règle retombait par accident sur l'ancien poste (la Position vide était masquée par un champ plus récent)
-        self.assertEqual(legacy([hub("Position", "P2018", "2018-01-01"), hub("Level", "x", "2025-01-01"),
-                                 hub("Position", "", "2024-01-01")]), ["situation_legacy_lost"])
-        # l'ancienne règle échouait sur la date invalide d'un champ sans rapport
-        self.assertEqual(legacy([POS_2020, hub("Level", "x", "pas-une-date")]), ["situation_legacy_error"])
-        # l'ancienne règle perdait le WorkingType, plus ancien que la Position placée avant lui
-        self.assertEqual(legacy([hub("Position", "P1", "2024-01-01"), hub("WorkingType", "Cadre", "2015-01-01")]),
-                         ["situation_legacy_working_type_changed"])
-
-    def test_position_and_other_processing_rules_are_unchanged(self):
-        position = [{"field": "LegalStructure", "value": "Motul France"}, {"field": "Level", "value": "80 %"},
-                    {"field": "FullTimeEquivalentPercent", "value": 0}, {"field": "CostCenter", "value": "CC1"}]
-        self.assertEqual(A.process_position_data(position), {
-            "GeographicOrganisationStructure": "", "LegalStructure": "Motul France", "CostCenter": "CC1",
-            "CollectiveAgreement": "", "PPC_FTE": "", "OccupationalCategory": "", "Coefficient": "",
-            "pourcentage_imputation": "80", "OrganisationalStructure": ""})
-        contract = A.process_contract_data([hub("NatureOfContract", "CDI", "2019-01-07", endDate=None),
-                                            hub("TerminationReason", "Démission", "2019-01-07", endDate="2024-03-31")])
-        self.assertEqual((contract["NatureOfContract"], contract["TerminationReason"], contract["date_fin_contract"]),
-                         ("CDI", "Démission", "2024-03-31"))
-        identity = A.process_identity_data([hub("LastName", "NOM", "2022-01-01"), hub("Gender", False, "2022-01-01"),
-                                            hub("LastName", "ANCIEN", "2021-01-01")])
-        self.assertEqual((identity["LastName"], identity["Gender"]), ("NOM", ""))
-        self.assertEqual(A.process_postal_address_data({"postalCode": "99000", "city": "V", "countryCode": "be"})["Hors_France"], "1")
-
-
-class SituationSelectionInExtraction(unittest.TestCase):
-    """Effet de la sélection sur le filtre : poste interrogé au bon chemin et à la bonne date, exclusions comptées."""
-
-    def assert_unreliable_and_not_masked(self, stats, cause):
-        c = stats.counters
-        self.assertEqual((c[f"phase1_situation_{cause}"], c["excluded_situation_unreliable"]), (1, 1))
-        for masked in ("excluded_no_situation", "excluded_missing_position_or_date", "excluded_no_position_data",
-                       "excluded_not_motul_france", "phase1_situation_error", "retained_phase1"):
-            self.assertEqual(c[masked], 0, masked)          # une erreur de traitement n'est pas une exclusion métier
-        control = {a["control_code"]: a for a in A.completeness_anomalies(stats.as_dict())}["TS_FILTER_TECHNICAL_FAILURE"]
-        self.assertEqual((control["severity"], control["outcome"]), ("BLOCKING", "FAIL"))
-
-    def test_position_is_looked_up_at_its_own_date_in_both_orders(self):
-        # P2020 n'est « Motul France » qu'à sa date de 2020 : un mauvais couple (date du WorkingType) donnerait un 404
-        positions = {"P2020": {"2020-03-01": "Motul France"}}
-        for items in ([POS_2020, WT_2024], [WT_2024, POS_2020]):
-            records, stats, fake = run_one(items, positions)
-            self.assertEqual([r["employeeNumber"] for r in records], ["S1"])
-            self.assertEqual(position_urls(fake), [pos_url("P2020", "2020-03-01")])     # chemin ET paramètre date
-            self.assertEqual((records[0]["Situation_starDate"], records[0]["WorkingType"], records[0]["LegalStructure"]),
-                             ("2020-03-01", "Cadre", "Motul France"))
-            self.assertEqual(stats.counters["excluded_no_position_data"], 0)
-
-    def test_latest_of_several_positions_is_the_one_looked_up(self):
-        versions = [hub("Position", "P2018", "2018-01-01"), hub("Position", "P2021", "2021-06-15"),
-                    hub("Position", "P2023", "2023-09-30")]
-        records, stats, fake = run_one(list(reversed(versions)), {"P2023": {"2023-09-30": "Motul France"}})
-        self.assertEqual(len(records), 1)
-        self.assertEqual(position_urls(fake), [pos_url("P2023", "2023-09-30")])
-
-    def test_valid_historical_position_of_motul_france_is_retained_without_any_period_filter(self):
-        for start in ("1960-01-01", "1995-04-01", "2099-12-31"):    # ni borne de période ni date du jour
-            code = "P" + start[:4]
-            records, stats, fake = run_one([hub("WorkingType", "Cadre", "2024-05-01"), hub("Position", code, start)],
-                                           {code: {start: "Motul France"}})
-            self.assertEqual([r["employeeNumber"] for r in records], ["S1"], start)
-            self.assertEqual(position_urls(fake), [pos_url(code, start)])
-
-    def test_former_employee_is_not_filtered_out(self):
-        records, stats, fake = run_one([POS_2020, WT_2024], {"P2020": {"2020-03-01": "Motul France"}}, entities={
-            ("S1", "Contract"): [hub("NatureOfContract", "CDI", "2001-01-01", endDate="2001-12-31")],
-            ("S1", "KeyDates"): [hub("GroupEndDate", "2001-12-31", "2001-12-31")]})
-        self.assertEqual(len(records), 1)       # aucun filtre « salariés actifs uniquement »
-        self.assertEqual((records[0]["date_fin_contract"], records[0]["GroupEndDate"]), ("2001-12-31", "2001-12-31"))
-
-    def test_legal_structure_filter_stays_exact(self):
-        for legal, kept in (("Motul France", 1), ("Motul France ", 0), ("motul france", 0), ("Motul SA", 0), ("", 0), (None, 0)):
-            records, stats, fake = run_one([POS_2020], {"P2020": legal})
-            self.assertEqual(len(records), kept, repr(legal))
-            self.assertEqual(stats.counters["retained_phase1"], kept)
-
-    def test_absent_position_is_excluded_and_observable(self):
-        records, stats, fake = run_one([WT_2024])
-        self.assertEqual(records, [])
-        self.assertEqual(position_urls(fake), [])                                    # aucun poste interrogé
-        c = stats.counters
-        self.assertEqual((c["excluded_missing_position_or_date"], c["situation_no_position_item"]), (1, 1))
-        self.assertEqual((c["excluded_no_situation"], c["excluded_situation_unreliable"]), (0, 0))
-
-    def test_latest_empty_position_is_excluded_without_silent_fallback(self):
-        # P2020 est « Motul France » et valide, mais ce n'est plus la dernière Position : aucun repli silencieux
-        items = [hub("Position", "P2020", "2020-03-01"), hub("Position", "", "2024-01-01")]
-        for order in (items, list(reversed(items))):
-            records, stats, fake = run_one(order, {"P2020": {"2020-03-01": "Motul France"}})
-            self.assertEqual(records, [])
-            self.assertEqual(position_urls(fake), [])
-            c = stats.counters
-            self.assertEqual((c["excluded_missing_position_or_date"], c["situation_latest_position_empty"],
-                              c["situation_latest_position_empty_earlier_exists"]), (1, 1, 1))
-
-    def test_invalid_date_is_not_masked_as_a_business_exclusion(self):
-        for items in ([hub("Position", "P2020", "31/12/2020"), WT_2024], [POS_2020, hub("WorkingType", "Cadre", "n/a")]):
-            records, stats, fake = run_one(items, {"P2020": "Motul France"})
-            self.assertEqual(records, [])
-            self.assertEqual(position_urls(fake), [])
-            self.assert_unreliable_and_not_masked(stats, "invalid_date")
-
-    def test_contradictory_values_are_counted_apart_and_block_the_filter_control(self):
-        for items in ([hub("Position", "P1", "2023-01-01"), hub("Position", "P2", "2023-01-01")],
-                      [hub("Position", "P2", "2023-01-01"), hub("Position", "P1", "2023-01-01")]):
-            records, stats, fake = run_one(items)
-            self.assertEqual(records, [])
-            self.assertEqual(position_urls(fake), [])
-            self.assert_unreliable_and_not_masked(stats, "conflict")
-
-    def test_malformed_situation_is_counted_apart(self):
-        records, stats, fake = run_one([POS_2020, "texte"])
-        self.assertEqual(records, [])
-        self.assert_unreliable_and_not_masked(stats, "malformed")
-
-    def test_one_unreliable_situation_does_not_stop_the_other_employees(self):
-        fake = FakeTalentSoft(employees=[{"employeeNumber": "S1", "individual": {}}, {"employeeNumber": "S2", "individual": {}}],
-                              situations={"S1": [hub("Position", "P1", "pas-une-date")], "S2": [POS_2020, WT_2024]},
-                              positions={"P2020": {"2020-03-01": "Motul France"}})
-        ex, stats = make(fake)
-        self.assertEqual([r["employeeNumber"] for r in ex.run()], ["S2"])
-        self.assertEqual((stats.counters["excluded_situation_unreliable"], stats.counters["retained_phase1"]), (1, 1))
-
-    def test_correction_effect_is_counted(self):
-        records, stats, fake = run_one([WT_2024, POS_2020], {"P2020": {"2020-03-01": "Motul France"}})
-        self.assertEqual(len(records), 1)       # l'ancienne règle aurait perdu la Position placée après le WorkingType
-        self.assertEqual(stats.counters["situation_legacy_recovered"], 1)
-        text = json.dumps(stats.as_dict())
-        for forbidden in ("S1", "P2020", "2020-03-01", "Cadre"):
-            self.assertNotIn(forbidden, text)                               # compteurs agrégés : aucune donnée
 
 
 if __name__ == "__main__":
