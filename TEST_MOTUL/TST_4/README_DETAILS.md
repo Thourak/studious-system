@@ -225,12 +225,36 @@ techniques.
    retenus. Ce filtre n'est plus une phase séquentielle : il s'évalue salarié par salarié dans la fenêtre parallèle
    (deux appels), et la situation et le poste lus sont réutilisés pour le détail. Les anciens salariés sont présents
    **seulement si l'annuaire TalentSoft les renvoie** (à vérifier sur les données).
+   **Repli hors parité** : si la situation n'a aucun couple (Position, date) exploitable, la structure juridique est lue
+   sur la situation elle-même (champ `LegalStructure`) avec le même filtre exact. Voir « Repli sur la structure
+   juridique de la situation » ci-dessous.
 3. **Détail** des salariés retenus : 12 entités `hub/v2` (dates clés, identités, contrat, coordonnées, banque,
    rémunération…) plus l'adresse postale, en plus de la situation et du poste déjà lus. Les 3 entités de santé ne
    sont plus appelées (jamais persistées).
 4. **Règles de valeur** : valeur courante déterminée dans l'ordre de l'API par la date de début maximale ; valeurs
    « falsy » converties en chaîne vide ; montants de rémunération conservés tels quels ; date de fin de contrat à
    `1900-01-01` si absente ; `Hors_France` selon le pays ; pourcentage d'imputation sans le signe `%`.
+
+**Repli sur la structure juridique de la situation — écart volontaire à la parité.** Constat sur l'annuaire PRD du
+12/10/2026 (1886 fiches) : 928 situations n'ont **aucun élément `Position`** (presque toutes des fiches à date de fin
+passée, donc des sortis), mais portent directement `LegalStructure`, `GeographicOrganisationStructure`,
+`OrganisationalStructure` et `CostCenter`, avec les mêmes libellés que le poste (« Motul France », « Motul Deutschland »…).
+L'existant les écartait (`excluded_missing_position_or_date`) : le filtre ne regardait que le poste.
+
+| Cas | Comportement |
+|---|---|
+| Couple (Position, date) exploitable | chemin d'origine, **inchangé** : le poste interrogé à la date de la situation fait foi, même si la situation annonce une autre structure |
+| Pas de Position, `LegalStructure` de la situation = `Motul France` (exact) | retenu ; les attributs de la situation (structure juridique, rattachements, centre de coût) tiennent lieu de poste |
+| Pas de Position, autre structure | exclu (`excluded_not_motul_france`) |
+| Pas de Position ni de `LegalStructure` | exclusion d'origine conservée (`excluded_missing_position_or_date`) |
+| Valeurs contradictoires à la date retenue de `LegalStructure` | `SituationDataError` : salarié écarté, compté à part (`phase1_situation_conflict`, `excluded_situation_unreliable`), contrôle bloquant `TS_FILTER_TECHNICAL_FAILURE` |
+| Date invalide dans la situation | inchangé : erreur technique comptée (`phase1_situation_error`) et contrôle bloquant |
+
+Compteurs de diagnostic (étape `ACQUIRE`, sans donnée personnelle) : `situation_without_position`,
+`retained_from_situation_legal_structure`, `excluded_not_motul_france_from_situation`, `situation_no_legal_structure`.
+**Limites** : `PPC_FTE` et `pourcentage_imputation` ne sont pas repris de la situation (`Fte` et `Level` n'ont pas un sens
+démontré identique à ceux du poste) ; la transformation, la comparaison et la publication ADP ont été conçues pour des
+salariés en poste : leur comportement sur des sortis reste à valider avec le métier.
 
 **Concurrence et robustesse.**
 

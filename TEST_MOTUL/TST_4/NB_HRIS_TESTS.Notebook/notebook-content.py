@@ -572,7 +572,7 @@ if __name__ == "__main__":
 # CELL ********************
 
 # ============= MODULE test_ts_acquire =============
-register_hris_module('test_ts_acquire', '4add74e2f2d4a5a22697e443ceda4c693d6528e7ed2bab0da2c74358a565103e', r'''"""TU-07 — acquisition TalentSoft (JDD-01) contre un faux serveur HTTP en mémoire. Aucun appel réseau."""
+register_hris_module('test_ts_acquire', 'ced3888886b11350c33c25065075f4cdf7df8efe1aee5826d847843669c6b75a', r'''"""TU-07 — acquisition TalentSoft (JDD-01) contre un faux serveur HTTP en mémoire. Aucun appel réseau."""
 import json
 import os
 import re
@@ -620,9 +620,18 @@ class FakeTalentSoft:
     n_employees : génère n salariés fictifs (tous en position P1) à la place des 3 salariés de base.
     latency : durée simulée de chaque appel GET (mesure de la concurrence réelle).
     fail_after : lève une HrisError fatale au n-ième appel GET.
+    employees : annuaire fourni tel quel (remplace les salariés de base).
+    entities : (matricule, entité hub) -> corps renvoyé, pour imposer par exemple un contrat terminé.
+    situations : matricule -> éléments renvoyés par l'endpoint Situation (dans l'ordre fourni).
+    positions : code de poste -> LegalStructure renvoyée, ou {date AAAA-MM-JJ: LegalStructure}, ou None (404).
+        Un code absent : « Motul France » sauf P3 (« Motul SA »).
     """
 
-    def __init__(self, total_override=None, scripted=None, n_employees=None, latency=0.0, fail_after=None):
+    def __init__(self, total_override=None, scripted=None, n_employees=None, latency=0.0, fail_after=None,
+                 employees=None, situations=None, positions=None, entities=None):
+        self.situations = situations or {}
+        self.positions = positions or {}
+        self.entities = entities or {}
         self.calls = []
         self.scripted = scripted or {}   # chemin (regex) -> liste de statuts à renvoyer d'abord
         self.total_override = total_override
@@ -632,7 +641,9 @@ class FakeTalentSoft:
         self._lock = threading.Lock()
         self._in_flight = 0
         self.max_in_flight = 0
-        if n_employees:
+        if employees is not None:
+            self.employees = employees
+        elif n_employees:
             self.employees = [{"employeeNumber": f"N{i}", "individual": {}} for i in range(n_employees)]
         else:
             self.employees = [
@@ -683,8 +694,8 @@ class FakeTalentSoft:
         if s:
             return s
         path = url[len(TS_PRD_BASE_URL):]
-        if path.startswith("/api/v1/directory/employees?count=1"):
-            return FakeResp(200, {"totalCount": self.total_override or len(self.employees), "results": []})
+        if path.startswith("/api/v1/directory/employees?count=1&"):   # comptage ; avec un seul salarié, c'est aussi la liste
+            return FakeResp(200, {"totalCount": self.total_override or len(self.employees), "results": self.employees[:1]})
         if path.startswith("/api/v1/directory/employees?count="):
             return FakeResp(200, {"totalCount": len(self.employees), "results": self.employees})
         m = re.match(r"/api/hub/v2/employees/(\w+)/(\w+)$", path)
@@ -693,7 +704,12 @@ class FakeTalentSoft:
             return FakeResp(200, self.entity(emp, entity))
         m = re.match(r"/api/hub/v2.0/positions/(\w+)\?date=(.*)$", path)
         if m:
-            legal = "Motul France" if m.group(1) != "P3" else "Motul SA"
+            code, date = m.group(1), m.group(2)[:10]
+            legal = self.positions.get(code, "Motul France" if code != "P3" else "Motul SA")
+            if isinstance(legal, dict):
+                legal = legal.get(date)          # poste valable seulement à certaines dates
+            if legal is None:
+                return FakeResp(404, {})
             return FakeResp(200, [{"field": "LegalStructure", "value": legal}, {"field": "Level", "value": "80 %"},
                                   {"field": "FullTimeEquivalentPercent", "value": 0},
                                   {"field": "CostCenter", "value": "CC1"}])
@@ -702,6 +718,10 @@ class FakeTalentSoft:
         return FakeResp(404, {})
 
     def entity(self, emp, entity):
+        if (emp, entity) in self.entities:
+            return self.entities[(emp, entity)]
+        if entity == "Situation" and emp in self.situations:
+            return self.situations[emp]
         if entity == "Situation":
             pos = {"E1": "P1", "E2": "P2", "E3": "P3"}.get(emp, "P1")
             return [hub("WorkingType", "Ingénieur", "2023-01-01"), hub("Position", pos, "2023-01-01"),
@@ -730,6 +750,22 @@ def make(fake, employee_concurrency=None, **kw):
 
 def gets(fake, suffix):
     return [url for method, url in fake.calls if method == "GET" and url.endswith(suffix)]
+
+
+def pos_url(code, start):
+    return f"{TS_PRD_BASE_URL}/api/hub/v2.0/positions/{code}?date={start}T00:00:00Z"
+
+
+def position_urls(fake):
+    return [url for method, url in fake.calls if method == "GET" and "/positions/" in url]
+
+
+def run_one(situation, positions=None, entities=None):
+    """Extraction d'un seul salarié (S1) dont l'endpoint Situation renvoie `situation`, dans cet ordre."""
+    fake = FakeTalentSoft(employees=[{"employeeNumber": "S1", "individual": {}}], situations={"S1": situation},
+                          positions=positions or {}, entities=entities)
+    ex, stats = make(fake)
+    return ex.run(), stats, fake
 
 
 class SourceIsPrdOnly(unittest.TestCase):
@@ -870,6 +906,137 @@ class Extraction(unittest.TestCase):
         for forbidden in ["E1", "E2", "u1", "1234567890123", "talent-soft", "tok-fictif", "secret-fictif"]:
             self.assertNotIn(forbidden, text)
         self.assertNotIn("secret-fictif", repr(ex.client))
+
+
+def no_position(legal, *extra):
+    """Situation sans aucun élément Position, qui porte sa propre structure juridique (cas des sortis, annuaire PRD)."""
+    return [hub("WorkingType", "Cadre", "2015-01-01"), hub("LegalStructure", legal, "2019-05-01"),
+            hub("GeographicOrganisationStructure", "GEO1", "2019-05-01"), hub("CostCenter", "CC9", "2019-05-01"),
+            hub("OrganisationalStructure", "ORG1", "2019-05-01"), *extra]
+
+
+class SituationLegalStructureFallback(unittest.TestCase):
+    """Sans Position exploitable, la structure juridique est lue sur la situation ; avec une Position, rien ne change."""
+
+    def test_situation_without_position_is_retained_on_its_own_legal_structure(self):
+        records, stats, fake = run_one(no_position("Motul France"))
+        self.assertEqual([r["employeeNumber"] for r in records], ["S1"])
+        self.assertEqual(position_urls(fake), [])                                   # aucun poste à interroger
+        record = records[0]
+        self.assertEqual((record["LegalStructure"], record["GeographicOrganisationStructure"], record["CostCenter"],
+                          record["OrganisationalStructure"], record["WorkingType"]),
+                         ("Motul France", "GEO1", "CC9", "ORG1", "Cadre"))
+        self.assertEqual(record["pourcentage_imputation"], "100")                  # non repris de la situation (sens non démontré)
+        c = stats.counters
+        self.assertEqual((c["retained_phase1"], c["retained_from_situation_legal_structure"], c["situation_without_position"]),
+                         (1, 1, 1))
+        self.assertEqual((c["excluded_missing_position_or_date"], c["excluded_not_motul_france"]), (0, 0))
+
+    def test_other_legal_structure_is_excluded_and_counted_both_ways(self):
+        records, stats, fake = run_one(no_position("Motul Deutschland"))
+        self.assertEqual(records, [])
+        c = stats.counters
+        self.assertEqual((c["excluded_not_motul_france"], c["excluded_not_motul_france_from_situation"],
+                          c["retained_phase1"]), (1, 1, 0))
+
+    def test_the_filter_stays_exact_on_the_fallback(self):
+        for legal, kept in (("Motul France", 1), ("Motul France ", 0), ("motul france", 0), ("Motul SA", 0), ("Lescot", 0)):
+            records, stats, fake = run_one(no_position(legal))
+            self.assertEqual(len(records), kept, repr(legal))
+
+    def test_without_position_and_without_legal_structure_the_original_exclusion_is_kept(self):
+        for items in ([hub("WorkingType", "Cadre", "2015-01-01")], no_position("")):
+            records, stats, fake = run_one(items)
+            self.assertEqual(records, [])
+            c = stats.counters
+            self.assertEqual((c["excluded_missing_position_or_date"], c["situation_no_legal_structure"]), (1, 1))
+            self.assertEqual(position_urls(fake), [])
+
+    def test_a_usable_position_follows_the_original_path_whatever_the_situation_says(self):
+        # la situation dit « Motul Deutschland » mais le poste P1 est « Motul France » : le poste fait foi, comme avant
+        records, stats, fake = run_one([hub("WorkingType", "Cadre", "2023-01-01"), hub("Position", "P1", "2023-01-01"),
+                                        hub("LegalStructure", "Motul Deutschland", "2023-01-01")])
+        self.assertEqual([r["LegalStructure"] for r in records], ["Motul France"])
+        self.assertEqual(len(position_urls(fake)), 1)
+        self.assertEqual((stats.counters["retained_from_situation_legal_structure"], stats.counters["situation_without_position"]),
+                         (0, 0))
+        # et l'inverse : la situation dit « Motul France » mais le poste P3 est « Motul SA » : exclu, sans repli
+        records, stats, fake = run_one([hub("Position", "P3", "2023-01-01"), hub("LegalStructure", "Motul France", "2023-01-01")])
+        self.assertEqual(records, [])
+        self.assertEqual((stats.counters["excluded_not_motul_france"], stats.counters["excluded_not_motul_france_from_situation"]),
+                         (1, 0))
+
+    def test_the_latest_legal_structure_version_wins_whatever_the_order(self):
+        old, new = hub("LegalStructure", "Motul SA", "2015-01-01"), hub("LegalStructure", "Motul France", "2021-01-01")
+        for items, kept in (([old, new], 1), ([new, old], 1)):
+            self.assertEqual(len(run_one([hub("WorkingType", "Cadre", "2015-01-01"), *items])[0]), kept)
+        newer_other = hub("LegalStructure", "Motul SA", "2024-01-01")
+        for items in ([new, newer_other], [newer_other, new]):
+            self.assertEqual(run_one([hub("WorkingType", "Cadre", "2015-01-01"), *items])[0], [])   # la plus récente est « Motul SA »
+
+    def test_former_employee_without_position_is_retained(self):
+        records, stats, fake = run_one(no_position("Motul France"), entities={
+            ("S1", "Contract"): [hub("NatureOfContract", "CDI", "2001-01-01", endDate="2001-12-31")],
+            ("S1", "KeyDates"): [hub("GroupEndDate", "2001-12-31", "2001-12-31")]})
+        self.assertEqual(len(records), 1)       # aucun filtre « actifs uniquement »
+        self.assertEqual((records[0]["date_fin_contract"], records[0]["GroupEndDate"]), ("2001-12-31", "2001-12-31"))
+
+    def assert_unreliable_and_not_masked(self, stats, cause):
+        c = stats.counters
+        self.assertEqual((c[f"phase1_situation_{cause}"], c["excluded_situation_unreliable"]), (1, 1))
+        for masked in ("excluded_no_situation", "excluded_missing_position_or_date", "excluded_not_motul_france",
+                       "phase1_situation_error", "retained_phase1"):
+            self.assertEqual(c[masked], 0, masked)          # une erreur de traitement n'est pas une exclusion métier
+        control = {a["control_code"]: a for a in A.completeness_anomalies(stats.as_dict())}["TS_FILTER_TECHNICAL_FAILURE"]
+        self.assertEqual((control["severity"], control["outcome"]), ("BLOCKING", "FAIL"))
+
+    def test_contradictory_legal_structure_is_never_resolved_by_order(self):
+        for first, second in ((hub("LegalStructure", "Motul France", "2019-05-01"), hub("LegalStructure", "Motul SA", "2019-05-01")),
+                              (hub("LegalStructure", "Motul SA", "2019-05-01"), hub("LegalStructure", "Motul France", "2019-05-01"))):
+            records, stats, fake = run_one([hub("WorkingType", "Cadre", "2015-01-01"), first, second])
+            self.assertEqual(records, [])
+            self.assert_unreliable_and_not_masked(stats, "conflict")
+
+    def test_invalid_date_keeps_the_original_technical_failure_handling(self):
+        # la lecture historique de la situation parse toutes les dates : une date invalide reste une erreur technique
+        # comptée (phase1_situation_error) et reprise par le contrôle bloquant, comme avant ; aucun salarié retenu
+        records, stats, fake = run_one([hub("WorkingType", "Cadre", "2015-01-01"), hub("LegalStructure", "Motul France", "31/12/2019")])
+        self.assertEqual(records, [])
+        self.assertEqual((stats.counters["phase1_situation_error"], stats.counters["retained_phase1"]), (1, 0))
+        control = {a["control_code"]: a for a in A.completeness_anomalies(stats.as_dict())}["TS_FILTER_TECHNICAL_FAILURE"]
+        self.assertEqual((control["severity"], control["outcome"]), ("BLOCKING", "FAIL"))
+        with self.assertRaises(A.SituationDataError) as caught:        # et la lecture explicite des attributs refuse aussi
+            A.situation_own_attributes([hub("LegalStructure", "Motul France", "31/12/2019")])
+        self.assertEqual((caught.exception.code, caught.exception.field), ("invalid_date", "LegalStructure"))
+
+    def test_malformed_items_are_counted_apart(self):
+        records, stats, fake = run_one([hub("WorkingType", "Cadre", "2015-01-01"), {"field": "LegalStructure", "startDate": "2019-05-01"}])
+        self.assertEqual(records, [])
+        self.assert_unreliable_and_not_masked(stats, "malformed")
+
+    def test_unreliable_situation_does_not_stop_the_other_employees(self):
+        fake = FakeTalentSoft(employees=[{"employeeNumber": "S1", "individual": {}}, {"employeeNumber": "S2", "individual": {}}],
+                              situations={"S1": [hub("LegalStructure", "Motul France", "2019-05-01"),
+                                                 hub("LegalStructure", "Motul SA", "2019-05-01")],
+                                          "S2": no_position("Motul France")})
+        ex, stats = make(fake)
+        self.assertEqual([r["employeeNumber"] for r in ex.run()], ["S2"])
+        self.assertEqual((stats.counters["excluded_situation_unreliable"], stats.counters["retained_phase1"]), (1, 1))
+
+    def test_the_error_is_not_fatal_and_carries_no_data(self):
+        self.assertTrue(issubclass(A.SituationDataError, ValueError))
+        self.assertFalse(issubclass(A.SituationDataError, HrisError))        # ne doit pas interrompre l'extraction
+        with self.assertRaises(A.SituationDataError) as caught:
+            A.situation_own_attributes([hub("LegalStructure", "VALEUR-SECRETE", "2019-05-01"),
+                                        hub("LegalStructure", "AUTRE-VALEUR", "2019-05-01")])
+        self.assertNotIn("SECRETE", str(caught.exception))
+        self.assertNotIn("AUTRE", str(caught.exception))
+
+    def test_counters_carry_no_personal_data(self):
+        records, stats, fake = run_one(no_position("Motul France"))
+        text = json.dumps(stats.as_dict())
+        for forbidden in ("S1", "Cadre", "GEO1", "CC9", "Motul France"):
+            self.assertNotIn(forbidden, text)
 
 
 if __name__ == "__main__":

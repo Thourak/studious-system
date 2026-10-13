@@ -1235,11 +1235,19 @@ def normalize_type(t: str) -> str:
 # CELL ********************
 
 # ============= MODULE hris.ts_acquire =============
-register_hris_module('hris.ts_acquire', 'd381880b82ee3b6a7d071d8f416315677188498410fe5a9652a813409531b2ba', r'''"""hris.ts_acquire — portage de la Function TalentSoft (ts-function-app/function_app.py, PRJ @ 5541490).
+register_hris_module('hris.ts_acquire', '5607bf38cee39902065adae3d267c5729d1e1f9c04603b50e96e92de687d5e2d', r'''"""hris.ts_acquire — portage de la Function TalentSoft (ts-function-app/function_app.py, PRJ @ 5541490).
 
 Parité (A01, R-TS-007 à R-TS-030) : endpoints, règle de « valeur courante » dépendant de l'ordre,
 conversion « falsy », sentinelle 1900-01-01, Hors_France, Level sans %, filtre « Motul France »,
 retries 429/503/réseau avec backoff, disjoncteur global.
+
+Écart volontaire HORS PARITÉ (règle métier, mesurée sur l'annuaire PRD du 12/10/2026) : quand la situation n'a aucune
+Position exploitable, la structure juridique est lue sur la situation elle-même (champ LegalStructure, version la plus
+récente) et le même filtre exact « Motul France » s'applique. L'existant écartait ces salariés (compteur
+excluded_missing_position_or_date) : or 928 des 1886 fiches de l'annuaire, presque toutes des sortis, ont une situation
+sans Position mais avec LegalStructure. Les salariés qui ont une Position exploitable suivent le chemin d'origine,
+inchangé. Une date invalide ou des valeurs contradictoires sur ces champs ne sont jamais tranchées par l'ordre de réponse
+(SituationDataError : salarié écarté, compté à part, repris par le contrôle bloquant TS_FILTER_TECHNICAL_FAILURE).
 
 Écarts volontaires avec l'existant (extraction plus rapide, mêmes données) : le filtre « Motul France » n'est plus
 une phase 1 séquentielle mais s'évalue salarié par salarié dans la fenêtre parallèle, et la situation et le poste
@@ -1263,7 +1271,7 @@ import threading
 import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 from urllib.parse import urlparse
 
 from hris.common import TS_PRD_BASE_URL, HrisError, SecretValue
@@ -1570,6 +1578,83 @@ def process_situation_data(data):
     return result
 
 
+class SituationDataError(ValueError):
+    """Situation TalentSoft inexploitable pour la lecture de la structure juridique.
+
+    code : « invalid_date » (startDate absente ou hors AAAA-MM-JJ sur un champ lu), « conflict » (deux valeurs différentes
+    à la date retenue d'un même champ) ou « malformed » (élément qui n'est pas un objet avec « field », ou champ lu sans
+    « value »). Aucune valeur, date ni matricule dans l'exception : seulement le code et le nom du champ. Ce n'est PAS une
+    HrisError : elle n'interrompt pas l'extraction, elle écarte le salarié concerné, de façon comptée.
+    """
+
+    def __init__(self, code: str, field: str = ""):
+        super().__init__(f"{code}:{field}" if field else code)
+        self.code = code
+        self.field = field
+
+
+class _FieldVersion(NamedTuple):
+    when: datetime.date         # date retenue, comparée comme une date
+    start: str                  # startDate telle que renvoyée par l'API
+    value: Any                  # valeur normalisée : « falsy » -> ""
+    earlier_non_empty: bool     # une version antérieure non vide existe
+
+
+def _latest_field_version(data, field: str) -> Optional[_FieldVersion]:
+    """Version la plus récente d'un champ de la situation, d'après SA propre startDate, quel que soit l'ordre de l'API.
+
+    Les éléments d'un autre champ sont ignorés. Renvoie None si le champ est absent. Lève SituationDataError si une date
+    du champ est invalide, si « value » manque, ou si deux valeurs différentes portent la date retenue.
+    """
+    versions = []
+    for item in data:
+        if item["field"] != field:
+            continue
+        if "value" not in item:
+            raise SituationDataError("malformed", field)
+        start = item.get("startDate")
+        try:
+            when = _d(start)
+        except (TypeError, ValueError):
+            raise SituationDataError("invalid_date", field) from None
+        versions.append((when, start, item["value"] if item["value"] else ""))
+    if not versions:
+        return None
+    latest = max(version[0] for version in versions)
+    kept = [version for version in versions if version[0] == latest]
+    value = kept[0][2]
+    if any(version[2] != value for version in kept):
+        raise SituationDataError("conflict", field)
+    return _FieldVersion(latest, min(version[1] for version in kept), value,
+                         any(version[2] for version in versions if version[0] < latest))
+
+
+# Champs de la situation qui portent le même nom que ceux du poste (voir process_position_data) : repli pour les salariés
+# sans Position. PPC_FTE et pourcentage_imputation ne sont PAS repris : « Fte » et « Level » de la situation n'ont pas un
+# sens démontré identique à « FullTimeEquivalentPercent » et « Level » du poste (à valider avec le métier).
+SITUATION_OWN_FIELDS = ("LegalStructure", "GeographicOrganisationStructure", "CostCenter", "CollectiveAgreement",
+                        "OccupationalCategory", "Coefficient", "OrganisationalStructure")
+
+
+def situation_own_attributes(data) -> dict:
+    """Structure juridique et rattachements portés par la situation elle-même, version la plus récente de chaque champ.
+
+    Renvoie seulement les champs présents. Lève SituationDataError (date invalide, valeurs contradictoires, élément mal
+    formé) : jamais de choix selon l'ordre de réponse.
+    """
+    if not data:
+        return {}
+    for item in data:
+        if not isinstance(item, dict) or "field" not in item:
+            raise SituationDataError("malformed")
+    out = {}
+    for field in SITUATION_OWN_FIELDS:
+        version = _latest_field_version(data, field)
+        if version is not None:
+            out[field] = version.value
+    return out
+
+
 def process_position_data(data):
     if not data:
         return {}
@@ -1825,19 +1910,37 @@ class TalentSoftExtractor:
         else:
             self.stats.inc(f"{endpoint}_unavailable")
 
-    def get_situation(self, employee_number) -> dict:
+    def read_situation(self, employee_number) -> Tuple[dict, Optional[dict]]:
+        """(sélection historique, attributs propres de la situation) ; ({}, None) si la situation est indisponible.
+
+        Les attributs propres (structure juridique, rattachements) ne sont lus que si la sélection historique n'a pas de
+        couple (Position, date) exploitable : c'est le repli des salariés sans Position. Lève SituationDataError (date
+        invalide, valeurs contradictoires, élément mal formé sur ces champs) après avoir compté la cause précise :
+        phase1_situation_invalid_date, phase1_situation_conflict ou phase1_situation_malformed.
+        """
         try:
             data, status = self.client.get(f"/api/hub/v2/employees/{employee_number}/Situation",
                                            "phase1_situation", max_retries=2, initial_delay=1)
             if status == 200 and data:
-                return process_situation_data(data)
+                selection = process_situation_data(data)
+                own = None
+                if not (selection.get("Position") and selection.get("Situation_starDate")):
+                    own = situation_own_attributes(data)
+                return selection, own
             self._classify_unavailable("phase1_situation", status)
-            return {}
+            return {}, None
+        except SituationDataError as exc:
+            self.stats.inc(f"phase1_situation_{exc.code}")   # cause précise, sans valeur ni matricule
+            raise
         except HrisError:
             raise
         except Exception:
             self.stats.inc("phase1_situation_error")
-            return {}
+            return {}, None
+
+    def get_situation(self, employee_number) -> dict:
+        """Sélection historique seule (Position, WorkingType, Situation_starDate)."""
+        return self.read_situation(employee_number)[0]
 
     def get_position(self, position_code, date, endpoint: str) -> dict:
         try:
@@ -1862,16 +1965,39 @@ class TalentSoftExtractor:
         Renvoie (situation, poste) pour un salarié « Motul France », sinon None (exclusion comptée).
         Mêmes règles et mêmes compteurs que la phase 1 de l'existant, mais un salarié à la fois dans la
         fenêtre parallèle, et sans relire plus tard la situation et le poste des salariés retenus.
+
+        Repli (hors parité) : sans couple (Position, date) exploitable, la structure juridique est lue sur la situation
+        elle-même (LegalStructure) et le même filtre exact s'applique ; les attributs de la situation tiennent alors lieu
+        de poste. Sans LegalStructure non plus, l'exclusion d'origine est conservée (excluded_missing_position_or_date).
+        Compteurs de repli : situation_without_position, retained_from_situation_legal_structure,
+        excluded_not_motul_france_from_situation, situation_no_legal_structure.
         """
-        situation = self.get_situation(employee_number)
+        try:
+            situation, own = self.read_situation(employee_number)
+        except SituationDataError:
+            # Situation illisible (date invalide, valeurs contradictoires) : ni exclusion métier ni retenue. Comptée à
+            # part (cause : phase1_situation_*) et reprise par le contrôle bloquant TS_FILTER_TECHNICAL_FAILURE.
+            self.stats.inc("excluded_situation_unreliable")
+            return None
         if not situation:
             self.stats.inc("excluded_no_situation")  # échec technique OU absence : voir contrôles
             return None
         position_code = situation.get("Position")
         situation_date = situation.get("Situation_starDate")
         if not (position_code and situation_date):
-            self.stats.inc("excluded_missing_position_or_date")
-            return None
+            self.stats.inc("situation_without_position")
+            legal = (own or {}).get("LegalStructure")
+            if not legal:
+                self.stats.inc("situation_no_legal_structure")
+                self.stats.inc("excluded_missing_position_or_date")   # exclusion d'origine, conservée
+                return None
+            if str(legal) != MOTUL_FRANCE:
+                self.stats.inc("excluded_not_motul_france_from_situation")
+                self.stats.inc("excluded_not_motul_france")
+                return None
+            self.stats.inc("retained_from_situation_legal_structure")
+            self.stats.inc("retained_phase1")
+            return situation, own
         position_data = self.get_position(position_code, situation_date, "phase1_position")
         if not position_data:
             self.stats.inc("excluded_no_position_data")
@@ -2016,9 +2142,11 @@ def completeness_anomalies(stats: dict) -> List[dict]:
     add("EMPTY_EXTRACTION", "BLOCKING", records, "FAIL" if records == 0 else "PASS",
         "aucun salarié retenu" if records == 0 else f"{records} salariés retenus")
     tech_phase1 = c.get("phase1_situation_unavailable", 0) + c.get("phase1_situation_error", 0) + \
-        c.get("phase1_position_unavailable", 0) + c.get("phase1_position_error", 0)
+        c.get("phase1_position_unavailable", 0) + c.get("phase1_position_error", 0) + \
+        c.get("phase1_situation_invalid_date", 0) + c.get("phase1_situation_conflict", 0) + \
+        c.get("phase1_situation_malformed", 0)
     add("TS_FILTER_TECHNICAL_FAILURE", "BLOCKING", tech_phase1, "FAIL" if tech_phase1 else "PASS",
-        "salariés non qualifiables (Situation/Position indisponible) : le filtre Motul France est incertain"
+        "salariés non qualifiables (Situation/Position indisponible ou incohérente) : le filtre Motul France est incertain"
         if tech_phase1 else "filtre Motul France évalué pour tous les salariés")
     nf_phase1 = c.get("phase1_situation_404", 0) + c.get("phase1_position_404", 0)
     add("TS_FILTER_NOT_FOUND", "WARNING", nf_phase1, "FAIL" if nf_phase1 else "PASS",
