@@ -17,15 +17,15 @@
 # # **Chemin dans le dépôt**
 # # TEST_MOTUL/TST_4/NB_HRIS_TS_ACQUIRE.Notebook/notebook-content.py
 # # **Description fonctionnelle**
-# # Ce notebook extrait tous les salariés de la société Motul France depuis le tenant de production de TalentSoft, l'outil de gestion des ressources humaines, et les dépose dans le Lakehouse pour le run en cours. La source est toujours la production, quel que soit l'environnement d'exécution : toute autre adresse est refusée et il n'existe aucun repli vers un tenant de test. Il reprend les règles de lecture et de calcul de l'ancienne fonction d'extraction : lecture du nombre total de salariés, lecture de la liste complète, puis, pour chaque salarié, filtre sur la structure juridique Motul France (lecture de la situation, puis de la position) et, pour les salariés retenus, lecture de douze entités de détail et de l'adresse postale. Quand la situation n'a aucune Position exploitable, ce qui est le cas de la plupart des sortis, la structure juridique est lue sur la situation elle-même avec le même filtre exact : c'est une règle hors parité avec l'ancienne fonction, qui écartait ces salariés. La situation et la position lues pour le filtre sont réutilisées pour le détail, sans second appel. Les trois entités de santé (handicap, accident du travail, visite médicale) ne sont plus appelées, car leur résultat n'a jamais été conservé. Seules les soixante-dix clés utilisées en aval sont conservées, si bien qu'aucune donnée de santé n'est persistée. Des contrôles de complétude garantissent qu'une extraction partielle n'est jamais présentée comme complète.
+# # Ce notebook extrait tous les salariés de la société Motul France depuis le tenant de production de TalentSoft, l'outil de gestion des ressources humaines, et les dépose dans le Lakehouse pour le run en cours. La source est toujours la production, quel que soit l'environnement d'exécution : toute autre adresse est refusée et il n'existe aucun repli vers un tenant de test. Il reprend les règles de lecture et de calcul de l'ancienne fonction d'extraction : lecture du nombre total de salariés, lecture de la liste complète, puis, pour chaque salarié, filtre sur la structure juridique Motul France (lecture de la situation, puis de la position) et, pour les salariés retenus, lecture de douze entités de détail et de l'adresse postale. Comme dans l'ancienne fonction, un salarié dont la situation n'a aucune Position exploitable est écarté, ce qui est le cas de la plupart des sortis : la population persistée est la même que celle de l'existant. La situation et la position lues pour le filtre sont réutilisées pour le détail, sans second appel. Les trois entités de santé (handicap, accident du travail, visite médicale) ne sont plus appelées, car leur résultat n'a jamais été conservé. Seules les soixante-dix clés utilisées en aval sont conservées, si bien qu'aucune donnée de santé n'est persistée. Des contrôles de complétude garantissent qu'une extraction partielle n'est jamais présentée comme complète. Après l'acquisition, il met à jour la partie TalentSoft des dix-sept tables de correspondance cfg.lu_hr_*, sans aucun fichier : les codes et libellés sont lus dans les référentiels du Core HR par l'API, et les codes du sexe, de la nationalité et des pays, qui ne sont pas des référentiels, sont relevés dans l'extraction du run. Les codes ADP ne sont jamais écrits par cette étape : ils n'existent pas dans TalentSoft et sont saisis par le métier dans T4_NB_HRIS_REFERENCE_ADMIN.
 # # **Dépendances**
 # # Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB et utilise ses modules d'acquisition, d'étapes, d'écriture Delta, de modèle de données et de journal des cellules. Il appelle l'interface de programmation de TalentSoft par la bibliothèque requests, avec deux secrets, l'identifiant et le secret de l'application, lus dans le coffre de secrets désigné par le paramètre p_kv_url_ts au moyen de notebookutils. Il lit le registre ctl.run, renseigné par T3_NB_HRIS_RUN_CONTROL. Il écrit les données brutes stg.ts_employee_raw et les contrôles log.anomaly, met à jour ctl.run, consigne l'étape dans ctl.run_step et ajoute ses traces dans log.cell_execution.
 # # **Fonctionnement et logique de traitement**
 # # La configuration lit le contexte réel du notebook, résout les noms complets des tables, ouvre le journal des cellules, applique les réglages de session Spark et réduit le niveau de journalisation des bibliothèques réseau pour qu'aucune adresse n'apparaisse dans les sorties. La cellule de pré-contrôle lit le run, puis vérifie, sans appeler l'interface de TalentSoft, que la source est bien la production, que les deux secrets sont lisibles, que le serveur est joignable et quelle table recevra les données. La cellule d'acquisition traite ensuite cinq cas. En pré-contrôle seul, elle trace le résultat sous un identifiant dédié. Si le run est inconnu, elle échoue. En mode de reprise de publication, ou si le run n'est plus au statut STARTED, elle renvoie un statut de saut. Sinon, elle qualifie puis extrait les salariés en fenêtre glissante, sans lots ni pause : le filtre Motul France est évalué salarié par salarié, en parallèle, et le nombre de salariés traités en parallèle et le nombre de requêtes simultanées sont réglables par paramètre, avec des reprises sur erreur temporaire, un disjoncteur et un renouvellement périodique du jeton. Elle écrit ensuite les données, les contrôles et la durée de l'extraction. Si les secrets ne sont pas résolus, un contrôle bloquant est écrit avant l'échec. La clôture écrit les traces du journal puis renvoie le résultat.
 # # **Paramètres**
-# # Le paramètre p_run_id reçoit l'identifiant d'exécution du pipeline ; il est obligatoire, sauf en pré-contrôle seul. Le paramètre p_kv_url_ts donne l'adresse du coffre de secrets de TalentSoft, issue de la variable kv_url_ts de la bibliothèque de variables VL_HRIS ; il ne contient jamais le secret lui-même. Le paramètre p_ts_base_url donne l'adresse du tenant TalentSoft et seule l'adresse de production est acceptée. Le paramètre p_preflight_only vaut false par défaut ; à true, le notebook vérifie les accès sans extraire aucune donnée. Le paramètre p_test_schema redirige toutes les tables vers un schéma de test et reste vide en exploitation. Le paramètre p_lakehouse_name donne le Lakehouse cible et il est obligatoire, car aucun Lakehouse par défaut n'est attaché. Le paramètre p_log_cell_success vaut true par défaut et active les traces de réussite des cellules ; les échecs sont toujours tracés. Le paramètre p_ts_request_concurrency vaut 16 par défaut (de 1 à 40) et fixe le nombre de requêtes simultanées vers TalentSoft ; l'ancienne fonction en faisait 5. Le paramètre p_ts_employee_concurrency vaut 16 par défaut et fixe le nombre de salariés traités en parallèle ; pendant le filtre, chaque salarié fait une requête à la fois, donc c'est ce nombre qui fixe le débit. Ces plafonds sont fixes : le code ne les adapte pas tout seul. Si les compteurs http_429 ou http_503 apparaissent dans la trace de l'étape, il faut baisser la première valeur ; sinon, on peut la monter pour accélérer.
+# # Le paramètre p_run_id reçoit l'identifiant d'exécution du pipeline ; il est obligatoire, sauf en pré-contrôle seul. Le paramètre p_kv_url_ts donne l'adresse du coffre de secrets de TalentSoft, issue de la variable kv_url_ts de la bibliothèque de variables VL_HRIS ; il ne contient jamais le secret lui-même. Le paramètre p_ts_base_url donne l'adresse du tenant TalentSoft et seule l'adresse de production est acceptée. Le paramètre p_preflight_only vaut false par défaut ; à true, le notebook vérifie les accès sans extraire aucune donnée. Le paramètre p_test_schema redirige toutes les tables vers un schéma de test et reste vide en exploitation. Le paramètre p_lakehouse_name donne le Lakehouse cible et il est obligatoire, car aucun Lakehouse par défaut n'est attaché. Le paramètre p_log_cell_success vaut true par défaut et active les traces de réussite des cellules ; les échecs sont toujours tracés. Le paramètre p_ts_request_concurrency vaut 16 par défaut (de 1 à 40) et fixe le nombre de requêtes simultanées vers TalentSoft ; l'ancienne fonction en faisait 5. Le paramètre p_ts_employee_concurrency vaut 16 par défaut et fixe le nombre de salariés traités en parallèle ; pendant le filtre, chaque salarié fait une requête à la fois, donc c'est ce nombre qui fixe le débit. Ces plafonds sont fixes : le code ne les adapte pas tout seul. Si les compteurs http_429 ou http_503 apparaissent dans la trace de l'étape, il faut baisser la première valeur ; sinon, on peut la monter pour accélérer. Le paramètre p_sync_reference_catalogue vaut true par défaut et active la mise à jour de la partie TalentSoft des tables de correspondance après l'acquisition.
 # # **Sorties produites**
-# # Le notebook écrit stg.ts_employee_raw, qui contient des données personnelles et reste en accès restreint, ainsi que log.anomaly. Il met à jour ctl.run et ctl.run_step et ajoute ses traces dans log.cell_execution. Sa valeur de sortie est un texte structuré qui contient le résultat du pré-contrôle, le statut, le nombre de lignes, le nombre de clés distinctes, le total annoncé par TalentSoft, la durée et la concurrence de l'extraction et la liste des contrôles bloquants en échec, sans aucun matricule, aucune adresse ni aucune valeur.
+# # Le notebook écrit stg.ts_employee_raw, qui contient des données personnelles et reste en accès restreint, ainsi que log.anomaly. Il met à jour la partie TalentSoft des tables cfg.lu_hr_* (codes ajoutés, libellés mis à jour, aucune ligne supprimée, aucune colonne ADP écrite), consigne l'étape REFERENCE_CATALOGUE et écrit deux contrôles jamais bloquants, REFERENCE_CATALOGUE et REFERENCE_ADP_MISSING. Il met à jour ctl.run et ctl.run_step et ajoute ses traces dans log.cell_execution. Sa valeur de sortie est un texte structuré qui contient le résultat du pré-contrôle, le statut, le nombre de lignes, le nombre de clés distinctes, le total annoncé par TalentSoft, la durée et la concurrence de l'extraction et la liste des contrôles bloquants en échec, sans aucun matricule, aucune adresse ni aucune valeur.
 # # **Limitations connues et points d'attention**
 # # L'extraction est complète à chaque run, sans pagination ni filtre de période. Seuls les salariés dont la structure juridique la plus récente est Motul France sont retenus : un ancien salarié n'y figure que si l'annuaire de TalentSoft le renvoie, ce qui reste à vérifier sur les données. Lors du run du 8 octobre 2026, réalisé avec la version précédente, elle a duré une vingtaine de minutes pour un annuaire de 1882 salariés, dont 431 ont été persistés pour Motul France. Ce run s'est terminé avec le statut ACQUIRED_INCOMPLETE, car le contrôle bloquant TS_FILTER_TECHNICAL_FAILURE était en échec : le filtre sur la structure juridique n'a pas pu être évalué pour au moins un salarié. La durée de la version actuelle n'a pas encore été mesurée sur le vrai tenant ; elle est tracée dans le compteur extraction de la trace de l'étape. Lors de ce run, les identifiants TalentSoft étaient écrits dans le code de la version précédente pour contourner le coffre ; cette version les lit uniquement dans le coffre de secrets. Tant que le workspace d'exécution ne peut pas lire ce coffre, qui appartient à un autre tenant, l'acquisition échoue avec le contrôle bloquant TS_SECRET_RESOLUTION. Les secrets sont encapsulés et ne sont jamais affichés, passés en paramètre ni journalisés.
 # # **Responsable et contact**
@@ -60,6 +60,7 @@ import requests
 from requests.adapters import HTTPAdapter
 
 # Internal HRIS library (chargée par %run T4_NB_HRIS_LIB)
+from hris import reference_api
 from hris import spark_io
 from hris import steps
 from hris import ts_acquire
@@ -87,6 +88,7 @@ p_lakehouse_name = ""                           # VL_HRIS.lakehouse_name : Lakeh
 p_log_cell_success = "true"                     # VL_HRIS.log_cell_success : true = trace aussi les cellules réussies
 p_ts_request_concurrency = "16"                 # requêtes HTTP simultanées vers TalentSoft (1 à 40 ; l'existant faisait 5, puis 10)
 p_ts_employee_concurrency = "16"                # salariés traités en parallèle (1 à 40) ; pendant le filtre, c'est ce nombre qui fixe le débit
+p_sync_reference_catalogue = "true"             # true : met à jour la partie TalentSoft des tables cfg.lu_hr_* depuis l'API (aucun fichier)
 
 # METADATA ********************
 
@@ -283,6 +285,57 @@ try:
             spark_io.update_run(spark, tables, p_run_id, error_code="ACQUIRE_FAILED", error_summary=safe_error(exc))
             raise
     print(json.dumps(result, ensure_ascii=False, default=str))
+    cell_log.success()
+except Exception as error:
+    cell_log.failure(error)
+    raise
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= RÉFÉRENTIELS TALENTSOFT -> PARTIE TALENTSOFT DES TABLES cfg.lu_hr_* (AUCUN FICHIER) =============
+cell_log.start("REFERENCE_CATALOGUE")
+try:
+    catalogue_result = {"status": "SKIPPED"}
+    if as_bool(p_sync_reference_catalogue) and str(result.get("status", "")).startswith("ACQUIRED"):
+        # Codes et libellés lus dans les référentiels du Core HR et dans l'extraction de ce run ; les colonnes ADP ne
+        # sont jamais écrites (saisie métier dans T4_NB_HRIS_REFERENCE_ADMIN). Jamais bloquant pour l'acquisition :
+        # la transformation juge l'état réel des tables (vide ou sans aucun code ADP).
+        catalogue_step = spark_io.StepLogger(spark, tables, p_run_id, "REFERENCE_CATALOGUE")
+        catalogue_report, catalogue_error = None, ""
+        try:
+            catalogue_client = ts_acquire.TsClient(
+                p_ts_base_url, secrets[TS_SECRET_CLIENT_ID], secrets[TS_SECRET_CLIENT_SECRET],
+                session_factory=lambda: build_http_session(2), stats=ts_acquire.AcquisitionStats(),
+                network_errors=(requests.exceptions.RequestException, OSError), max_concurrency=2)
+            try:
+                catalogue_client.get_token()
+                reference_store = reference_api.SparkReferenceStore(spark, tables)
+                catalogue_report = reference_api.synchronize_catalogue(
+                    lambda library: reference_api.fetch_library(catalogue_client, library), reference_store,
+                    lambda keys: reference_store.observed(p_run_id, keys),
+                    loaded_by=cell_log.base["notebook_name"] + ":" + p_run_id)
+            finally:
+                catalogue_client.close()
+            catalogue_step.succeeded(rows_out=catalogue_report["inserted"] + catalogue_report["updated"],
+                                     message=reference_api.step_message(catalogue_report), counters_only=True)
+        except Exception as exc:
+            catalogue_error = safe_error(exc)
+            catalogue_step.failed(exc)
+        spark_io.write_anomalies(spark, tables, p_run_id,
+                                 reference_api.catalogue_anomalies(catalogue_report, catalogue_error),
+                                 reference_api.CATALOGUE_CONTROLS)
+        catalogue_result = ({key: catalogue_report[key] for key in (
+            "status", "tables_written", "tables_skipped", "inserted", "updated", "used_codes_without_adp",
+            "used_tables_without_any_adp")} if catalogue_report else {"status": "FAILED", "error": catalogue_error})
+    result["reference_catalogue"] = catalogue_result
+    print(json.dumps({"reference_catalogue": catalogue_result}, ensure_ascii=False, default=str))
     cell_log.success()
 except Exception as error:
     cell_log.failure(error)

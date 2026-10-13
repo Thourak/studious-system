@@ -60,6 +60,18 @@
       "note": "Journal des cellules (log.cell_execution) : true = trace aussi les cellules réussies ; les échecs sont toujours tracés.",
       "type": "String",
       "value": "true"
+    },
+    {
+      "name": "remuneration_enabled",
+      "note": "Flux rémunération (ex-Pipeline_SIRH-SFTP) : true = exécuté à chaque run ; false = sauté (ex. workspace sans accès au coffre).",
+      "type": "String",
+      "value": "true"
+    },
+    {
+      "name": "ts_remuneration_import_enabled",
+      "note": "Envoi des imports de rémunération à TalentSoft PRD : seulement si true ET nom du workspace contenant PRD. Passer à true après validation de la structure (mode VALIDATE).",
+      "type": "String",
+      "value": "false"
     }
   ]
 }

@@ -1,6 +1,6 @@
 {
   "properties": {
-    "description": "Pipeline générique HRIS TalentSoft PRD -> Fabric -> ADP (publication verrouillée hors PRD et non activée). Planification : AUCUNE (D-RUN-05 non validée).",
+    "description": "Pipeline HRIS TalentSoft PRD -> Fabric -> ADP (publication verrouillée hors PRD et non activée) et flux rémunération TalentSoft (export/import par API, sans fichier). Planification : quotidienne à 06:00, heure de Paris (.schedules).",
     "activities": [
       {
         "type": "TridentNotebook",
@@ -170,6 +170,80 @@
                 "secureOutput": false
               },
               "name": "Acquire",
+              "dependsOn": []
+            },
+            {
+              "type": "TridentNotebook",
+              "typeProperties": {
+                "notebookId": "452f6f8e-447f-4f2b-8df6-4085cdc926b0",
+                "workspaceId": "00000000-0000-0000-0000-000000000000",
+                "parameters": {
+                  "p_mode": {
+                    "value": {
+                      "value": "RUN",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_run_id": {
+                    "value": {
+                      "value": "@pipeline().RunId",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_kv_url_ts": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.kv_url_ts",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_ts_base_url": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.ts_base_url",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_flow_enabled": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.remuneration_enabled",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_import_enabled": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.ts_remuneration_import_enabled",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_lakehouse_name": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.lakehouse_name",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_log_cell_success": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.log_cell_success",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  }
+                }
+              },
+              "policy": {
+                "timeout": "0.02:00:00",
+                "retry": 0,
+                "retryIntervalInSeconds": 30,
+                "secureInput": false,
+                "secureOutput": false
+              },
+              "name": "Remuneration",
               "dependsOn": []
             },
             {
@@ -448,6 +522,12 @@
                   "dependencyConditions": [
                     "Succeeded"
                   ]
+                },
+                {
+                  "activity": "Remuneration",
+                  "dependencyConditions": [
+                    "Completed"
+                  ]
                 }
               ]
             },
@@ -508,6 +588,12 @@
                   "dependencyConditions": [
                     "Failed",
                     "Skipped"
+                  ]
+                },
+                {
+                  "activity": "Remuneration",
+                  "dependencyConditions": [
+                    "Completed"
                   ]
                 }
               ]
@@ -603,6 +689,28 @@
                   ]
                 }
               ]
+            },
+            {
+              "type": "Fail",
+              "typeProperties": {
+                "message": "Le flux de rémunération a échoué (voir ctl.run_step, étape REMUNERATION, et log.ts_remuneration_import).",
+                "errorCode": "HRIS_REMUNERATION_FAILED"
+              },
+              "name": "RemunerationFailed",
+              "dependsOn": [
+                {
+                  "activity": "Remuneration",
+                  "dependencyConditions": [
+                    "Failed"
+                  ]
+                },
+                {
+                  "activity": "RunEnd",
+                  "dependencyConditions": [
+                    "Succeeded"
+                  ]
+                }
+              ]
             }
           ],
           "ifFalseActivities": []
@@ -680,6 +788,16 @@
       "log_cell_success": {
         "type": "String",
         "variableName": "log_cell_success",
+        "libraryName": "T4_VL_HRIS"
+      },
+      "remuneration_enabled": {
+        "type": "String",
+        "variableName": "remuneration_enabled",
+        "libraryName": "T4_VL_HRIS"
+      },
+      "ts_remuneration_import_enabled": {
+        "type": "String",
+        "variableName": "ts_remuneration_import_enabled",
         "libraryName": "T4_VL_HRIS"
       }
     }

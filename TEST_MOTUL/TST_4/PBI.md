@@ -18,7 +18,7 @@ Légende des sources : **[EXISTANT]** observé dans le code · **[EXISTANT – N
 | **Rapport métier** | RH, responsables métier | « Qu'est-ce qui a changé dans les données (ajouts, modifications, absences) ? » |
 | Deux deltas métier **distincts** | idem | A : run courant vs run précédent · B : run courant vs dernier état du jour précédent |
 
-**Périmètre** : le processus `TS_ADP_EMPLOYEE` (acquisition → transformation → comparaison → promotion → publication ADP verrouillée → clôture). Hors périmètre : notifications (D-NOT non décidés), flux SFTP de rémunération, publication ADP réelle.
+**Périmètre** : le processus `TS_ADP_EMPLOYEE` (acquisition → transformation → comparaison → promotion → publication ADP verrouillée → clôture). Le flux rémunération (ex-SFTP, désormais par API) s'exécute dans le même run ; ses indicateurs sont dans `log.ts_remuneration_import` et l'étape `REMUNERATION`. Hors périmètre : notifications (D-NOT non décidés), publication ADP réelle.
 
 **Trois constats structurants** (vérifiés dans le code) :
 
@@ -190,7 +190,11 @@ Une cellule `SUCCEEDED` signifie « le code s'est terminé », pas « le process
 | `SKIPPED_CONCURRENT` | un autre run actif | vérifier `ctl.process_lock` ; attendre la fin ou l'expiration du bail | **ne jamais supprimer la ligne de verrou** |
 | `TS_SECRET_RESOLUTION` / `TS_SECRETS_UNAVAILABLE` | coffre inaccessible (B-01) | escalader au propriétaire d'accès | pas de relance en boucle |
 | `EXTRACTION_INCOMPLETE`, `TS_FILTER_TECHNICAL_FAILURE`, `TS_ENDPOINT_FAILURE` | API TalentSoft indisponible ou instable | relancer un **nouveau** run | référence intacte, absences non confirmées |
-| `MAPPING_TABLE_EMPTY` / `BLOCKED_MAPPINGS` | correspondances non fournies (B-02) | escalader au métier | relancer sans correspondances est inutile |
+| `MAPPING_TABLE_EMPTY` / `BLOCKED_MAPPINGS` | table vide (référentiel non synchronisé) ou sans aucun code ADP (B-02) | lire l'étape `REFERENCE_CATALOGUE` du run ; faire saisir les codes ADP dans `NB_HRIS_REFERENCE_ADMIN` (`REPORT`, `CHECK`, `APPLY`) | relancer le run sans codes ADP saisis est inutile |
+| `REFERENCE_CATALOGUE` en échec (avertissement) | référentiel TalentSoft illisible, table non conforme ou clé en double | lire le motif par table dans `ctl.run_step` (étape `REFERENCE_CATALOGUE`) | les correspondances en place ne bougent pas ; l'acquisition n'est pas interrompue |
+| Pipeline en échec `HRIS_REMUNERATION_FAILED` | import de rémunération refusé par TalentSoft, export indisponible ou secrets illisibles | lire `log.ts_remuneration_import` (statut par type, identifiant d'import TalentSoft) et l'étape `REMUNERATION` | la référence du type en échec n'a pas avancé : le run suivant réémet les changements, ne rien rejouer à la main |
+| `log.ts_remuneration_import` en `DISABLED` en PRD | envoi non encore activé | lancer `NB_HRIS_REMUNERATION` en `VALIDATE`, corriger `cfg.ts_remuneration_mapping` jusqu'à zéro écart, puis `ts_remuneration_import_enabled = true` | les changements s'accumulent sans perte jusqu'à l'activation |
+| `REFERENCE_ADP_MISSING` en échec (information) | codes TalentSoft nouveaux ou jamais mappés vers ADP | `NB_HRIS_REFERENCE_ADMIN` en `REPORT` puis saisie | les salariés concernés restent rejetés (`Référence_Rejet`) jusqu'à la saisie |
 | `REFERENCE_ABSENTE` | premier chargement | décision métier : lancer `INIT_REFERENCE` | refusé si la référence n'est pas vide |
 | `REFERENCE_MOVED`, `REVALIDATION_FAILED` | autre promotion intercalée, seuil modifié | relancer un nouveau run | ne pas forcer |
 | `FAILED` avant `PROMOTE_WRITE` | erreur de traitement | lire `log.cell_execution` (lieu, type) puis relancer | référence intacte |

@@ -3,7 +3,7 @@
   "metadata": {
     "type": "DataPipeline",
     "displayName": "T4_PL_HRIS_ORCHESTRATOR",
-    "description": "Pipeline générique HRIS TalentSoft PRD -> Fabric -> ADP (publication verrouillée hors PRD et non activée). Planification : AUCUNE (D-RUN-05 non validée)."
+    "description": "Pipeline HRIS : TalentSoft PRD -> Fabric -> ADP (publication verrouillée) et flux rémunération par API, sans fichier. Planification quotidienne à 06:00 (Paris)."
   },
   "config": {
     "version": "2.0",

@@ -17,7 +17,7 @@
 # # **Chemin dans le dépôt**
 # # TEST_MOTUL/TST_4/NB_HRIS_SETUP.Notebook/notebook-content.py
 # # **Description fonctionnelle**
-# # Ce notebook prépare le Lakehouse dont dépendent tous les autres notebooks du hub. Il crée, s'ils n'existent pas, les six schémas cfg, stg, ref, pub, ctl et log, puis les quarante-trois tables du modèle de données, dont la table de journal des cellules log.cell_execution ajoutée par cette version. Il insère ensuite, uniquement si elles sont absentes, la ligne de paramétrage du processus et la ligne de verrou à l'état libéré. Une table existante n'est jamais supprimée, vidée, remplacée ni modifiée : son schéma est comparé à la définition attendue et tout écart est signalé comme incompatible, sans correction automatique. Les dix-sept tables de correspondance sont créées vides, car leur contenu validé n'est pas encore disponible.
+# # Ce notebook prépare le Lakehouse dont dépendent tous les autres notebooks du hub. Il crée, s'ils n'existent pas, les six schémas cfg, stg, ref, pub, ctl et log, puis les quarante-huit tables du modèle de données, dont la table de journal des cellules log.cell_execution et les cinq tables du flux de rémunération. Il insère ensuite, uniquement si elles sont absentes, la ligne de paramétrage du processus, la ligne de verrou à l'état libéré et les trois lignes de correspondance du flux de rémunération (hypothèses à confirmer par le mode VALIDATE de T4_NB_HRIS_REMUNERATION). Une table existante n'est jamais supprimée, vidée, remplacée ni modifiée : son schéma est comparé à la définition attendue et tout écart est signalé comme incompatible, sans correction automatique. Les dix-sept tables de correspondance sont créées vides : leur partie TalentSoft est ensuite alimentée à chaque run par l'acquisition, depuis l'API, et leurs codes ADP sont saisis dans T4_NB_HRIS_REFERENCE_ADMIN.
 # # **Dépendances**
 # # Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB et utilise le modèle de données, les fonctions d'écriture Delta, les étapes du pipeline pour les graines et le journal des cellules. Il agit uniquement sur le Lakehouse désigné par le paramètre p_lakehouse_name dans le workspace courant, dont le nom réel est lu dans le contexte d'exécution de Fabric. Il lit cfg.process et ctl.process_lock pour décider des graines. Aucun secret n'est lu.
 # # **Fonctionnement et logique de traitement**
@@ -117,7 +117,8 @@ try:
               "created": sum(entry["action"] == "CREATED" for entry in report),
               "existing": sum(entry["action"] == "EXISTS" for entry in report), "incompatible": incompatible,
               "seed_process_inserted": seeded["process"], "seed_lock_inserted": seeded["lock"],
-              "mapping_tables": "créées vides (D-REF-01 bloquante)"}
+              "seed_remuneration_mapping_inserted": seeded["remuneration_mapping"],
+              "mapping_tables": "créées vides : partie TalentSoft par l'acquisition, codes ADP par T4_NB_HRIS_REFERENCE_ADMIN"}
     print(json.dumps(result, ensure_ascii=False))
     for entry in report:
         print(entry["action"], entry["table"], entry["detail"])

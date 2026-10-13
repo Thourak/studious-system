@@ -26,17 +26,19 @@ actuel, l'e-mail d'erreur n'était jamais envoyé, tout workspace non-DEV était
 
 | Sujet | Existant | Cette version |
 |---|---|---|
-| Orchestration | 5 pipelines Synapse, 2 Function Apps, 3 Logic Apps | 1 pipeline, 10 notebooks, 1 variable library |
+| Orchestration | 5 pipelines Synapse, 2 Function Apps, 3 Logic Apps | 1 pipeline planifié, 12 notebooks, 1 variable library |
 | Échanges entre étapes | fichiers JSON, Parquet, CSV, drapeau de fin | tables Delta uniquement |
+| Échanges avec TalentSoft | API (salariés) et SFTP (correspondances, rémunération) | API uniquement : salariés, référentiels, export et import de rémunération |
 | Delta | J contre J-1 sur fichiers, absents non détectés | comparaison à la **référence du dernier run validé**, absents détectés |
 | Reprise | relance complète | verrou, statut par étape, idempotence, outbox figée |
 | Gestion d'erreur | notification exigeant 5 échecs simultanés | un gestionnaire d'erreur unique |
 | Environnements | repli implicite vers la production | aucun repli ; source et destination séparées |
 | Publication ADP | production en dur, aucune notion d'environnement | garde-fou, intention durable avant envoi, activation verrouillée |
 
-**Périmètre de cette étape.** Valider la chaîne **TalentSoft PRD → Fabric non-PRD → Lakehouse**. Aucune publication
-ni consultation d'ADP n'est requise ni effectuée. Le flux SFTP de rémunération, les notifications et l'import des
-logs historiques sont hors périmètre.
+**Périmètre de cette étape.** Reproduire **entièrement dans Fabric** les deux flux de l'existant : TalentSoft PRD →
+Lakehouse → format ADP, et le flux de rémunération TalentSoft → TalentSoft ([détail](#remuneration)), **sans aucun
+fichier**. La publication ADP reste verrouillée, comme l'activité ADP de l'existant, qui est désactivée dans son
+pipeline. Les notifications (Logic Apps, décommissionnées) et l'import des logs historiques sont hors périmètre.
 
 **Source, exécution, destination.** Trois éléments sont volontairement séparés.
 
@@ -52,7 +54,7 @@ logs historiques sont hors périmètre.
 ```mermaid
 flowchart LR
     subgraph SRC["Source (production)"]
-        TS["API TalentSoft PRD"]
+        TS["API TalentSoft PRD : salariés et référentiels"]
         KV["Key Vault TalentSoft PRD (tenant Motul)"]
     end
     subgraph WS["Workspace non-PRD (tenant SBI)"]
@@ -72,8 +74,8 @@ flowchart LR
 `TEST_MOTUL/TEST_2`. Le Lakehouse préexiste dans `TEST_MOTUL/TEST_1` ; il est réutilisé, non dupliqué (le nom
 documenté `LH_HRIS` est remplacé par le Lakehouse désigné, `MOTUL_LH_HRIS`).
 
-**Une bibliothèque, une seule copie.** Le code métier vit dans une bibliothèque Python (`hris`, 18 modules de
-production) portée par le notebook `T3_nb_hris_lib` (dossier `NB_HRIS_LIB.Notebook`), une cellule par module, avec
+**Une bibliothèque, une seule copie.** Le code métier vit dans une bibliothèque Python (`hris`, 19 modules de
+production, dont `hris.reference_api` ajouté pour les correspondances) portée par le notebook `T3_nb_hris_lib` (dossier `NB_HRIS_LIB.Notebook`), une cellule par module, avec
 l'empreinte SHA-256 de chaque module vérifiée au chargement. Chaque notebook la charge par `%run T3_nb_hris_lib`
 (deuxième cellule), qui exécute ses cellules dans l'interpréteur du notebook appelant. Jusqu'à la version T3, la
 bibliothèque était copiée à l'identique dans chaque notebook (environ 5 550 lignes par notebook) faute de
@@ -91,7 +93,7 @@ association de Lakehouse que la synchronisation Git pourrait ne pas conserver.
 
 | Schéma | Contenu | Écrit par |
 |---|---|---|
-| `cfg` | paramètres du processus, 17 tables de correspondance | `NB_HRIS_SETUP` (graine), correspondances à initialiser |
+| `cfg` | paramètres du processus, 17 tables de correspondance | `NB_HRIS_SETUP` (graine), `NB_HRIS_TS_ACQUIRE` (partie TalentSoft des correspondances), `NB_HRIS_REFERENCE_ADMIN` (codes ADP) |
 | `stg` | données du run : brut, source, enrichi, rejets, format paie | acquisition, transformation |
 | `ref` | état validé du dernier run, un instantané par salarié | promotion uniquement |
 | `pub` | outbox de publication, opérations, tentatives, réconciliations | promotion, publication |
@@ -104,14 +106,17 @@ suppression globale.
 <a id="lancement"></a>
 ## Lancement et paramètres
 
-**Déclenchement.** Manuel uniquement : interface Fabric ou API. Aucune planification n'existe (fréquence, quotas et
-destinations non validés).
+**Déclenchement.** Planification Fabric **quotidienne à 06:00, heure de Paris** (`Romance Standard Time`), déclarée
+dans `PL_HRIS_ORCHESTRATOR.DataPipeline/.schedules` (format Git de Fabric, `jobType` `Execute`) ; lancement manuel
+toujours possible. Les runs planifiés prennent les valeurs par défaut (`NORMAL`) : le tout premier run se lance à la
+main en `INIT_REFERENCE`. Attention : la planification est portée par l'item, donc active dans **chaque** workspace
+synchronisé avec ce dossier (DEV compris) ; la désactiver dans l'interface du workspace où elle n'est pas voulue.
 
 **Paramètres du pipeline `PL_HRIS_ORCHESTRATOR`.**
 
 | Paramètre | Défaut | Rôle |
 |---|---|---|
-| `p_process_code` | `TS_ADP_EMPLOYEE` | seul processus actif (le flux SFTP de rémunération est bloqué) |
+| `p_process_code` | `TS_ADP_EMPLOYEE` | processus du registre des runs ; le flux rémunération s'exécute dans le même run |
 | `p_run_mode` | `NORMAL` | `NORMAL`, `INIT_REFERENCE` ou `RETRY_PUBLICATION` |
 | `p_target_run_id` | vide | run à republier, réservé à `RETRY_PUBLICATION` |
 | `p_business_date_override` | vide | tests uniquement ; refusé en `NORMAL` dans un workspace dont le nom contient `PRD` |
@@ -141,6 +146,8 @@ pipeline.
 | `lock_lease_minutes` | `240` | durée du bail du verrou (à confirmer) |
 | `adp_max_attempts` | `3` | tentatives maximales par opération (à confirmer) |
 | `notification_recipients` | vide | aucune notification envoyée |
+| `remuneration_enabled` | `true` | flux rémunération exécuté à chaque run ; `false` le saute (par exemple tant que le coffre est illisible) |
+| `ts_remuneration_import_enabled` | `false` | envoi des imports de rémunération à TalentSoft ; effectif seulement si `true` **et** workspace « PRD » ; à passer à `true` après le mode `VALIDATE` |
 
 Les jeux de valeurs UAT et PRD ne sont **pas** créés : aucun déploiement hors DEV sans validation distincte.
 
@@ -224,10 +231,8 @@ techniques.
    poste à cette date donne `LegalStructure` ; seuls les salariés dont la valeur vaut exactement `Motul France` sont
    retenus. Ce filtre n'est plus une phase séquentielle : il s'évalue salarié par salarié dans la fenêtre parallèle
    (deux appels), et la situation et le poste lus sont réutilisés pour le détail. Les anciens salariés sont présents
-   **seulement si l'annuaire TalentSoft les renvoie** (à vérifier sur les données).
-   **Repli hors parité** : si la situation n'a aucun couple (Position, date) exploitable, la structure juridique est lue
-   sur la situation elle-même (champ `LegalStructure`) avec le même filtre exact. Voir « Repli sur la structure
-   juridique de la situation » ci-dessous.
+   **seulement si l'annuaire TalentSoft les renvoie** (à vérifier sur les données). Comme dans l'existant, un salarié
+   dont la situation n'a aucun couple (Position, date) exploitable est **écarté** (`excluded_missing_position_or_date`).
 3. **Détail** des salariés retenus : 12 entités `hub/v2` (dates clés, identités, contrat, coordonnées, banque,
    rémunération…) plus l'adresse postale, en plus de la situation et du poste déjà lus. Les 3 entités de santé ne
    sont plus appelées (jamais persistées).
@@ -235,26 +240,10 @@ techniques.
    « falsy » converties en chaîne vide ; montants de rémunération conservés tels quels ; date de fin de contrat à
    `1900-01-01` si absente ; `Hors_France` selon le pays ; pourcentage d'imputation sans le signe `%`.
 
-**Repli sur la structure juridique de la situation — écart volontaire à la parité.** Constat sur l'annuaire PRD du
-12/10/2026 (1886 fiches) : 928 situations n'ont **aucun élément `Position`** (presque toutes des fiches à date de fin
-passée, donc des sortis), mais portent directement `LegalStructure`, `GeographicOrganisationStructure`,
-`OrganisationalStructure` et `CostCenter`, avec les mêmes libellés que le poste (« Motul France », « Motul Deutschland »…).
-L'existant les écartait (`excluded_missing_position_or_date`) : le filtre ne regardait que le poste.
-
-| Cas | Comportement |
-|---|---|
-| Couple (Position, date) exploitable | chemin d'origine, **inchangé** : le poste interrogé à la date de la situation fait foi, même si la situation annonce une autre structure |
-| Pas de Position, `LegalStructure` de la situation = `Motul France` (exact) | retenu ; les attributs de la situation (structure juridique, rattachements, centre de coût) tiennent lieu de poste |
-| Pas de Position, autre structure | exclu (`excluded_not_motul_france`) |
-| Pas de Position ni de `LegalStructure` | exclusion d'origine conservée (`excluded_missing_position_or_date`) |
-| Valeurs contradictoires à la date retenue de `LegalStructure` | `SituationDataError` : salarié écarté, compté à part (`phase1_situation_conflict`, `excluded_situation_unreliable`), contrôle bloquant `TS_FILTER_TECHNICAL_FAILURE` |
-| Date invalide dans la situation | inchangé : erreur technique comptée (`phase1_situation_error`) et contrôle bloquant |
-
-Compteurs de diagnostic (étape `ACQUIRE`, sans donnée personnelle) : `situation_without_position`,
-`retained_from_situation_legal_structure`, `excluded_not_motul_france_from_situation`, `situation_no_legal_structure`.
-**Limites** : `PPC_FTE` et `pourcentage_imputation` ne sont pas repris de la situation (`Fte` et `Level` n'ont pas un sens
-démontré identique à ceux du poste) ; la transformation, la comparaison et la publication ADP ont été conçues pour des
-salariés en poste : leur comportement sur des sortis reste à valider avec le métier.
+**Population identique à l'existant.** Constat sur l'annuaire PRD du 12/10/2026 (1886 fiches) : 928 situations n'ont
+**aucun élément `Position`** (presque toutes des sortis) ; elles portent pourtant `LegalStructure` (environ 400 valent
+« Motul France »). L'existant les écarte et le hub fait de même, pour produire la **même sortie**. Une règle de repli
+sur la structure juridique de la situation a été essayée puis retirée (historique Git : commit `104d264`).
 
 **Concurrence et robustesse.**
 
@@ -291,6 +280,86 @@ au tenant SBI ; le Key Vault qui porte les identifiants TalentSoft PRD appartien
 le premier n'est pas accepté par le second. Il n'a été ni contourné, ni résolu par copie de secret. Voir
 [Blocages](#blocages).
 
+<a id="correspondances"></a>
+## Correspondances TalentSoft → ADP, sans aucun fichier
+
+**Principe.** Les 17 tables `cfg.lu_hr_*` (13 lues par la transformation) sont la seule source des correspondances ;
+aucun fichier CSV n'est lu (décisions D-FIL-00 et D-REF-01). Chaque table a deux parties, alimentées différemment :
+
+| Partie | Colonnes | Source | Écrite par |
+|---|---|---|---|
+| TalentSoft | code (clé de jointure), libellés, parent | API Core HR `GET /api/hub/v2.0/libraries/{type}` et, pour le sexe, la nationalité et les pays, codes relevés dans l'extraction du run | `NB_HRIS_TS_ACQUIRE`, étape `REFERENCE_CATALOGUE`, à chaque run |
+| ADP | codes, libellés et ordre ADP | **le métier** : TalentSoft ne stocke aucun code ADP | `NB_HRIS_REFERENCE_ADMIN`, à la main |
+
+```mermaid
+flowchart LR
+    API["API TalentSoft : référentiels du Core HR"] --> CAT["Acquire : étape REFERENCE_CATALOGUE"]
+    EXT["Extraction du run : sexe, nationalité, pays"] --> CAT
+    CAT -->|"codes ajoutés, libellés mis à jour"| LU[("cfg.lu_hr_*")]
+    ADM["NB_HRIS_REFERENCE_ADMIN : saisie métier"] -->|"codes ADP"| LU
+    LU --> TR["Transform : contrôle puis jointures"]
+```
+
+**Ce qui a été mesuré** (sonde en lecture seule du 13/10/2026 sur le tenant de production, métadonnées et comptes
+seulement). Les 49 référentiels du Core HR exposent `clientCode`, `ShortName` (libellé traduit par langue), `FullName`,
+`IsActive` (`Y`/`N`), `ParentClientCode` et quelques champs propres au type ; **aucun champ de code paie ou ADP**, et
+`ShortName` change selon la langue pour presque tous les nœuds multilingues : c'est un libellé, pas un code. Les fiches
+salariés portent le `clientCode` (par exemple, « Motul France » est le `clientCode` de `LegalStructure`) : c'est donc la
+clé de jointure. Le sexe, la nationalité et les pays ne sont pas des référentiels.
+
+| Table | Référentiel TalentSoft | Colonnes TalentSoft alimentées |
+|---|---|---|
+| `lu_hr_emp_titre` | `Title` | code, libellé court, libellé long |
+| `lu_hr_emp_sexe` | *(extraction : `Gender`)* | code |
+| `lu_hr_emp_nationalite` | *(extraction : `Nationality`)* | code |
+| `lu_hr_emp_situation_matrimoniale` | `MaritalStatus` | code, libellé |
+| `lu_hr_emp_pays` | *(extraction : pays de naissance, d'adresse, fiscal)* | code |
+| `lu_hr_ppc_raison_debut_contrat` | `HiringReason` | code, libellé |
+| `lu_hr_ppc_contrat2` | `NatureOfContract` | code, libellé |
+| `lu_hr_ppc_classification` | `Coefficient` | code, libellé |
+| `lu_hr_ppc_classes` | `OccupationalCategory` | code, libellés français et anglais |
+| `lu_hr_geo_entite` | `LegalStructure` | code, libellé, parent |
+| `lu_hr_ppc_location_country` | `GeographicOrganisationStructure` | code, libellé |
+| `lu_hr_ppc_cost_center` | `CostCenter` | code, libellé |
+| `lu_hr_organisationalstructure` | `OrganisationalStructure` | code, libellé |
+| non utilisées : `diplome`, `work_accident`, `convention_collective`, `contrat` | `Diploma`, `WorkAccident`, `CollectiveAgreement`, `NatureOfContract` | code, libellé |
+
+**Synchronisation de la partie TalentSoft** (module `hris.reference_api`, appelée à la fin de l'acquisition avec le
+client et les identifiants de l'acquisition). Elle ajoute les codes nouveaux (colonnes ADP vides), met à jour les
+libellés, **ne supprime jamais une ligne** et **n'écrit jamais une colonne ADP**. Un référentiel illisible ou une table
+non conforme est sauté sans bloquer les autres ; une table qui contient déjà une clé en double n'est pas touchée. Elle
+n'interrompt jamais l'acquisition : elle consigne l'étape `REFERENCE_CATALOGUE` dans `ctl.run_step` et deux contrôles
+non bloquants, `REFERENCE_CATALOGUE` (tables sautées) et `REFERENCE_ADP_MISSING` (codes TalentSoft sans code ADP). Le
+paramètre `p_sync_reference_catalogue` de l'acquisition permet de la désactiver.
+
+**Saisie des codes ADP** (`NB_HRIS_REFERENCE_ADMIN`). Trois modes :
+
+| Mode | Effet |
+|---|---|
+| `REPORT` (défaut) | par table, codes TalentSoft sans code ADP, triés par nombre d'occurrences dans la dernière extraction, colonnes modifiables et modèle de saisie JSON prêt à compléter |
+| `CHECK` | applique la saisie en mémoire et affiche chaque changement, sans écrire |
+| `APPLY` | écrit la saisie ; `p_change_ref` (ticket, validation) obligatoire, recopié dans `_change_ref` |
+
+Une saisie se fait table par table, au format `{"<code TalentSoft>": {"<colonne ADP>": "<valeur>"}}`. Elle est écrite
+en entier ou pas du tout : code absent de la table, colonne TalentSoft ou technique, valeur non textuelle font tout
+refuser. Chaque écriture crée une version Delta : retour arrière possible par `RESTORE TABLE … TO VERSION AS OF n`.
+
+**Contrôle de la transformation.** `MAPPING_TABLE_EMPTY` bloque désormais aussi une table utilisée qui n'a **aucun code
+ADP** : après la première synchronisation, les tables contiennent les codes TalentSoft seuls, et la transformation
+reste bloquée tant que le métier n'a rien saisi, au lieu de rejeter silencieusement tous les salariés. Une fois des
+codes saisis, un code TalentSoft employé sans code ADP fait rejeter les salariés concernés (`Référence_Rejet`), comme
+une correspondance absente dans l'existant.
+
+**Limites.** Les codes ADP de l'existant ne sont pas repris : ils n'existaient que dans les fichiers du SFTP, qui ne
+sont plus lus ; ils doivent être ressaisis par le métier. Un code de plus de 50 caractères ne peut pas être retrouvé
+par la jointure (valeurs source tronquées à 50) : il est compté dans la trace. L'existant typait certaines colonnes
+(`CHAR(n)` complété d'espaces, `INT`) ; le Lakehouse garde le texte saisi.
+
+**Première mise en service.** 1. `NB_HRIS_TESTS`. 2. Un run du pipeline : l'acquisition remplit la partie TalentSoft ;
+la transformation s'arrête sur `MAPPING_TABLE_EMPTY` (aucun code ADP). 3. `NB_HRIS_REFERENCE_ADMIN` en `REPORT`, puis
+saisie table par table (`CHECK`, puis `APPLY`). 4. Nouveau run : la transformation passe ; les codes restants sans
+correspondance apparaissent en `Référence_Rejet` et dans `REFERENCE_ADP_MISSING`.
+
 <a id="transformation"></a>
 ## Transformation — `NB_HRIS_TRANSFORM`
 
@@ -311,7 +380,8 @@ flowchart LR
 1. **Parsing** (`stg.ts_employee_source`) : 69 colonnes, toutes tronquées à 50 caractères comme `NVARCHAR(50)` ; le
    téléphone professionnel prend le mobile **sauf s'il est nul** (une chaîne vide ne bascule pas sur le fixe) ; la valeur
    `None` de la date de fin de contrat devient vide.
-2. **Contrôle des correspondances** (bloquant) : table absente, colonnes manquantes, table **vide**, clé en double.
+2. **Contrôle des correspondances** (bloquant) : table absente, colonnes manquantes, table **vide** ou **sans aucun
+   code ADP**, clé en double.
    Dans ce cas seul l'enrichissement est interrompu ; le parsing reste écrit, et aucun rejet massif trompeur n'est
    produit.
 3. **Enrichissement** : 15 jointures à gauche sur 13 tables de correspondance (les 4 autres sont chargées mais non
@@ -389,11 +459,91 @@ Le run est `VALIDATED` si aucune anomalie bloquante n'a échoué, sinon `BLOCKED
 Pas de transaction entre plusieurs tables : la cohérence repose sur ces garde-fous et sur l'idempotence, non sur une
 atomicité globale.
 
+<a id="remuneration"></a>
+## Flux rémunération — `NB_HRIS_REMUNERATION`
+
+**Ce que faisait l'existant** (`Pipeline_SIRH-SFTP`, lancé à chaque run en parallèle du flux principal) : lecture sur
+le SFTP de trois exports CSV du Core HR (`COMPENSATION_HUB_ADMIN_ANNUALBASESALARY`, `…_BONUSPERCENT`,
+`…_BONUSTARGETVALUE`), archivage en Parquet, calcul des changements entre l'archive du jour et la précédente (vues
+`SFTP.vw_BaseSalary_Changes` et `SFTP.vw_Bonus_Changes`), dépôt sur le SFTP de deux fichiers CSV
+`RemunSalaryHistoIE_InsertAndUpdate_fr-FR_1_<ddMMyyyy>.csv` et `RemunTargetBonusHistoIE_InsertAndUpdate_fr-FR_2_…`,
+que TalentSoft importe dans son historique de rémunération. Vérifié le 13/10/2026 par l'API d'imports : 35 et 36
+imports réussis de ces deux types. TalentSoft est à la fois la source et la destination.
+
+**Ce que fait le hub, sans fichier.**
+
+```mermaid
+flowchart LR
+    EX["API d'exports : jeu Compensation"] -->|"contenu lu en mémoire"| SN[("stg.ts_remuneration_snapshot")]
+    SN --> CH{"règles des deux vues de l'existant"}
+    RF[("ref.ts_remuneration_snapshot : J-1")] --> CH
+    CH --> PB[("pub.ts_remuneration_change")]
+    PB --> G{"workspace PRD et envoi activé ?"}
+    G -->|"oui"| IM["API d'imports : RemunSalaryHistoIE, RemunTargetBonusHistoIE"]
+    G -->|"non"| NP["calculé, non envoyé"]
+    IM --> LG[("log.ts_remuneration_import")]
+    NP --> LG
+```
+
+| Étape | Existant | Hub |
+|---|---|---|
+| Source | 3 CSV sur le SFTP | API d'exports, jeu `Compensation` (section, dates, montant, catégorie, devise, périodicité, indexation) |
+| Instantané | Parquet daté dans le lac | `stg.ts_remuneration_snapshot` (une partition par run) |
+| Veille (J-1) | avant-dernière archive par nom | `ref.ts_remuneration_snapshot` : instantané du **dernier envoi accepté** |
+| Changements | vues SQL | mêmes règles reproduites à l'identique (A04 R-SFTP-010 à 027), particularités comprises |
+| Lignes à importer | 2 CSV sur le SFTP | `pub.ts_remuneration_change` |
+| Remise à TalentSoft | dépôt SFTP, import par TalentSoft | API d'imports, mêmes types (`RemunSalaryHistoIE`, `RemunTargetBonusHistoIE`), mêmes colonnes, même mise en forme ; statut suivi jusqu'au résultat final |
+| Résumé | courriel (Logic App) | `ctl.run_step` (étape `REMUNERATION`) : mêmes compteurs `baseSalary_nb_source`, `baseSalary_nb_inserts`, `bonusPercentage_nb_source`, `bonusTargetValue_nb_source`, `bonus_nb_inserts` |
+
+**Règles reproduites** : salaire comparé en décimal au centime ; bonus comparés en **chaînes** (`10.0` ≠ `10.00`) ;
+clé `employeenumber` seule, lignes multipliées en cas de doublon ; nouveau salarié retenu si son montant n'est pas nul ;
+`[extra_augm_n-1]` = évolution en pourcentage arrondie au centième, `0,00` si inchangé, vide sans veille ; montants à
+virgule décimale ; devise des bonus reprise du salaire de base du jour ; clôture d'un bonus dont la date de début change
+(`end_date` = veille du nouveau début, `dd/MM/yyyy 00:00:00`) ; clôture sur disparition avec `end_date` vide
+(anomalie de l'existant conservée) ; union dédoublonnée.
+
+**Ce qui change volontairement.**
+- La veille est la référence du dernier envoi accepté : deux runs le même jour ne réémettent plus les mêmes changements,
+  et un envoi en échec n'est pas perdu (il est réémis, cumulé, au run suivant).
+- Premier run (référence vide) : la référence est initialisée et **rien n'est envoyé** ; l'existant comparait alors à
+  un dossier entier, avec un résultat incohérent.
+- Un jour sans changement n'envoie rien ; l'existant déposait un fichier réduit à l'en-tête.
+- La référence avance **par type d'import** : un échec du bonus n'empêche pas d'avancer le salaire.
+
+**Envoi gardé.** L'envoi n'a lieu que si le nom du workspace contient `PRD` (même règle que la publication ADP) **et**
+si `ts_remuneration_import_enabled` vaut `true`. Ailleurs, les changements sont calculés et tracés
+(`NOT_PUSHED_NON_PRD`, `DISABLED`). En `DISABLED`, la référence n'avance pas : rien n'est perdu à l'activation. Un envoi
+en échec fait échouer le notebook après journalisation, puis le pipeline (`HRIS_REMUNERATION_FAILED`), comme le flux de
+l'existant ; la clôture du run se fait avant, proprement.
+
+**Correspondance à valider** (`cfg.ts_remuneration_mapping`, graine du setup). Les colonnes des exports de l'existant ne
+portent pas les mêmes noms que le jeu `Compensation` ; la graine repose sur des hypothèses : `type` = code de section,
+`calculation_method` = `PERCENTAGE` ou `AMOUNT`, date d'effet du salaire de base = début du salaire de base en vigueur,
+dates au format `dd/MM/yyyy`, devise en majuscules. Le mode `VALIDATE` du notebook relit, par l'API d'imports, le
+**dernier fichier importé** par l'existant et compare sa **structure** à celle que le hub produirait : en-tête,
+séparateur, valeurs des colonnes de codes, forme des dates et des montants (chiffres masqués). On corrige la table
+jusqu'à zéro écart, puis on passe `ts_remuneration_import_enabled` à `true` dans le workspace de production.
+
+**Limites.** Les champs du formulaire de l'API d'imports ne sont pas documentés publiquement : le contenu porte le nom
+des fichiers de l'existant, qui encode le type, la méthode et la culture, et les champs `importTypeCode`, `culture`,
+`importMethod` sont joints. Le format du contenu d'export est détecté à la lecture (JSON, CSV, classeur, archive). Le
+flux lit les identifiants TalentSoft dans le coffre : tant qu'il est illisible depuis le workspace, le flux échoue
+(`TS_SECRETS_UNAVAILABLE`) ; `remuneration_enabled = false` le met en pause.
+
 <a id="publication"></a>
 ## Publication ADP — `NB_HRIS_PUBLISH_ADP`
 
-**Rappel de portée.** Aucun envoi réel n'est possible dans cette version. Tout ce qui suit est implémenté et testé
-avec des clients fictifs.
+**Rappel de portée.** Aucun envoi réel n'est possible dans cette version, comme dans l'existant, dont l'activité
+« Azure Function ADP » est désactivée (`state: Inactive`) dans le pipeline quotidien. Tout ce qui suit est implémenté
+et testé avec des clients fictifs.
+
+**Câblage réel prêt, verrouillé.** La fabrique du transport lit dans le coffre (`kv_url_adp`) les quatre secrets de
+l'existant (`client-id-adp`, `client-secret-adp`, `MOTUL-SA-cer`, `motulsa-auth-key`), construit le contexte TLS client
+(certificat et clé écrits dans un dossier privé le temps du chargement, puis effacés), obtient le jeton OAuth
+(`POST auth/oauth/v2/token`, `client_credentials`, comme l'existant) **avant** tout envoi, puis construit le transport.
+Les chemins sont encodés comme le faisait `requests` : sans cela, les lectures filtrées (`idValue eq '…'`) étaient
+refusées par `http.client` (défaut latent corrigé). La sentinelle réseau n'est posée que tant que l'activation n'est
+pas approuvée. Rien de tout cela ne s'exécute tant que `ADP_ACTIVATION_APPROVED` vaut `False`.
 
 ### La condition d'environnement
 
@@ -482,23 +632,25 @@ variantes, reprise, politique des lectures, idempotence côté ADP, sens de `SEN
 document restent cohérents. **C00 (le verrou d'activation) se lève en dernier.**
 
 <a id="tables"></a>
-## Les 43 tables du Lakehouse
+## Les 48 tables du Lakehouse
 
 | Schéma | Tables | Écrite par | Données personnelles |
 |---|---|---|---|
-| `cfg` (18) | `process`, 17 `lu_hr_*` | setup (graine) ; correspondances à initialiser | non |
-| `stg` (5) | `ts_employee_raw`, `_source`, `_enriched`, `_reject`, `_adp` | acquisition, transformation | **oui** |
-| `ref` (1) | `ts_employee_adp` | promotion | **oui** |
-| `pub` (4) | `adp_outbox`, `adp_operation`, `adp_attempt`, `adp_reconciliation` | promotion, publication | outbox et opérations : oui |
+| `cfg` (19) | `process`, 17 `lu_hr_*`, `ts_remuneration_mapping` | setup (graines) ; acquisition (partie TalentSoft des correspondances) ; administration (codes ADP) | non |
+| `stg` (6) | `ts_employee_raw`, `_source`, `_enriched`, `_reject`, `_adp`, `ts_remuneration_snapshot` | acquisition, transformation, rémunération | **oui** |
+| `ref` (2) | `ts_employee_adp`, `ts_remuneration_snapshot` | promotion, rémunération | **oui** |
+| `pub` (5) | `adp_outbox`, `adp_operation`, `adp_attempt`, `adp_reconciliation`, `ts_remuneration_change` | promotion, publication, rémunération | outbox, opérations, changements de rémunération : oui |
 | `ctl` (3) | `process_lock`, `run`, `run_step` | contrôle du run, tous | non |
-| `log` (12) | `comparison_summary`, `comparison_detail`, `anomaly`, `reject`, `run_summary`, `adp_gate_decision`, `adp_publication_log`, `adp_manual_decision`, `log_file_import`, `log_file_import_reject`, `notification`, `cell_execution` | notebooks concernés | détail, rejets, log ADP : oui ; `cell_execution` : non |
+| `log` (13) | `comparison_summary`, `comparison_detail`, `anomaly`, `reject`, `run_summary`, `adp_gate_decision`, `adp_publication_log`, `adp_manual_decision`, `log_file_import`, `log_file_import_reject`, `notification`, `cell_execution`, `ts_remuneration_import` | notebooks concernés | détail, rejets, log ADP : oui ; `cell_execution`, `ts_remuneration_import` : non |
 
 Les quatre tables de publication par opération (`adp_operation`, `adp_attempt`, `adp_reconciliation`,
 `adp_manual_decision`) sont des **propositions** : leur sémantique dépend du contrat final.
 
-**Correspondances.** Les 17 tables sont créées **vides** : leur contenu, aujourd'hui maintenu sur le SFTP TalentSoft,
-n'est pas disponible. Aucune correspondance n'est inventée. 13 sont utilisées par la transformation ; `diplome`,
-`work_accident`, `convention_collective` et `contrat` (version 1) sont créées mais non utilisées.
+**Correspondances.** Les 17 tables sont créées **vides** par le setup ; leur partie TalentSoft est alimentée par
+l'acquisition depuis l'API et leurs codes ADP sont saisis dans `NB_HRIS_REFERENCE_ADMIN` ([détail](#correspondances)).
+Aucune correspondance n'est inventée. 13 sont utilisées par la
+transformation ; `diplome`, `work_accident`, `convention_collective` et `contrat` (version 1) sont chargées mais non
+utilisées.
 
 **Colonnes techniques.** `run_id` et `business_date` sur toutes les tables de run ; `_extracted_at_utc` ; `row_hash` ;
 `_last_run_id` et `_validated_at_utc` sur la référence.
@@ -541,6 +693,8 @@ flowchart BT
 | Prototype d'origine | 10 tests du garde-fou initial, conservé intact | **10 réussis** |
 | Fabric, données fictives | schéma isolé `hris_tst`, contexte réel du workspace | campagne 1 : 65 tests, 1 erreur de test corrigée ; campagne 2 : 66, 0 échec ; **campagne 3 : 71, 0 échec**, sans Lakehouse par défaut ; 1 test ignoré dans Fabric (cohérence des marqueurs, vérifiée en local) |
 | Analyse statique | syntaxe de 49 fichiers ; noms indéfinis des 10 notebooks (avec un contrôle positif) | **0 problème** |
+| Correspondances par l'API (TST_4) | lecture des référentiels, fusion de la partie TalentSoft (ajouts, libellés, aucune suppression, aucune colonne ADP écrite), saisie ADP tout ou rien, contrôles non bloquants, aucune valeur journalisée ; faux client API, aucun réseau | **19 tests locaux** : 18 réussis, 1 test Spark ignoré hors Fabric ; 10 mutations du code toutes détectées ; exécution simulée du notebook d'administration et de l'étape d'acquisition : 13 vérifications ; **non exécuté dans Fabric** |
+| Flux rémunération et câblage ADP (TST_4) | règles des vues SQL (décimal, chaînes, clôtures, union), instantané, lecture des exports (JSON, CSV, archive), contenu d'import, garde-fou et avance de la référence, suivi des exports et imports, comparaison de structure ; encodage des chemins ADP (même cible que `requests`, validation réelle de `http.client`), jeton OAuth, fabrique verrouillée | **31 tests locaux** et 1 test Spark (Fabric) ; 10 mutations du flux toutes détectées ; exécution simulée du notebook : 10 vérifications ; **non exécuté dans Fabric** |
 | Sondes de plateforme | deux notebooks de sonde, sans Lakehouse par défaut | noms partiels et à 3 parties en échec ; 4 parties opérationnels |
 
 **Scénarios d'intégration Fabric** : verrou et concurrence (deux acquisitions simultanées, une seule réussit, bail
@@ -744,9 +898,10 @@ refactorisation.
 | Réf. | Blocage | Constat | Action précise |
 |---|---|---|---|
 | B-01 | Secrets TalentSoft PRD inaccessibles | `AKV10032 Invalid issuer` : coffre d'un autre tenant | fournir un workspace DEV dans le tenant Motul **ou** valider un accès inter-tenant ; aucune copie de secret |
-| B-02 | Correspondances vides | 17 tables créées vides | fournir le contenu validé des 13 tables utilisées ou une procédure d'initialisation approuvée |
+| B-02 | Codes ADP des correspondances absents | partie TalentSoft alimentée par l'API à chaque run (écrit, jamais exécuté dans Fabric) ; TalentSoft ne stocke aucun code ADP (mesuré) | faire saisir les codes ADP par le métier dans `NB_HRIS_REFERENCE_ADMIN` ([détail](#correspondances)) |
 | B-03 | Contrat final de publication absent | 17 points d'usage recensés | fournir le contrat ; appliquer point par point ; lever C00 en dernier |
 | B-04 | Notifications | mécanisme et destinataires non décidés | décider ; aucun envoi à ce jour |
+| D-FIL-01 | Flux rémunération (CSV SFTP) | **levé** : export et import par API, tables seulement ([détail](#remuneration)) | valider la structure (`VALIDATE`), puis `ts_remuneration_import_enabled = true` en PRD |
 | G-01 | Synchronisation Git | rien commité ; voies A et B | choisir la voie ; l'autorisation de commit et push est à donner |
 
 **Décisions à rendre avant toute activation d'ADP** (hors périmètre de cette étape) : convention de nommage des
@@ -760,7 +915,8 @@ absents supprimés de la référence, rejetés conservés, fuseau de Paris, bail
 
 1. Lever B-01 (nouvelle cible ou accès validé) puis relancer le pré-contrôle.
 2. Premier run réel en `INIT_REFERENCE` ; contrôle `verify_lakehouse` ; revue des volumes avec le métier.
-3. Lever B-02 puis valider la transformation sur données réelles (mesure des écarts de parité).
+3. Lever B-02 (saisie des codes ADP dans `NB_HRIS_REFERENCE_ADMIN`, après un premier run qui remplit la partie
+   TalentSoft) puis valider la transformation sur données réelles (mesure des écarts de parité).
 4. Choisir la voie Git et synchroniser.
 5. Pipeline de déploiement vers UAT et PRD, après validation distincte.
 6. Contrat ADP puis checklist d'activation, **indépendamment** du reste.

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T4_NB_HRIS_REMUNERATION",
+    "description": "Flux rémunération (ex-Pipeline_SIRH-SFTP) : export Compensation par l'API, changements J/J-1 en tables, import TalentSoft par l'API, sans fichier."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "452f6f8e-447f-4f2b-8df6-4085cdc926b0"
+  }
+}

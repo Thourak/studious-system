@@ -19,8 +19,11 @@ Chaque étape renvoie vers sa description détaillée dans [README_DETAILS.md](R
 | Pipeline exécutable en manuel | **Fait** : 4 runs ; démarrage, enchaînement et gestion d'échec validés | historique des runs |
 | **Extraction réelle TalentSoft PRD** | **Exécutée une fois** (run du 08/10/2026, version T3) : 431 salariés persistés, statut `ACQUIRED_INCOMPLETE` (contrôle bloquant `TS_FILTER_TECHNICAL_FAILURE`). Les identifiants TalentSoft étaient alors **écrits dans le code** de `TST_3` (contournement du coffre, à proscrire) ; `TST_4` les lit uniquement dans le coffre, donc le blocage B-01 s'applique de nouveau | historique des activités de `T3_PL_HRIS_ORCHESTRATOR` dans Fabric (run du 08/10/2026) |
 | Transformation, comparaison, référence sur données réelles | **Bloquées** : correspondances vides (`BLOCKED_MAPPINGS`), référence absente (`REFERENCE_ABSENTE`) | même run |
+| Correspondances sans fichier : partie TalentSoft par l'API, codes ADP saisis dans le Lakehouse | **Code écrit et testé en local** (19 tests, faux client) ; structure des référentiels **mesurée sur le tenant PRD** (aucun code ADP dans TalentSoft) ; **jamais exécuté dans Fabric** ; codes ADP à saisir par le métier | [Correspondances](README_DETAILS.md#correspondances) |
 | Refactorisation TST_4 : bibliothèque unique par `%run`, journal des cellules | **Code modifié et testé en local** (rejeu du run du 08/10, 137 contrôles) ; **ni déployé ni exécuté dans Fabric** | [Refactorisation TST_4](README_DETAILS.md#tst4) |
-| Publication ADP | **Verrouillée dans le code** ; jamais exécutée ; contrat final absent | zéro opération ni tentative ADP |
+| Publication ADP | **Verrouillée dans le code**, comme l'activité ADP de l'existant (désactivée) ; authentification OAuth mTLS par le coffre câblée et défaut d'encodage d'URL corrigé ; jamais exécutée ; contrat final absent | zéro opération ni tentative ADP |
+| Flux rémunération (ex-SFTP) | **Code écrit et testé en local** : export et import TalentSoft par API, tables seulement ; types d'import et colonnes **vérifiés sur le tenant PRD** ; envoi désactivé tant que la structure n'est pas validée (mode `VALIDATE`) | [Rémunération](README_DETAILS.md#remuneration) |
+| Planification | **Quotidienne à 06:00** (heure de Paris), fichier `.schedules` du pipeline | `PL_HRIS_ORCHESTRATOR.DataPipeline/.schedules` |
 | Synchronisation Git ↔ Fabric | **Fichiers préparés**, rien commité ni poussé | `git status` : uniquement des ajouts |
 
 Ne pas confondre : *code écrit* ≠ *objet créé* ≠ *pipeline exécutable* ≠ *acquisition réelle* ≠ *traitement validé* ≠
@@ -44,12 +47,14 @@ Ne pas confondre : *code écrit* ≠ *objet créé* ≠ *pipeline exécutable* �
 
 | Objet | Rôle en une phrase |
 |---|---|
-| `PL_HRIS_ORCHESTRATOR` | Le pipeline : enchaîne les étapes d'un run et gère les échecs ; lancement manuel, aucune planification. |
+| `PL_HRIS_ORCHESTRATOR` | Le pipeline : enchaîne les étapes d'un run et gère les échecs ; planifié tous les jours à 06:00 (heure de Paris). |
 | `VL_HRIS` | Les paramètres de l'environnement (aucun secret) : source TalentSoft, référence du coffre, nom du Lakehouse… |
 | `T3_nb_hris_lib` (dossier `NB_HRIS_LIB`) | La bibliothèque commune : copie unique, chargée par `%run T3_nb_hris_lib` au début de chaque notebook. |
-| `NB_HRIS_SETUP` | Crée, de façon idempotente, les schémas et les 43 tables (dont le journal des cellules). |
+| `NB_HRIS_SETUP` | Crée, de façon idempotente, les schémas et les 48 tables (dont le journal des cellules). |
 | `NB_HRIS_RUN_CONTROL` | Ouvre un run (verrou, registre), le clôture ou le déclare en échec. |
-| `NB_HRIS_TS_ACQUIRE` | Extrait les salariés de TalentSoft PRD vers le Lakehouse et contrôle la complétude. |
+| `NB_HRIS_TS_ACQUIRE` | Extrait les salariés de TalentSoft PRD vers le Lakehouse, contrôle la complétude et met à jour la partie TalentSoft des tables de correspondance. |
+| `NB_HRIS_REMUNERATION` | Flux rémunération de l'existant (ex-SFTP) : export TalentSoft par l'API, changements J/J-1 en tables, réimport dans TalentSoft par l'API, sans fichier. |
+| `NB_HRIS_REFERENCE_ADMIN` | Liste les codes TalentSoft sans code ADP et enregistre la saisie des codes ADP dans les tables de correspondance ; lancé à la main. |
 | `NB_HRIS_TRANSFORM` | Reprend les règles SQL de production : correspondances, rejets, format paie. |
 | `NB_HRIS_COMPARE` | Compare le résultat à la référence du dernier run validé et décide `VALIDATED` ou `BLOCKED`. |
 | `NB_HRIS_PROMOTE` | Met à jour la référence et prépare la liste des salariés à publier (outbox). |
@@ -65,7 +70,9 @@ changeraient. Hors DEV, rien n'est déployé à ce jour. [→ Détail](README_DE
 ```mermaid
 flowchart TD
     S["1. RunStart : verrou et registre du run"] --> A["2. Acquire : TalentSoft PRD vers stg.ts_employee_raw"]
+    S --> M["2 bis. Remuneration : export API, changements J/J-1, import API"]
     A --> T["3. Transform : correspondances, rejets, format paie"]
+    M --> E
     T --> C["4. Compare : delta contre la référence validée"]
     C --> P["5. Promote : référence et outbox"]
     P --> U["6. Publish : garde-fou, aucun envoi en l'état"]
@@ -78,7 +85,11 @@ flowchart TD
 1. **Ouverture.** Le run reçoit l'identifiant du pipeline, une date métier (Paris) et un verrou : un seul run actif à
    la fois. [→ Détail](README_DETAILS.md#run-control)
 2. **Acquisition.** Extraction complète des salariés de « Motul France » depuis TalentSoft PRD, avec contrôle que
-   tout a bien été reçu. [→ Détail](README_DETAILS.md#acquisition)
+   tout a bien été reçu. Les codes et libellés des référentiels TalentSoft sont ensuite recopiés dans les tables de
+   correspondance. [→ Détail](README_DETAILS.md#acquisition) · [Correspondances](README_DETAILS.md#correspondances)
+   En parallèle, **le flux rémunération** relit salaires et bonus par l'API, calcule les changements de la veille et
+   les réimporte dans TalentSoft par l'API, comme le flux SFTP de l'existant, sans aucun fichier.
+   [→ Détail](README_DETAILS.md#remuneration)
 3. **Transformation.** Les règles de l'existant sont reproduites ligne à ligne ; les salariés non conformes sont
    rejetés avec leur motif. [→ Détail](README_DETAILS.md#transformation)
 4. **Comparaison.** Le résultat est comparé à l'état validé précédent : nouveaux, modifiés, inchangés, absents,
@@ -102,6 +113,8 @@ flowchart TD
   noms de colonnes et empreintes seulement. [→ Détail](README_DETAILS.md#securite)
 - **Rien n'est fait deux fois.** Chaque écriture est idempotente ; un résultat incertain n'est jamais renvoyé
   automatiquement. [→ Détail](README_DETAILS.md#exploitation)
+- **Aucun fichier CSV.** Les correspondances TalentSoft → ADP sont des tables du Lakehouse : leurs codes TalentSoft
+  viennent de l'API à chaque run, leurs codes ADP sont saisis par le métier dans ces tables. [→ Détail](README_DETAILS.md#correspondances)
 - **Aucun Lakehouse par défaut à attacher** : les tables sont adressées par leur nom complet
   (workspace, Lakehouse, schéma, table). [→ Détail](README_DETAILS.md#git)
 - **Rien n'est supprimé ni écrasé** sans validation distincte. [→ Détail](README_DETAILS.md#exploitation)
@@ -111,7 +124,8 @@ flowchart TD
 ## Pour aller plus loin
 
 - [Contexte et vocabulaire](README_DETAILS.md#contexte)
-- [Les 43 tables du Lakehouse](README_DETAILS.md#tables)
+- [Les 48 tables du Lakehouse](README_DETAILS.md#tables)
+- [Flux rémunération sans fichier](README_DETAILS.md#remuneration)
 - [Refactorisation TST_4 : bibliothèque unique, configuration minimale, journal des cellules](README_DETAILS.md#tst4)
 - [Tests et preuves](README_DETAILS.md#tests)
 - [Intégration Git et Fabric](README_DETAILS.md#git)

@@ -17,11 +17,11 @@
 # # **Chemin dans le dépôt**
 # # TEST_MOTUL/TST_4/NB_HRIS_LIB.Notebook/notebook-content.py
 # # **Description fonctionnelle**
-# # Ce notebook est la bibliothèque commune du hub d'intégration des ressources humaines de Motul. Ce hub extrait les salariés depuis TalentSoft, applique les règles de transformation de l'existant, compare le résultat à l'état validé précédent et prépare la publication vers l'outil de paie ADP. Le notebook contient l'unique copie du code métier, organisé en dix-huit modules Python regroupés sous le nom hris. Auparavant, chaque notebook embarquait sa propre copie complète de ce code ; la copie unique supprime ce dédoublement et garantit que tous les notebooks exécutent exactement le même code. Le notebook ne lit et n'écrit aucune donnée et ne prépare aucune configuration d'environnement : il rend seulement des fonctions disponibles.
+# # Ce notebook est la bibliothèque commune du hub d'intégration des ressources humaines de Motul. Ce hub extrait les salariés depuis TalentSoft, applique les règles de transformation de l'existant, compare le résultat à l'état validé précédent et prépare la publication vers l'outil de paie ADP. Le notebook contient l'unique copie du code métier, organisé en vingt modules Python regroupés sous le nom hris. Auparavant, chaque notebook embarquait sa propre copie complète de ce code ; la copie unique supprime ce dédoublement et garantit que tous les notebooks exécutent exactement le même code. Le notebook ne lit et n'écrit aucune donnée et ne prépare aucune configuration d'environnement : il rend seulement des fonctions disponibles.
 # # **Dépendances**
-# # Le notebook n'appelle aucun autre notebook et ne lit aucune table. Pour vérifier l'empreinte de chaque module et l'enregistrer dans l'interpréteur, il n'utilise que la bibliothèque standard de Python. Les modules s'appuient ensuite, au moment où les notebooks métier les appellent, sur Spark et sur le format de table Delta fournis par Fabric, ainsi que sur la bibliothèque requests pour les appels réseau de l'acquisition. Huit notebooks dépendent de celui-ci par la commande %run T4_NB_HRIS_LIB : T3_NB_HRIS_SETUP, T3_NB_HRIS_RUN_CONTROL, T3_NB_HRIS_TS_ACQUIRE, T3_NB_HRIS_TRANSFORM, T3_NB_HRIS_COMPARE, T3_NB_HRIS_PROMOTE, T3_NB_HRIS_PUBLISH_ADP et T3_NB_HRIS_TESTS. Tout renommage de ce notebook impose de corriger cette commande dans chacun d'eux.
+# # Le notebook n'appelle aucun autre notebook et ne lit aucune table. Pour vérifier l'empreinte de chaque module et l'enregistrer dans l'interpréteur, il n'utilise que la bibliothèque standard de Python. Les modules s'appuient ensuite, au moment où les notebooks métier les appellent, sur Spark et sur le format de table Delta fournis par Fabric, ainsi que sur la bibliothèque requests pour les appels réseau de l'acquisition, qui lit aussi les référentiels TalentSoft alimentant les tables de correspondance. Dix notebooks dépendent de celui-ci par la commande %run T4_NB_HRIS_LIB : T3_NB_HRIS_SETUP, T3_NB_HRIS_RUN_CONTROL, T3_NB_HRIS_TS_ACQUIRE, T4_NB_HRIS_REMUNERATION, T4_NB_HRIS_REFERENCE_ADMIN, T3_NB_HRIS_TRANSFORM, T3_NB_HRIS_COMPARE, T3_NB_HRIS_PROMOTE, T3_NB_HRIS_PUBLISH_ADP et T3_NB_HRIS_TESTS. Tout renommage de ce notebook impose de corriger cette commande dans chacun d'eux.
 # # **Fonctionnement et logique de traitement**
-# # La première cellule de code importe les quatre bibliothèques standard nécessaires. La cellule suivante définit la fonction register_hris_module. Celle-ci vérifie l'empreinte cryptographique du texte d'un module, calculée avec l'algorithme de hachage sécurisé SHA-256, puis crée le module dans l'interpréteur et l'exécute. En cas d'erreur, elle affiche le nom du module et la trace complète avant de relancer l'erreur. Chacune des dix-huit cellules suivantes enregistre un module, dans l'ordre de leurs dépendances : constantes et assainissement des messages, émulation des règles du langage de requête de l'existant, modèle de données, acquisition TalentSoft, transformation, comparaison, contrôle du run, publication, étapes du pipeline, lecture des journaux historiques, puis journal des cellules. La dernière cellule rassemble les empreintes chargées et affiche une ligne de synthèse. Pour modifier un module, il faut remplacer son texte puis recalculer son empreinte. Une empreinte qui ne correspond pas bloque le chargement, ce qui empêche d'exécuter un code modifié par erreur.
+# # La première cellule de code importe les quatre bibliothèques standard nécessaires. La cellule suivante définit la fonction register_hris_module. Celle-ci vérifie l'empreinte cryptographique du texte d'un module, calculée avec l'algorithme de hachage sécurisé SHA-256, puis crée le module dans l'interpréteur et l'exécute. En cas d'erreur, elle affiche le nom du module et la trace complète avant de relancer l'erreur. Chacune des vingt cellules suivantes enregistre un module, dans l'ordre de leurs dépendances : constantes et assainissement des messages, émulation des règles du langage de requête de l'existant, modèle de données, acquisition TalentSoft, transformation, comparaison, contrôle du run, publication, étapes du pipeline, lecture des journaux historiques, journal des cellules, tables de correspondance (partie TalentSoft lue par l'API, partie ADP saisie par le métier), puis flux de rémunération TalentSoft par API. La dernière cellule rassemble les empreintes chargées et affiche une ligne de synthèse. Pour modifier un module, il faut remplacer son texte puis recalculer son empreinte. Une empreinte qui ne correspond pas bloque le chargement, ce qui empêche d'exécuter un code modifié par erreur.
 # # **Paramètres**
 # # Ce notebook n'a aucun paramètre. Il s'exécute dans le contexte du notebook qui le charge et partage ses variables. Aucun nom de workspace, de Lakehouse ou de secret n'y est lu.
 # # **Sorties produites**
@@ -488,7 +488,7 @@ def utf8_truncate(text: Optional[str], max_bytes: int) -> Optional[str]:
 # CELL ********************
 
 # ============= MODULE hris.model =============
-register_hris_module('hris.model', 'ba23e6a8b8cb7a74132007d77c5c272f3e6f2511fee3fd8f8e8f2ae87e0c6d83', r'''"""hris.model — contrat de données : colonnes, correspondances, règles de rejet, DDL.
+register_hris_module('hris.model', 'b386f3e30b4d9b1d4327a303d061c7cc2078aaa6e6acede45dba5742f1a948f8', r'''"""hris.model — contrat de données : colonnes, correspondances, règles de rejet, DDL.
 
 Sources : A02 (R-SQL-004, § 4, § 5, R-SQL-056), A03 (17 tables), A07, 05 (DDL des tables
 de contrôle et de log, qui fait foi). Python pur.
@@ -1144,6 +1144,62 @@ error_location STRING
 logged_at_utc TIMESTAMP
 """)
 
+# --- Flux 2 de l'existant (rémunération, Pipeline_SIRH-SFTP) en tables, sans fichier (hris.remuneration) ---
+REMUNERATION_SNAPSHOT_COLUMNS = ["section", "employeenumber", "date", "type", "amount", "currency", "periodicity",
+                                 "start_date", "end_date", "calculation_method", "value", "base_salary_effective_date",
+                                 "src_section_code", "src_category", "src_indexed_on"]
+TABLES["cfg.ts_remuneration_mapping"] = _cols("""
+section_code STRING
+legacy_section STRING
+type_value STRING
+calculation_method STRING
+effective_date_rule STRING
+date_format STRING
+currency_case STRING
+_loaded_at_utc TIMESTAMP
+_loaded_by STRING
+_change_ref STRING
+""")
+TABLES["stg.ts_remuneration_snapshot"] = (
+    [("run_id", "STRING"), ("business_date", "DATE")] + [(c, "STRING") for c in REMUNERATION_SNAPSHOT_COLUMNS])
+TABLES["ref.ts_remuneration_snapshot"] = (
+    [(c, "STRING") for c in REMUNERATION_SNAPSHOT_COLUMNS]
+    + [("_source_run_id", "STRING"), ("_validated_at_utc", "TIMESTAMP")])
+TABLES["pub.ts_remuneration_change"] = _cols("""
+run_id STRING
+business_date DATE
+import_type STRING
+line_no INT
+rule STRING
+employeenumber STRING
+date STRING
+type STRING
+amount STRING
+currency STRING
+periodicity STRING
+extra_augm_n_1 STRING
+start_date STRING
+end_date STRING
+calculation_method STRING
+value STRING
+base_salary_effective_date STRING
+""")
+TABLES["log.ts_remuneration_import"] = _cols("""
+run_id STRING
+import_type STRING
+file_name STRING
+rows INT
+payload_sha256 STRING
+gate_outcome STRING
+gate_reason STRING
+status STRING
+ts_import_id BIGINT
+ts_import_status STRING
+reference_advanced BOOLEAN
+message STRING
+created_at_utc TIMESTAMP
+""")
+
 SCHEMAS =["cfg", "stg", "ref", "pub", "ctl", "log"]
 
 # Tables à données personnelles (accès restreint, 05 § 4 ; D-SEC-03)
@@ -1151,6 +1207,7 @@ PERSONAL_DATA_TABLES = [
     "stg.ts_employee_raw", "stg.ts_employee_source", "stg.ts_employee_enriched", "stg.ts_employee_reject",
     "stg.ts_employee_adp", "ref.ts_employee_adp", "log.comparison_detail", "log.reject",
     "log.adp_publication_log", "pub.adp_outbox", "pub.adp_operation",
+    "stg.ts_remuneration_snapshot", "ref.ts_remuneration_snapshot", "pub.ts_remuneration_change",
 ]
 
 PROPOSED_TABLES = ["pub.adp_operation", "pub.adp_attempt", "pub.adp_reconciliation", "log.adp_manual_decision"]
@@ -1235,19 +1292,11 @@ def normalize_type(t: str) -> str:
 # CELL ********************
 
 # ============= MODULE hris.ts_acquire =============
-register_hris_module('hris.ts_acquire', '5607bf38cee39902065adae3d267c5729d1e1f9c04603b50e96e92de687d5e2d', r'''"""hris.ts_acquire — portage de la Function TalentSoft (ts-function-app/function_app.py, PRJ @ 5541490).
+register_hris_module('hris.ts_acquire', 'd381880b82ee3b6a7d071d8f416315677188498410fe5a9652a813409531b2ba', r'''"""hris.ts_acquire — portage de la Function TalentSoft (ts-function-app/function_app.py, PRJ @ 5541490).
 
 Parité (A01, R-TS-007 à R-TS-030) : endpoints, règle de « valeur courante » dépendant de l'ordre,
 conversion « falsy », sentinelle 1900-01-01, Hors_France, Level sans %, filtre « Motul France »,
 retries 429/503/réseau avec backoff, disjoncteur global.
-
-Écart volontaire HORS PARITÉ (règle métier, mesurée sur l'annuaire PRD du 12/10/2026) : quand la situation n'a aucune
-Position exploitable, la structure juridique est lue sur la situation elle-même (champ LegalStructure, version la plus
-récente) et le même filtre exact « Motul France » s'applique. L'existant écartait ces salariés (compteur
-excluded_missing_position_or_date) : or 928 des 1886 fiches de l'annuaire, presque toutes des sortis, ont une situation
-sans Position mais avec LegalStructure. Les salariés qui ont une Position exploitable suivent le chemin d'origine,
-inchangé. Une date invalide ou des valeurs contradictoires sur ces champs ne sont jamais tranchées par l'ordre de réponse
-(SituationDataError : salarié écarté, compté à part, repris par le contrôle bloquant TS_FILTER_TECHNICAL_FAILURE).
 
 Écarts volontaires avec l'existant (extraction plus rapide, mêmes données) : le filtre « Motul France » n'est plus
 une phase 1 séquentielle mais s'évalue salarié par salarié dans la fenêtre parallèle, et la situation et le poste
@@ -1271,7 +1320,7 @@ import threading
 import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from hris.common import TS_PRD_BASE_URL, HrisError, SecretValue
@@ -1578,83 +1627,6 @@ def process_situation_data(data):
     return result
 
 
-class SituationDataError(ValueError):
-    """Situation TalentSoft inexploitable pour la lecture de la structure juridique.
-
-    code : « invalid_date » (startDate absente ou hors AAAA-MM-JJ sur un champ lu), « conflict » (deux valeurs différentes
-    à la date retenue d'un même champ) ou « malformed » (élément qui n'est pas un objet avec « field », ou champ lu sans
-    « value »). Aucune valeur, date ni matricule dans l'exception : seulement le code et le nom du champ. Ce n'est PAS une
-    HrisError : elle n'interrompt pas l'extraction, elle écarte le salarié concerné, de façon comptée.
-    """
-
-    def __init__(self, code: str, field: str = ""):
-        super().__init__(f"{code}:{field}" if field else code)
-        self.code = code
-        self.field = field
-
-
-class _FieldVersion(NamedTuple):
-    when: datetime.date         # date retenue, comparée comme une date
-    start: str                  # startDate telle que renvoyée par l'API
-    value: Any                  # valeur normalisée : « falsy » -> ""
-    earlier_non_empty: bool     # une version antérieure non vide existe
-
-
-def _latest_field_version(data, field: str) -> Optional[_FieldVersion]:
-    """Version la plus récente d'un champ de la situation, d'après SA propre startDate, quel que soit l'ordre de l'API.
-
-    Les éléments d'un autre champ sont ignorés. Renvoie None si le champ est absent. Lève SituationDataError si une date
-    du champ est invalide, si « value » manque, ou si deux valeurs différentes portent la date retenue.
-    """
-    versions = []
-    for item in data:
-        if item["field"] != field:
-            continue
-        if "value" not in item:
-            raise SituationDataError("malformed", field)
-        start = item.get("startDate")
-        try:
-            when = _d(start)
-        except (TypeError, ValueError):
-            raise SituationDataError("invalid_date", field) from None
-        versions.append((when, start, item["value"] if item["value"] else ""))
-    if not versions:
-        return None
-    latest = max(version[0] for version in versions)
-    kept = [version for version in versions if version[0] == latest]
-    value = kept[0][2]
-    if any(version[2] != value for version in kept):
-        raise SituationDataError("conflict", field)
-    return _FieldVersion(latest, min(version[1] for version in kept), value,
-                         any(version[2] for version in versions if version[0] < latest))
-
-
-# Champs de la situation qui portent le même nom que ceux du poste (voir process_position_data) : repli pour les salariés
-# sans Position. PPC_FTE et pourcentage_imputation ne sont PAS repris : « Fte » et « Level » de la situation n'ont pas un
-# sens démontré identique à « FullTimeEquivalentPercent » et « Level » du poste (à valider avec le métier).
-SITUATION_OWN_FIELDS = ("LegalStructure", "GeographicOrganisationStructure", "CostCenter", "CollectiveAgreement",
-                        "OccupationalCategory", "Coefficient", "OrganisationalStructure")
-
-
-def situation_own_attributes(data) -> dict:
-    """Structure juridique et rattachements portés par la situation elle-même, version la plus récente de chaque champ.
-
-    Renvoie seulement les champs présents. Lève SituationDataError (date invalide, valeurs contradictoires, élément mal
-    formé) : jamais de choix selon l'ordre de réponse.
-    """
-    if not data:
-        return {}
-    for item in data:
-        if not isinstance(item, dict) or "field" not in item:
-            raise SituationDataError("malformed")
-    out = {}
-    for field in SITUATION_OWN_FIELDS:
-        version = _latest_field_version(data, field)
-        if version is not None:
-            out[field] = version.value
-    return out
-
-
 def process_position_data(data):
     if not data:
         return {}
@@ -1910,37 +1882,19 @@ class TalentSoftExtractor:
         else:
             self.stats.inc(f"{endpoint}_unavailable")
 
-    def read_situation(self, employee_number) -> Tuple[dict, Optional[dict]]:
-        """(sélection historique, attributs propres de la situation) ; ({}, None) si la situation est indisponible.
-
-        Les attributs propres (structure juridique, rattachements) ne sont lus que si la sélection historique n'a pas de
-        couple (Position, date) exploitable : c'est le repli des salariés sans Position. Lève SituationDataError (date
-        invalide, valeurs contradictoires, élément mal formé sur ces champs) après avoir compté la cause précise :
-        phase1_situation_invalid_date, phase1_situation_conflict ou phase1_situation_malformed.
-        """
+    def get_situation(self, employee_number) -> dict:
         try:
             data, status = self.client.get(f"/api/hub/v2/employees/{employee_number}/Situation",
                                            "phase1_situation", max_retries=2, initial_delay=1)
             if status == 200 and data:
-                selection = process_situation_data(data)
-                own = None
-                if not (selection.get("Position") and selection.get("Situation_starDate")):
-                    own = situation_own_attributes(data)
-                return selection, own
+                return process_situation_data(data)
             self._classify_unavailable("phase1_situation", status)
-            return {}, None
-        except SituationDataError as exc:
-            self.stats.inc(f"phase1_situation_{exc.code}")   # cause précise, sans valeur ni matricule
-            raise
+            return {}
         except HrisError:
             raise
         except Exception:
             self.stats.inc("phase1_situation_error")
-            return {}, None
-
-    def get_situation(self, employee_number) -> dict:
-        """Sélection historique seule (Position, WorkingType, Situation_starDate)."""
-        return self.read_situation(employee_number)[0]
+            return {}
 
     def get_position(self, position_code, date, endpoint: str) -> dict:
         try:
@@ -1965,39 +1919,16 @@ class TalentSoftExtractor:
         Renvoie (situation, poste) pour un salarié « Motul France », sinon None (exclusion comptée).
         Mêmes règles et mêmes compteurs que la phase 1 de l'existant, mais un salarié à la fois dans la
         fenêtre parallèle, et sans relire plus tard la situation et le poste des salariés retenus.
-
-        Repli (hors parité) : sans couple (Position, date) exploitable, la structure juridique est lue sur la situation
-        elle-même (LegalStructure) et le même filtre exact s'applique ; les attributs de la situation tiennent alors lieu
-        de poste. Sans LegalStructure non plus, l'exclusion d'origine est conservée (excluded_missing_position_or_date).
-        Compteurs de repli : situation_without_position, retained_from_situation_legal_structure,
-        excluded_not_motul_france_from_situation, situation_no_legal_structure.
         """
-        try:
-            situation, own = self.read_situation(employee_number)
-        except SituationDataError:
-            # Situation illisible (date invalide, valeurs contradictoires) : ni exclusion métier ni retenue. Comptée à
-            # part (cause : phase1_situation_*) et reprise par le contrôle bloquant TS_FILTER_TECHNICAL_FAILURE.
-            self.stats.inc("excluded_situation_unreliable")
-            return None
+        situation = self.get_situation(employee_number)
         if not situation:
             self.stats.inc("excluded_no_situation")  # échec technique OU absence : voir contrôles
             return None
         position_code = situation.get("Position")
         situation_date = situation.get("Situation_starDate")
         if not (position_code and situation_date):
-            self.stats.inc("situation_without_position")
-            legal = (own or {}).get("LegalStructure")
-            if not legal:
-                self.stats.inc("situation_no_legal_structure")
-                self.stats.inc("excluded_missing_position_or_date")   # exclusion d'origine, conservée
-                return None
-            if str(legal) != MOTUL_FRANCE:
-                self.stats.inc("excluded_not_motul_france_from_situation")
-                self.stats.inc("excluded_not_motul_france")
-                return None
-            self.stats.inc("retained_from_situation_legal_structure")
-            self.stats.inc("retained_phase1")
-            return situation, own
+            self.stats.inc("excluded_missing_position_or_date")
+            return None
         position_data = self.get_position(position_code, situation_date, "phase1_position")
         if not position_data:
             self.stats.inc("excluded_no_position_data")
@@ -2142,11 +2073,9 @@ def completeness_anomalies(stats: dict) -> List[dict]:
     add("EMPTY_EXTRACTION", "BLOCKING", records, "FAIL" if records == 0 else "PASS",
         "aucun salarié retenu" if records == 0 else f"{records} salariés retenus")
     tech_phase1 = c.get("phase1_situation_unavailable", 0) + c.get("phase1_situation_error", 0) + \
-        c.get("phase1_position_unavailable", 0) + c.get("phase1_position_error", 0) + \
-        c.get("phase1_situation_invalid_date", 0) + c.get("phase1_situation_conflict", 0) + \
-        c.get("phase1_situation_malformed", 0)
+        c.get("phase1_position_unavailable", 0) + c.get("phase1_position_error", 0)
     add("TS_FILTER_TECHNICAL_FAILURE", "BLOCKING", tech_phase1, "FAIL" if tech_phase1 else "PASS",
-        "salariés non qualifiables (Situation/Position indisponible ou incohérente) : le filtre Motul France est incertain"
+        "salariés non qualifiables (Situation/Position indisponible) : le filtre Motul France est incertain"
         if tech_phase1 else "filtre Motul France évalué pour tous les salariés")
     nf_phase1 = c.get("phase1_situation_404", 0) + c.get("phase1_position_404", 0)
     add("TS_FILTER_NOT_FOUND", "WARNING", nf_phase1, "FAIL" if nf_phase1 else "PASS",
@@ -2632,7 +2561,7 @@ def set_once_promoted(spark, T: Tables, run_id: str, when: dt.datetime) -> None:
 # CELL ********************
 
 # ============= MODULE hris.transform =============
-register_hris_module('hris.transform', '91a7ba2c70cda0430f5c5d60970c9f02dc7207393cdf7069ebd0732f19e9f152', r'''"""hris.transform — implémentation Spark des procédures SQL de production (A02, A09).
+register_hris_module('hris.transform', '4ec98aabe890c0f7120d801b5468250db4824daef6a17a4de1b25823d2193357', r'''"""hris.transform — implémentation Spark des procédures SQL de production (A02, A09).
 
 Doit produire exactement les résultats de hris.transform_ref (test de parité sur données fictives).
 Guide T-SQL -> Spark appliqué (A02 § 8) : espaces de fin (rtrim), NULL vs '', troncature à 50,
@@ -2792,7 +2721,13 @@ def mapping_controls(spark, T: Tables) -> Tuple[List[dict], str]:
             continue
         n = df.count()
         if n == 0:
-            anomalies.append(_anom("MAPPING_TABLE_EMPTY", 0, f"{table} vide (initialisation D-REF-01 non réalisée)"))
+            anomalies.append(_anom("MAPPING_TABLE_EMPTY", 0, f"{table} vide (référentiel TalentSoft non synchronisé)"))
+            continue
+        # Partie TalentSoft synchronisée par l'API, partie ADP saisie par le métier : sans aucun code ADP, la table
+        # est vide pour la paie (sinon tous les salariés seraient rejetés sans blocage explicite).
+        adp = sorted({lu for j in LOOKUP_JOINS if j["table"] == table for lu, _ in j["out"] if lu != j["key"]})
+        if not df.where(" OR ".join(f"(`{c}` IS NOT NULL AND trim(`{c}`) <> '')" for c in adp)).limit(1).count():
+            anomalies.append(_anom("MAPPING_TABLE_EMPTY", 0, f"{table} : aucun code ADP renseigné (NB_HRIS_REFERENCE_ADMIN)"))
             continue
         dup = (df.where(F.col(keys[table]).isNotNull()).groupBy(F.rtrim(F.col(keys[table])).alias("k"))
                .count().where("count > 1").count())
@@ -3589,7 +3524,7 @@ def evaluate_gate(context_provider: Callable[[], Mapping[str, Any]],
 # CELL ********************
 
 # ============= MODULE hris.adp_transport =============
-register_hris_module('hris.adp_transport', 'aa2ae8bba6efa3bc1336cdc19e21151712fa2a2894f4618a0ddadad0622e556e', r'''"""hris.adp_transport — transport HTTP de publication ADP, classification des résultats, instrumentation.
+register_hris_module('hris.adp_transport', '453008e434ed5d3259b35d281f9cf8b2e30ee31c53eeb00b6677176a15b2fa73', r'''"""hris.adp_transport — transport HTTP de publication ADP, classification des résultats, instrumentation.
 
 Principes (mandat § 8) :
   * aucun retry automatique (y compris bibliothèque), aucune redirection suivie, aucun renvoi
@@ -3608,13 +3543,17 @@ import dataclasses
 import hashlib
 import http.client
 import json
+import os
+import shutil
 import socket
 import ssl
+import tempfile
 import threading
+import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
-from urllib.parse import urlparse
+from urllib.parse import quote, urlencode, urlparse
 
-from hris.common import HrisError
+from hris.common import HrisError, SecretValue
 
 # ---------------------------------------------------------------------------
 # Verrous d'activation (constantes de CODE : ni paramètre, ni variable, ni simulateur)
@@ -3681,16 +3620,92 @@ def digest(text: Optional[str]) -> Optional[str]:
     return None if text is None else hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()
 
 
+# Caractères conservés tels quels par requests (requests.utils.requote_uri) : réservés RFC 3986 et « % ».
+_REQUESTS_SAFE = "!#$%&'()*+,/:;=?@[]~"
+
+
+def request_target(base_path: str, path: str) -> str:
+    """Cible HTTP envoyée comme le faisait l'existant (requests) : les caractères interdits, dont les espaces des
+    filtres OData (« idValue eq '…' »), sont encodés ; les réservés sont conservés. http.client refuse un chemin
+    contenant un espace (InvalidURL) : sans cet encodage, toute lecture filtrée échouait."""
+    return quote(base_path + path, safe=_REQUESTS_SAFE)
+
+
+def mtls_context(cert_pem: str, key_pem: str) -> ssl.SSLContext:
+    """Contexte TLS client chargé depuis les secrets du coffre. ssl.load_cert_chain n'accepte que des chemins : le
+    certificat et la clé sont écrits dans un dossier privé (0700, fichiers 0600) le temps du chargement, puis effacés
+    aussitôt — l'existant les laissait dans le dossier temporaire partagé."""
+    context = ssl.create_default_context()
+    folder = tempfile.mkdtemp(prefix="hris-adp-")
+    try:
+        cert_path, key_path = os.path.join(folder, "client.cer"), os.path.join(folder, "client.key")
+        for path, content in ((cert_path, cert_pem), (key_path, key_pem)):
+            handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(handle, "w") as stream:
+                stream.write(content)
+        context.load_cert_chain(certfile=cert_path, keyfile=key_path)
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+    return context
+
+
+class OAuthToken:
+    """Jeton ADP client_credentials, comme login() de l'existant (L407-452) : POST auth/oauth/v2/token en mTLS, corps
+    x-www-form-urlencoded. Renouvelé une minute avant expiration ; jamais affiché ni journalisé (l'existant l'imprimait)."""
+
+    def __init__(self, ssl_context, client_id: SecretValue, client_secret: SecretValue, timeout_seconds: float,
+                 base_url: str = ADP_BASE_URL, clock: Callable[[], float] = time.monotonic,
+                 connection_factory: Optional[Callable[[], Any]] = None):
+        parsed = urlparse(base_url)
+        self.host, self.base_path = parsed.hostname, parsed.path or "/"
+        self.timeout = float(timeout_seconds)
+        self._ctx, self._client_id, self._client_secret, self._clock = ssl_context, client_id, client_secret, clock
+        self._connection_factory = connection_factory or (
+            lambda: http.client.HTTPSConnection(self.host, 443, context=self._ctx, timeout=self.timeout))
+        self._token: Optional[SecretValue] = None
+        self._expires_at = 0.0
+
+    def __repr__(self) -> str:
+        return "OAuthToken(***)"
+
+    def __call__(self) -> str:
+        if self._token is None or self._clock() >= self._expires_at:
+            self._fetch()
+        return self._token.reveal()
+
+    def _fetch(self) -> None:
+        body = urlencode({"client_id": self._client_id.reveal(), "client_secret": self._client_secret.reveal(),
+                          "grant_type": "client_credentials"})
+        conn = self._connection_factory()
+        try:
+            conn.request("POST", request_target(self.base_path, "auth/oauth/v2/token"), body=body,
+                         headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"})
+            resp = conn.getresponse()
+            text = resp.read(AdpHttpTransport.MAX_BODY).decode("utf-8", "replace")
+        finally:
+            conn.close()
+        if not 200 <= resp.status < 300:
+            raise HrisError("ADP_AUTH_FAILED", f"statut {resp.status}")
+        try:
+            data = json.loads(text)
+        except ValueError:
+            raise HrisError("ADP_AUTH_FAILED", "réponse non JSON") from None
+        if not data.get("access_token"):
+            raise HrisError("ADP_AUTH_FAILED", "jeton absent")
+        self._token = SecretValue(data["access_token"])
+        self._expires_at = self._clock() + max(60.0, float(data.get("expires_in") or 3600) - 60.0)
+
+
 # ---------------------------------------------------------------------------
 # Transport réel (construit seulement si toutes les autorisations sont réunies)
 # ---------------------------------------------------------------------------
 class AdpHttpTransport:
     """POST/GET vers ADP en http.client : pas de pool à reprise, pas de redirection, phases explicites.
-    mTLS par SSLContext.load_cert_chain ; jeton porteur fourni par un callable (jamais journalisé)."""
+    mTLS par le contexte fourni (mtls_context) ; jeton porteur fourni par un callable (jamais journalisé)."""
 
     MAX_BODY = 1_000_000
 
-    def __init__(self, cert_path: str, key_path: str, bearer: Callable[[], str], timeout_seconds: float,
+    def __init__(self, ssl_context, bearer: Callable[[], str], timeout_seconds: float,
                  base_url: str = ADP_BASE_URL, _allow_construction: bool = False):
         if not (ADP_ACTIVATION_APPROVED and _allow_construction):
             raise HrisError("ADP_ACTIVATION_NOT_APPROVED", "transport ADP réel non autorisé dans cette version")
@@ -3699,8 +3714,7 @@ class AdpHttpTransport:
         self.base_path = parsed.path or "/"
         self.timeout = float(timeout_seconds)
         self._bearer = bearer
-        self._ctx = ssl.create_default_context()
-        self._ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
+        self._ctx = ssl_context
 
     def __repr__(self) -> str:
         return "AdpHttpTransport(<prd>)"
@@ -3718,7 +3732,7 @@ class AdpHttpTransport:
             headers = {"Content-Type": "application/json", "Accept": "application/json",
                        "Authorization": "Bearer " + self._bearer(), "Content-Length": str(len(body))}
             try:
-                conn.request("POST", self.base_path + path, body=body, headers=headers)
+                conn.request("POST", request_target(self.base_path, path), body=body, headers=headers)
             except Exception as exc:
                 return TransportResult(UNCERTAIN, "SEND_INTERRUPTED", "SEND", error_class=type(exc).__name__)
             try:
@@ -3744,7 +3758,7 @@ class AdpHttpTransport:
             raise HrisError("ADP_READ_POLICY_NOT_ESTABLISHED")
         conn = self._connection()
         try:
-            conn.request("GET", self.base_path + path, headers={
+            conn.request("GET", request_target(self.base_path, path), headers={
                 "Accept": "application/json", "Authorization": "Bearer " + self._bearer()})
             resp = conn.getresponse()
             return resp.status, resp.read(self.MAX_BODY).decode("utf-8", "replace")
@@ -5363,7 +5377,7 @@ def _last_code(executor) -> str:
 # CELL ********************
 
 # ============= MODULE hris.adp_spark =============
-register_hris_module('hris.adp_spark', '8366cf0b1f5d716d82ab0d707bbc927278fbd623b9a7c9c3e0a69e935620be36', r'''"""hris.adp_spark — dépôts Delta de la publication ADP et fabriques du transport réel.
+register_hris_module('hris.adp_spark', '7259828dc901296c2b2911a281b52ce9e6c0f8e1ffef998cc73ac0447d567129', r'''"""hris.adp_spark — dépôts Delta de la publication ADP et fabriques du transport réel.
 
 Chaque upsert d'opération est un commit Delta distinct (MERGE) : l'intention est durable AVANT
 le transport. Le transport réel et le lecteur réel ne se construisent que si l'activation est
@@ -5372,17 +5386,13 @@ approuvée DANS LE CODE (hris.adp_transport.ADP_ACTIVATION_APPROVED) — jamais 
 from __future__ import annotations
 
 import datetime as dt
-import os
 import re
-import shutil
-import stat
-import tempfile
 import uuid
 from typing import Any, Dict, List, Optional
 
+from hris import adp_transport as TR
 from hris.adp_gate import GateDecision
-from hris.adp_transport import ADP_ACTIVATION_APPROVED, AdpHttpTransport
-from hris.common import HrisError, PROCESS_CODE, utc_now
+from hris.common import HrisError, PROCESS_CODE, SecretValue, utc_now
 from hris.model import Tables
 from hris.spark_io import append, merge_rows, rows_df, sql_str
 
@@ -5512,18 +5522,34 @@ def format_pem(raw: str, label: str) -> str:
 
 
 class RealAdpTransportFactory:
-    """Lecture des secrets ADP, jeton mTLS, transport. Appelée seulement si le garde-fou ET tous les
-    blocages d'activation sont levés. Refuse dans cette version (activation non approuvée)."""
+    """Lecture des secrets ADP dans le coffre (mêmes noms que l'existant), contexte mTLS, jeton OAuth, transport.
+    Appelée seulement si le garde-fou ET tous les blocages d'activation sont levés ; refuse tant que l'activation n'est
+    pas approuvée dans le code (comme l'existant, dont l'activité ADP du pipeline est désactivée)."""
 
-    def __init__(self, kv_url: str, timeout_seconds: float, get_secret):
+    def __init__(self, kv_url: str, timeout_seconds: float, get_secret, *, context_builder=None, token_class=None,
+                 transport_class=None):
         self.kv_url, self.timeout, self._get_secret = kv_url, timeout_seconds, get_secret
+        self._context_builder = context_builder or TR.mtls_context
+        self._token_class = token_class or TR.OAuthToken
+        self._transport_class = transport_class or TR.AdpHttpTransport
         self.built = 0
 
     def __call__(self):
         self.built += 1
-        if not ADP_ACTIVATION_APPROVED:
+        if not TR.ADP_ACTIVATION_APPROVED:
             raise HrisError("ADP_ACTIVATION_NOT_APPROVED", "aucune lecture de secret ADP ni aucun jeton")
-        raise HrisError("ADP_REAL_TRANSPORT_NOT_WIRED", "câblage réel à valider avec le contrat final")  # pragma: no cover
+        if not self.kv_url:
+            raise HrisError("PARAM_MISSING", "p_kv_url_adp (VL_HRIS.kv_url_adp)")
+        values = {key: self._get_secret(self.kv_url, name) for key, name in SECRET_NAMES.items()}
+        empty = [SECRET_NAMES[key] for key, value in values.items() if not value]
+        if empty:
+            raise HrisError("ADP_SECRET_EMPTY", ",".join(empty))
+        context = self._context_builder(format_pem(values["cert_pem"], "CERTIFICATE"),
+                                        format_pem(values["key_pem"], "RSA PRIVATE KEY"))
+        token = self._token_class(context, SecretValue(values["client_id"]), SecretValue(values["client_secret"]),
+                                  self.timeout)
+        token()                                   # authentification avant tout envoi : un refus n'émet aucun POST
+        return self._transport_class(context, token, self.timeout, _allow_construction=True)
 ''')
 
 # METADATA ********************
@@ -5536,7 +5562,7 @@ class RealAdpTransportFactory:
 # CELL ********************
 
 # ============= MODULE hris.steps =============
-register_hris_module('hris.steps', '9a492212bed76d1b3aec96a5efcba8f76a149c87c0ae0f0b217170cb0103ee7f', r'''"""hris.steps — étapes du pipeline (logique des notebooks), appelées à l'identique par les notebooks et par
+register_hris_module('hris.steps', '0643eecdf0d9af61343b1a29b01d62af4486d6e6d7ff0aceb7a9a070c6b290b3', r'''"""hris.steps — étapes du pipeline (logique des notebooks), appelées à l'identique par les notebooks et par
 les tests d'intégration Fabric (schéma isolé). Aucune sortie de donnée personnelle : compteurs seulement."""
 from __future__ import annotations
 
@@ -5566,8 +5592,16 @@ def _F():
 
 
 def seed(spark, T: Tables) -> dict:
-    """Graines insérées seulement si absentes (cfg.process, verrou)."""
-    out = {"process": False, "lock": False}
+    """Graines insérées seulement si absentes (cfg.process, verrou, correspondance du flux rémunération)."""
+    out = {"process": False, "lock": False, "remuneration_mapping": False}
+    if spark.table(T("cfg.ts_remuneration_mapping")).limit(1).count() == 0:
+        from hris.remuneration import DEFAULT_MAPPING, mapping_rows
+        rows = [dict(r, _loaded_at_utc=utc_now(), _loaded_by="NB_HRIS_SETUP",
+                     _change_ref="graine : hypothèses H-REM à confirmer par le mode VALIDATE")
+                for r in mapping_rows(DEFAULT_MAPPING)]
+        IO.append(IO.rows_df(spark, rows, "cfg.ts_remuneration_mapping"), T("cfg.ts_remuneration_mapping"),
+                  "cfg.ts_remuneration_mapping")
+        out["remuneration_mapping"] = True
     if spark.table(T("cfg.process")).where(f"process_code = '{PROCESS_CODE}'").count() == 0:
         IO.append(IO.rows_df(spark, [{
             "process_code": PROCESS_CODE, "enabled": True, "acquisition_mode": "TS_API", "publication_target": "ADP_API",
@@ -5733,6 +5767,17 @@ STATUS_MAP = {PUB.STATUS_NOT_PUBLISHED_NON_PRD: ("NOT_PUBLISHED_NON_PRD", None),
               PUB.STATUS_PARTIAL: ("PUBLISHED_PARTIAL", None), PUB.STATUS_HALTED: ("PUBLISHED_PARTIAL", "AUTH_REJECTED")}
 
 
+class _NoSentinel:
+    """Sentinelle neutre (publication approuvée) : même interface, aucune interception."""
+    attempts: List[Dict[str, str]] = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
 def run_publish(spark, T: Tables, run_id: str, run_mode: str, *, context_provider: Callable[[], Mapping[str, Any]],
                 transport_factory, planner, max_attempts: int, pause_seconds: float,
                 extra_blockers: Callable[[], List[str]] = lambda: [], sleep: Callable[[float], None] = time.sleep) -> dict:
@@ -5768,8 +5813,11 @@ def run_publish(spark, T: Tables, run_id: str, run_mode: str, *, context_provide
     ctx = PUB.PublicationContext(publish_run_id=run_id, source_run_id=source_run_id, mode=run_mode,
                                  max_attempts=max_attempts, pause_seconds=pause_seconds)
     step = IO.StepLogger(spark, T, run_id, "PUBLISH_ADP")
+    # Sentinelle bloquante tant que l'activation n'est pas approuvée (preuve de non-publication) ; une fois approuvée,
+    # elle bloquerait les envois légitimes et l'INSEE : elle n'est plus posée, le garde-fou et les blocages décident.
+    sentinel = NetworkSentinel() if not ADP_ACTIVATION_APPROVED else _NoSentinel()
     try:
-        with NetworkSentinel() as sentinel:
+        with sentinel:
             summary = PUB.run_publication(
                 ctx, context_provider=context_provider, outbox=SparkOutbox(spark, T), gate_log=SparkGateLog(spark, T),
                 ops=SparkOps(spark, T), attempts=SparkAttempts(spark, T),
@@ -5778,7 +5826,7 @@ def run_publish(spark, T: Tables, run_id: str, run_mode: str, *, context_provide
                 transport_factory=counted_factory, planner=planner, rows_by_key=rows_by_key, sleep=sleep)
         proof = {"gate_outcome": summary["gate_outcome"], "gate_reason_code": summary["gate_reason_code"],
                  "workspace_name": summary["workspace_name"], "transport_factory_calls": calls["factory"],
-                 "transport_built": summary["transport_built"], "sentinel_blocking": True,
+                 "transport_built": summary["transport_built"], "sentinel_blocking": not ADP_ACTIVATION_APPROVED,
                  "sentinel_attempts": len(sentinel.attempts),
                  "sentinel_hosts": sorted({a["host"] for a in sentinel.attempts}),
                  "adp_activation_approved": ADP_ACTIVATION_APPROVED}
@@ -6151,6 +6199,1250 @@ def spark_writer(spark, tables) -> Callable[[List[dict]], None]:
     def write(events: List[dict]) -> None:
         IO.append(IO.rows_df(spark, events, LOGICAL_TABLE), tables(LOGICAL_TABLE), LOGICAL_TABLE)
     return write
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.reference_api =============
+register_hris_module('hris.reference_api', 'bbfcd037c731af917c009604f770588567cd8b28764903f6dd62c690bb351205', r'''"""hris.reference_api — tables de correspondance cfg.lu_hr_* sans aucun fichier : partie TalentSoft lue par l'API.
+
+Constat (sonde en lecture seule du 13/10/2026 sur le tenant de production, métadonnées seulement) :
+  * les 49 référentiels du Core HR (GET /api/hub/v2.0/libraries/{type}) portent clientCode, ShortName (libellé traduit
+    par langue), FullName, IsActive (Y/N), ParentClientCode et quelques champs propres au type ; AUCUN code paie ou ADP ;
+  * les fiches salariés portent le clientCode du référentiel (« Motul France » est le clientCode de LegalStructure) :
+    c'est la clé de jointure de la transformation ;
+  * le sexe, la nationalité et les pays ne sont pas des référentiels : leurs codes sont relevés dans l'extraction.
+
+Conséquence, sans aucun CSV (A08 D-FIL-00, D-REF-01) :
+  * la partie TalentSoft des 17 tables (code, libellés, parent) est synchronisée à chaque run depuis l'API et
+    l'extraction : codes nouveaux ajoutés, libellés mis à jour ;
+  * la partie ADP (codes, libellés et ordre ADP) n'existe nulle part ailleurs que dans ces tables : elle est saisie par
+    le métier (NB_HRIS_REFERENCE_ADMIN, `apply_assignments`). La synchronisation n'écrit JAMAIS une colonne ADP et ne
+    supprime jamais une ligne ; un code TalentSoft sans code ADP fait rejeter les salariés concernés (Référence_Rejet),
+    comme une correspondance absente dans l'existant.
+Aucune valeur n'est journalisée : noms de tables, comptes et statuts seulement.
+"""
+from __future__ import annotations
+
+import datetime as dt
+from collections import Counter
+from dataclasses import asdict, dataclass, field
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from urllib.parse import quote
+
+from hris import spark_io as IO
+from hris.common import HrisError, SEVERITY_INFO, SEVERITY_WARNING, utc_now
+from hris.model import LOOKUP_JOINS, LOOKUP_TABLES, LOOKUP_TECH_COLUMNS, SOURCE_COLUMNS, USED_LOOKUP_TABLES, create_table_sql
+
+LIBRARY_PATH = "/api/hub/v2.0/libraries/{library}"   # droit requis : ADM_API_EXTRACTION_API_ACCESS (comme l'extraction)
+LABEL_CULTURES = ("fr-fr", "en-gb")                   # libellé : français, sinon anglais, sinon la première langue
+MAX_JOIN_KEY = 50                                     # la transformation tronque les valeurs source à 50 caractères
+
+
+@dataclass(frozen=True)
+class CatalogueSpec:
+    """Origine de la partie TalentSoft d'une table : référentiel (ou None) et clés de l'extraction relevées."""
+    table: str
+    library: Optional[str]
+    observed_keys: Tuple[str, ...]
+    code: str
+    columns: Tuple[Tuple[str, str], ...] = ()         # (colonne, attribut : label | label_fr | label_en | full | parent)
+
+    @property
+    def ts_columns(self) -> List[str]:
+        return [self.code] + [column for column, _ in self.columns]
+
+
+CATALOGUE: Dict[str, CatalogueSpec] = {spec.table: spec for spec in (
+    CatalogueSpec("lu_hr_emp_titre", "Title", ("Title",), "cd_emp_titre_ts",
+                  (("lb_emp_titre_ts", "label"), ("ds_emp_titre_ts", "full"))),
+    CatalogueSpec("lu_hr_emp_sexe", None, ("Gender",), "cd_emp_sexe_ts"),
+    CatalogueSpec("lu_hr_emp_nationalite", None, ("Nationality",), "cd_emp_nationalite_ts"),
+    CatalogueSpec("lu_hr_emp_situation_matrimoniale", "MaritalStatus", ("MaritalStatus",),
+                  "cd_emp_situation_matrimoniale_ts", (("ds_emp_situation_matrimoniale_ts", "label"),)),
+    CatalogueSpec("lu_hr_emp_pays", None, ("Pays_de_naissance", "adresse_countryCode", "LegalCountry"), "cd_emp_pays_ts"),
+    CatalogueSpec("lu_hr_ppc_raison_debut_contrat", "HiringReason", ("HiringReason",), "cd_ppc_raison_debut_contrat_ts",
+                  (("ds_ppc_raison_debut_contrat_ts", "label"),)),
+    CatalogueSpec("lu_hr_ppc_contrat2", "NatureOfContract", ("NatureOfContract",), "cd_contract_ts",
+                  (("lb_contract_ts", "label"),)),
+    CatalogueSpec("lu_hr_ppc_classification", "Coefficient", ("Coefficient",), "cd_convention_collective_lvl2_ts",
+                  (("lb_convention_collective_lvl2_ts", "label"),)),
+    CatalogueSpec("lu_hr_ppc_classes", "OccupationalCategory", ("OccupationalCategory",), "cd_occupational_category_ts",
+                  (("lb_fr_occupational_category_ts", "label_fr"), ("lb_en_occupational_category_ts", "label_en"))),
+    CatalogueSpec("lu_hr_geo_entite", "LegalStructure", ("LegalStructure",), "cd_geo_entite_ts",
+                  (("ds_geo_entite_ts", "label"), ("cd_geo_parent_entite_ts", "parent"))),
+    CatalogueSpec("lu_hr_ppc_location_country", "GeographicOrganisationStructure", ("GeographicOrganisationStructure",),
+                  "cd_ppc_location_country_ts", (("ds_ppc_location_country_ts", "label"),)),
+    CatalogueSpec("lu_hr_ppc_cost_center", "CostCenter", ("CostCenter",), "cd_ppc_cost_center_ts",
+                  (("ds_ppc_cost_center_ts", "label"),)),
+    CatalogueSpec("lu_hr_organisationalstructure", "OrganisationalStructure", ("OrganisationalStructure",),
+                  "cd_organisationalstructure_ts", (("ds_organisationalstructure_ts", "label"),)),
+    # Tables chargées par l'existant mais jamais jointes (D-REF-02)
+    CatalogueSpec("lu_hr_emp_diplome", "Diploma", (), "cd_emp_diplome_ts", (("ds_emp_diplome_ts", "label"),)),
+    CatalogueSpec("lu_hr_emp_work_accident", "WorkAccident", (), "cd_emp_work_accident_ts",
+                  (("ds_emp_work_accident_ts", "label"),)),
+    CatalogueSpec("lu_hr_ppc_convention_collective", "CollectiveAgreement", (), "cd_ppc_convention_collective_ts",
+                  (("ds_ppc_convention_collective_ts", "label"),)),
+    CatalogueSpec("lu_hr_ppc_contrat", "NatureOfContract", (), "cd_ppc_contrat_ts", (("ds_ppc_contrat_ts", "label"),)),
+)}
+assert sorted(CATALOGUE) == sorted(LOOKUP_TABLES)
+
+
+def adp_columns(table: str) -> List[str]:
+    """Colonnes ADP qui comptent pour la paie : celles que la transformation ramène (tables utilisées), sinon toutes les
+    colonnes « *_adp » hors ordre d'affichage."""
+    joined = sorted({lu for join in LOOKUP_JOINS if join["table"] == table for lu, _ in join["out"] if lu != join["key"]})
+    return joined or [c for c in LOOKUP_TABLES[table] if c.endswith("_adp") and not c.startswith("or_")]
+
+
+def business_columns(table: str) -> List[str]:
+    """Colonnes saisies par le métier : tout sauf la partie TalentSoft synchronisée (code, libellés, parent)."""
+    managed = set(CATALOGUE[table].ts_columns)
+    return [c for c in LOOKUP_TABLES[table] if c not in managed]
+
+
+_KEY_TO_COLUMN = dict(SOURCE_COLUMNS)
+for _spec in CATALOGUE.values():
+    assert set(_spec.ts_columns) <= set(LOOKUP_TABLES[_spec.table]), _spec.table
+    assert not set(_spec.ts_columns) & set(adp_columns(_spec.table)), _spec.table
+    if _spec.table in USED_LOOKUP_TABLES:   # clés relevées = exactement les colonnes source jointes par la transformation
+        assert sorted(_KEY_TO_COLUMN[k] for k in _spec.observed_keys) == sorted(
+            join["src"] for join in LOOKUP_JOINS if join["table"] == _spec.table), _spec.table
+
+
+def _norm(code: Optional[str]) -> Optional[str]:
+    """Clé comparée comme dans la jointure : espaces de fin ignorés ; vide = pas de clé."""
+    if code is None:
+        return None
+    text = str(code).rstrip(" ")
+    return text or None
+
+
+def _filled(value: Any) -> bool:
+    return value is not None and str(value).strip() != ""
+
+
+# ---------------------------------------------------------------------------
+# Lecture d'un référentiel (lignes clientCode / field / culture / value)
+# ---------------------------------------------------------------------------
+class LibraryUnavailable(HrisError):
+    def __init__(self, library: str, status: Any):
+        super().__init__("TS_LIBRARY_UNAVAILABLE", f"{library} : statut {status}")
+        self.library = library
+
+
+def fetch_library(client, library: str) -> List[dict]:
+    """GET du référentiel par le client d'acquisition (jeton, reprises et disjoncteur compris)."""
+    rows, status = client.get(LIBRARY_PATH.format(library=quote(library, safe="")), "library_nodes")
+    if status != 200 or not isinstance(rows, list):
+        raise LibraryUnavailable(library, status)
+    return rows
+
+
+def _pick(values: Mapping[str, Any], order: Sequence[str]) -> Optional[str]:
+    for culture in order:
+        if _filled(values.get(culture)):
+            return str(values[culture]).strip()
+    for culture in sorted(values):
+        if _filled(values[culture]):
+            return str(values[culture]).strip()
+    return None
+
+
+def library_nodes(rows: Iterable[Mapping[str, Any]], today: Optional[dt.date] = None) -> Dict[str, Dict[str, Optional[str]]]:
+    """Nœuds d'un référentiel : dernière version (date d'effet <= aujourd'hui) de chaque champ et de chaque langue."""
+    limit = (today or utc_now().date()).isoformat()
+    latest: Dict[Tuple[str, str, str], Tuple[str, Any]] = {}
+    for row in rows:
+        code = row.get("clientCode")
+        if not _filled(code):
+            continue
+        date = str(row.get("startEffectDate") or "")[:10]
+        if date and date > limit:
+            continue                                   # version future : pas encore en vigueur
+        key = (str(code), str(row.get("field") or ""), str(row.get("culture") or "").lower())
+        if key not in latest or date >= latest[key][0]:
+            latest[key] = (date, row.get("value"))
+    fields: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for (code, name, culture), (_, value) in latest.items():
+        fields.setdefault(code, {}).setdefault(name, {})[culture] = value
+    nodes = {}
+    for code, values in fields.items():
+        short = values.get("ShortName", {})
+        label = _pick(short, LABEL_CULTURES)
+        nodes[code] = {
+            "label": label,
+            "label_fr": _pick({"fr-fr": short.get("fr-fr")}, ("fr-fr",)),
+            "label_en": _pick({"en-gb": short.get("en-gb")}, ("en-gb",)),
+            "full": _pick(values.get("FullName", {}), LABEL_CULTURES) or label,
+            "parent": _pick(values.get("ParentClientCode", {}), ("",)),
+            "active": _pick(values.get("IsActive", {}), ("",)),
+        }
+    return nodes
+
+
+# ---------------------------------------------------------------------------
+# Fusion de la partie TalentSoft dans une table (jamais de colonne ADP, jamais de suppression)
+# ---------------------------------------------------------------------------
+@dataclass
+class TableSync:
+    table: str
+    library: Optional[str]
+    status: str = "OK"            # OK | SKIPPED_LIBRARY_UNAVAILABLE | SKIPPED_SCHEMA | SKIPPED_DUPLICATE_KEYS
+    reason: str = ""
+    library_codes: int = 0
+    observed_codes: int = 0
+    observed_not_in_library: int = 0
+    inserted: int = 0
+    updated: int = 0
+    kept_absent: int = 0          # lignes existantes dont le code n'est ni dans le référentiel ni dans l'extraction
+    codes_over_50: int = 0        # codes que la jointure ne peut pas retrouver (valeur source tronquée à 50)
+    rows_after: int = 0
+    without_adp: int = 0          # lignes sans aucun code ADP utile : à compléter dans NB_HRIS_REFERENCE_ADMIN
+    written: bool = False
+
+
+def merge_catalogue(spec: CatalogueSpec, rows: Sequence[Mapping[str, Any]], nodes: Mapping[str, Mapping[str, Any]],
+                    observed: Iterable[str], technical: Mapping[str, Any]) -> Tuple[List[dict], TableSync]:
+    """Ajoute les codes nouveaux et met à jour les libellés TalentSoft ; ne touche à aucune autre colonne."""
+    sync = TableSync(spec.table, spec.library)
+    columns = LOOKUP_TABLES[spec.table]
+    out = [dict(row) for row in rows]
+    index: Dict[str, int] = {}
+    duplicates = 0
+    for position, row in enumerate(out):
+        key = _norm(row.get(spec.code))
+        if key is None:
+            continue
+        if key in index:
+            duplicates += 1
+        index[key] = position
+    if duplicates:
+        sync.status, sync.reason = "SKIPPED_DUPLICATE_KEYS", f"{duplicates} clé(s) en double à corriger d'abord"
+        sync.rows_after = len(out)
+        return list(rows), sync
+    observed_set = {k for k in (_norm(v) for v in observed) if k}
+    library_set = {k for k in (_norm(c) for c in nodes) if k}
+    sync.library_codes, sync.observed_codes = len(library_set), len(observed_set)
+    sync.observed_not_in_library = len(observed_set - library_set) if spec.library else 0
+    by_key = {_norm(code): attrs for code, attrs in nodes.items() if _norm(code)}
+    for key in sorted(library_set | observed_set):
+        attrs = by_key.get(key, {})
+        wanted = {column: attrs.get(attribute) for column, attribute in spec.columns}
+        if key in index:
+            row = out[index[key]]
+            changes = {c: v for c, v in wanted.items() if v is not None and row.get(c) != v}
+            if changes:
+                row.update(changes, **technical)
+                sync.updated += 1
+        else:
+            row = {c: None for c in columns}
+            row.update({spec.code: key}, **{c: v for c, v in wanted.items()}, **technical)
+            out.append(row)
+            index[key] = len(out) - 1
+            sync.inserted += 1
+    sync.kept_absent = len(set(index) - library_set - observed_set)
+    sync.codes_over_50 = sum(1 for key in index if len(key) > MAX_JOIN_KEY)
+    useful = adp_columns(spec.table)
+    sync.without_adp = sum(1 for row in out if _norm(row.get(spec.code)) and not any(_filled(row.get(c)) for c in useful))
+    sync.rows_after = len(out)
+    return out, sync
+
+
+def observed_from_records(records: Iterable[Mapping[str, Any]], keys: Sequence[str]) -> List[str]:
+    """Codes distincts relevés dans des enregistrements bruts (version Python de SparkReferenceStore.observed)."""
+    return sorted({_norm(r.get(k)) for r in records for k in keys if _norm(r.get(k))})
+
+
+# ---------------------------------------------------------------------------
+# Saisie des codes ADP par le métier (NB_HRIS_REFERENCE_ADMIN)
+# ---------------------------------------------------------------------------
+@dataclass
+class AssignmentResult:
+    table: str
+    changes: List[Tuple[str, str, Optional[str], Optional[str]]] = field(default_factory=list)  # code, colonne, avant, après
+    errors: List[str] = field(default_factory=list)
+
+
+def apply_assignments(table: str, rows: Sequence[Mapping[str, Any]], assignments: Mapping[str, Mapping[str, Any]],
+                      technical: Mapping[str, Any]) -> Tuple[List[dict], AssignmentResult]:
+    """Renseigne des colonnes métier (codes, libellés, ordre ADP) pour des codes TalentSoft existants.
+    Tout ou rien : à la moindre erreur, aucune ligne n'est modifiée."""
+    result = AssignmentResult(table)
+    if table not in CATALOGUE:
+        result.errors.append(f"table inconnue : {table}")
+        return list(rows), result
+    spec = CATALOGUE[table]
+    editable = set(business_columns(table))
+    out = [dict(row) for row in rows]
+    index: Dict[str, int] = {}
+    for position, row in enumerate(out):
+        key = _norm(row.get(spec.code))
+        if key is None:
+            continue
+        if key in index:
+            result.errors.append(f"clé en double dans la table : {key}")
+        index[key] = position
+    if not isinstance(assignments, Mapping):
+        result.errors.append("les affectations doivent être un objet {code TalentSoft: {colonne: valeur}}")
+        return list(rows), result
+    for code, values in assignments.items():
+        key = _norm(code)
+        if key not in index:
+            result.errors.append(f"code TalentSoft absent de la table : {code}")
+            continue
+        if not isinstance(values, Mapping) or not values:
+            result.errors.append(f"aucune colonne pour {code}")
+            continue
+        for column, value in values.items():
+            if column not in editable:
+                result.errors.append(f"colonne non modifiable pour {table} : {column}")
+            elif value is not None and (isinstance(value, bool) or not isinstance(value, (str, int))):
+                result.errors.append(f"valeur non textuelle pour {code}.{column}")
+    if result.errors:
+        return list(rows), result
+    for code, values in assignments.items():
+        row = out[index[_norm(code)]]
+        changed = False
+        for column, value in values.items():
+            new = None if value is None or str(value) == "" else str(value)
+            if row.get(column) != new:
+                result.changes.append((_norm(code), column, row.get(column), new))
+                row[column] = new
+                changed = True
+        if changed:
+            row.update(technical)
+    return out, result
+
+
+def missing_adp(table: str, rows: Sequence[Mapping[str, Any]], usage: Mapping[str, int]) -> List[dict]:
+    """Codes TalentSoft sans aucun code ADP utile, les plus employés d'abord (usage = salariés du dernier run)."""
+    spec = CATALOGUE[table]
+    useful = adp_columns(table)
+    label_columns = [c for c, attribute in spec.columns if attribute in ("label", "label_fr", "full")]
+    out = []
+    for row in rows:
+        key = _norm(row.get(spec.code))
+        if key and not any(_filled(row.get(c)) for c in useful):
+            label = next((row.get(c) for c in label_columns if _filled(row.get(c))), None)
+            out.append({"code": key, "label": label, "employees": int(usage.get(key, 0))})
+    return sorted(out, key=lambda item: (-item["employees"], item["code"]))
+
+
+# ---------------------------------------------------------------------------
+# Stockage Delta (Spark)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class TableState:
+    exists: bool
+    schema_ok: bool = True
+    schema_detail: str = ""
+    rows: Tuple[dict, ...] = ()
+
+
+class SparkReferenceStore:
+    """Tables cfg.lu_hr_* du Lakehouse (noms à 4 parties résolus par `tables`)."""
+
+    def __init__(self, spark, tables):
+        self.spark, self.tables = spark, tables
+
+    def read(self, table: str) -> TableState:
+        logical = f"cfg.{table}"
+        physical = self.tables(logical)
+        if not self.spark.catalog.tableExists(physical):
+            return TableState(exists=False, schema_detail="ABSENTE")
+        detail = IO.check_table_schema(self.spark, physical, logical)
+        if detail != "CONFORME":
+            return TableState(exists=True, schema_ok=False, schema_detail=detail)
+        columns = LOOKUP_TABLES[table] + LOOKUP_TECH_COLUMNS
+        rows = tuple(r.asDict() for r in self.spark.table(physical).select(*[f"`{c}`" for c in columns]).collect())
+        return TableState(exists=True, schema_detail=detail, rows=rows)
+
+    def write(self, table: str, rows: Sequence[Mapping[str, Any]]) -> None:
+        """Remplacement complet (nouvelle version Delta ; la précédente reste lisible par voyage dans le temps)."""
+        logical = f"cfg.{table}"
+        physical = self.tables(logical)
+        if not self.spark.catalog.tableExists(physical):
+            self.spark.sql(create_table_sql(physical, logical))
+        frame = IO.conform(IO.rows_df(self.spark, [dict(r) for r in rows], logical), logical)
+        frame.write.format("delta").mode("overwrite").saveAsTable(physical)
+
+    def observed(self, run_id: str, keys: Sequence[str]) -> List[str]:
+        """Codes distincts de l'extraction du run pour ces clés JSON (stg.ts_employee_raw)."""
+        if not keys:
+            return []
+        from pyspark.sql import functions as F
+        raw = self.spark.table(self.tables("stg.ts_employee_raw")).where(F.col("run_id") == F.lit(IO.check_run_id(run_id)))
+        values = None
+        for key in keys:
+            part = raw.select(F.rtrim(F.col(f"`{key}`")).alias("code"))   # comme la jointure : espaces de fin
+            values = part if values is None else values.unionByName(part)
+        return sorted(r.code for r in values.where("code IS NOT NULL AND code <> ''").distinct().collect())
+
+    def latest_run(self) -> Optional[str]:
+        """Run de la dernière extraction présente dans stg.ts_employee_raw."""
+        rows = (self.spark.table(self.tables("stg.ts_employee_raw")).groupBy("run_id")
+                .agg({"_extracted_at_utc": "max"}).orderBy("max(_extracted_at_utc)", ascending=False).limit(1).collect())
+        return rows[0].run_id if rows else None
+
+    def usage(self, run_id: str, table: str) -> Dict[str, int]:
+        """Nombre d'occurrences par code TalentSoft dans l'extraction du run (clés JSON relevées pour cette table ;
+        pour la table des pays, un salarié compte une fois par pays de naissance, d'adresse et fiscal)."""
+        from pyspark.sql import functions as F
+        keys = CATALOGUE[table].observed_keys
+        if not keys:
+            return {}
+        raw = self.spark.table(self.tables("stg.ts_employee_raw")).where(F.col("run_id") == F.lit(IO.check_run_id(run_id)))
+        counts: Counter = Counter()
+        for key in keys:
+            for r in raw.groupBy(F.rtrim(F.col(f"`{key}`")).alias("code")).count().collect():
+                if r.code:
+                    counts[r.code] += int(r["count"])
+        return dict(counts)
+
+
+# ---------------------------------------------------------------------------
+# Synchronisation de la partie TalentSoft (à chaque run, dans l'acquisition)
+# ---------------------------------------------------------------------------
+def synchronize_catalogue(fetch: Callable[[str], List[dict]], store, observed: Callable[[Sequence[str]], List[str]], *,
+                          loaded_by: str, now: Optional[dt.datetime] = None, write: bool = True,
+                          today: Optional[dt.date] = None) -> dict:
+    """Lit les référentiels et les codes relevés, fusionne la partie TalentSoft table par table, écrit ce qui change.
+    Un référentiel illisible ou une table non conforme est sauté sans bloquer les autres (contenu conservé)."""
+    now = now or utc_now()
+    technical = {"_loaded_at_utc": now, "_loaded_by": loaded_by or None}
+    cache: Dict[str, Any] = {}
+    results: List[TableSync] = []
+    for table, spec in CATALOGUE.items():
+        state = store.read(table)
+        if state.exists and not state.schema_ok:
+            results.append(TableSync(table, spec.library, "SKIPPED_SCHEMA", state.schema_detail[:300]))
+            continue
+        nodes: Mapping[str, Any] = {}
+        if spec.library:
+            if spec.library not in cache:
+                try:
+                    cache[spec.library] = library_nodes(fetch(spec.library), today)
+                except Exception as exc:          # le référentiel manque : la table garde son contenu
+                    cache[spec.library] = exc
+            if isinstance(cache[spec.library], Exception):
+                results.append(TableSync(table, spec.library, "SKIPPED_LIBRARY_UNAVAILABLE",
+                                         type(cache[spec.library]).__name__ + ": "
+                                         + str(getattr(cache[spec.library], "safe_message", ""))[:200]))
+                continue
+            nodes = cache[spec.library]
+        change_ref = "talentsoft-api:" + (spec.library or "extraction:" + "+".join(spec.observed_keys))
+        rows, sync = merge_catalogue(spec, list(state.rows), nodes, observed(spec.observed_keys),
+                                     dict(technical, _change_ref=change_ref))
+        if write and sync.status == "OK" and (sync.inserted or sync.updated or not state.exists):
+            store.write(table, rows)
+            sync.written = True
+        results.append(sync)
+    used = [r for r in results if r.table in USED_LOOKUP_TABLES]
+    return {"status": "OK" if all(r.status == "OK" for r in results) else "PARTIAL",
+            "writes_enabled": write,
+            "tables_written": [r.table for r in results if r.written],
+            "tables_skipped": {r.table: r.status for r in results if r.status != "OK"},
+            "inserted": sum(r.inserted for r in results), "updated": sum(r.updated for r in results),
+            "used_codes_without_adp": sum(r.without_adp for r in used),
+            "used_tables_without_any_adp": [r.table for r in used if r.status == "OK" and r.rows_after
+                                            and r.without_adp == r.rows_after],
+            "tables": [asdict(r) for r in results]}
+
+
+CATALOGUE_CONTROLS = ["REFERENCE_CATALOGUE", "REFERENCE_ADP_MISSING"]
+
+
+def catalogue_anomalies(report: Optional[dict], error: str = "") -> List[dict]:
+    """Contrôles pour log.anomaly, jamais BLOCKING : le blocage reste décidé par les contrôles de TRANSFORM sur l'état
+    réel des tables (table vide ou sans aucun code ADP)."""
+    def row(code, severity, metric, failed, message):
+        return {"control_code": code, "severity": severity, "metric_value": metric, "threshold_value": None,
+                "outcome": "FAIL" if failed else "PASS", "message": message}
+    if report is None:
+        return [row("REFERENCE_CATALOGUE", SEVERITY_WARNING, 1, True, "référentiels TalentSoft non synchronisés : " + error)]
+    skipped = report["tables_skipped"]
+    missing = report["used_codes_without_adp"]
+    return [row("REFERENCE_CATALOGUE", SEVERITY_WARNING, len(skipped), bool(skipped),
+                "tables non synchronisées : " + (", ".join(f"{t} ({s})" for t, s in skipped.items()) or "aucune")),
+            row("REFERENCE_ADP_MISSING", SEVERITY_INFO, missing, missing > 0,
+                f"{missing} code(s) TalentSoft sans code ADP dans les 13 tables utilisées (NB_HRIS_REFERENCE_ADMIN)")]
+
+
+def step_message(report: dict, limit: int = 7800) -> str:
+    """Message de ctl.run_step : comptes par table, sans valeur."""
+    import json
+    compact = {k: report[k] for k in ("status", "writes_enabled", "tables_written", "tables_skipped", "inserted",
+                                       "updated", "used_codes_without_adp", "used_tables_without_any_adp")}
+    compact["tables"] = {t["table"]: [t["status"], t["inserted"], t["updated"], t["rows_after"], t["without_adp"]]
+                         for t in report["tables"]}
+    return json.dumps(compact, ensure_ascii=False)[:limit]
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.remuneration =============
+register_hris_module('hris.remuneration', '163d1b3e4bffe13b138b6f8f506c7a74dd3aefc9a34e1de822d59655f1622785', r'''"""hris.remuneration — flux 2 de l'existant (pipeline Synapse Pipeline_SIRH-SFTP), en tables, sans aucun fichier.
+
+Existant : trois exports CSV du Core HR lus sur le SFTP TalentSoft (/ExportCarriere/Data/COMPENSATION_HUB_ADMIN_
+ANNUALBASESALARY, _BONUSPERCENT, _BONUSTARGETVALUE), archivés en Parquet ; vues SFTP.vw_BaseSalary_Changes et
+SFTP.vw_Bonus_Changes entre l'archive du jour (J) et la précédente (J-1) ; deux fichiers CSV déposés sur le SFTP
+(/ImportCarriere/Data/RemunSalaryHistoIE_InsertAndUpdate_fr-FR_1_<ddMMyyyy>.csv et RemunTargetBonusHistoIE_…_2_…)
+que TalentSoft importe (35 et 36 imports réussis relevés le 13/10/2026 par l'API d'imports).
+
+Cible (A08 D-FIL-00 : aucun fichier) :
+  * lecture par l'API d'exports du Core HR, jeu « Compensation » (section, dates, montant, catégorie, devise,
+    périodicité, indexation), contenu lu en mémoire ;
+  * instantané au format des exports de l'existant en table (stg.ts_remuneration_snapshot) ; J-1 = référence du
+    dernier envoi accepté (ref.ts_remuneration_snapshot) et non « l'avant-dernière archive », ce qui supprime deux
+    défauts de l'existant (réémission le même jour, changements perdus après un échec) ;
+  * changements calculés par les règles des deux vues reproduites à l'identique, particularités comprises
+    (A04 R-SFTP-010 à 027) : comparaison décimale pour le salaire, comparaison de CHAÎNES pour les bonus, clé
+    employeenumber seule (lignes multipliées en cas de doublon), devise reprise du salaire de base du jour, date de
+    clôture « veille du nouveau début » au format dd/MM/yyyy 00:00:00, date de clôture NULL sur disparition ;
+  * lignes à importer en table (pub.ts_remuneration_change), envoi par l'API d'imports (types RemunSalaryHistoIE et
+    RemunTargetBonusHistoIE, mêmes colonnes et même mise en forme que les fichiers de l'existant). Le contenu exigé par
+    l'API d'import est construit en mémoire : aucun fichier n'est écrit, ni dans le Lakehouse ni sur un disque.
+
+Correspondance export -> colonnes de l'existant : table cfg.ts_remuneration_mapping (graines = hypothèses à valider
+par le mode VALIDATE du notebook, qui compare la STRUCTURE du contenu produit à celle du dernier import de l'existant).
+Envoi : seulement depuis un workspace dont le nom contient « PRD » (même règle que la publication ADP) ET si la
+variable ts_remuneration_import_enabled vaut true. Aucune valeur (matricule, montant) n'est journalisée.
+"""
+from __future__ import annotations
+
+import csv
+import datetime as dt
+import io
+import json
+import re
+import time
+import unicodedata
+import zipfile
+from collections import Counter, defaultdict
+from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal, localcontext
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+
+from hris import spark_io as IO
+from hris.adp_gate import DENIED_NON_PRD, ENV_SATISFIED, evaluate_gate
+from hris.common import HrisError, safe_error, sha256_hex, utc_now
+from hris.model import REMUNERATION_SNAPSHOT_COLUMNS
+
+BASE_SALARY, BONUS_PERCENT, BONUS_TARGET_VALUE = "BASE_SALARY", "BONUS_PERCENT", "BONUS_TARGET_VALUE"
+SECTIONS = (BASE_SALARY, BONUS_PERCENT, BONUS_TARGET_VALUE)
+IMPORT_SALARY, IMPORT_BONUS = "RemunSalaryHistoIE", "RemunTargetBonusHistoIE"     # codes des types d'import TalentSoft
+IMPORT_TYPES = (IMPORT_SALARY, IMPORT_BONUS)
+IMPORT_SECTIONS = {IMPORT_SALARY: (BASE_SALARY,), IMPORT_BONUS: (BONUS_PERCENT, BONUS_TARGET_VALUE)}
+IMPORT_FILE_ORDER = {IMPORT_SALARY: 1, IMPORT_BONUS: 2}                           # « _1_ » / « _2_ » de l'existant
+IMPORT_CULTURE = "fr-FR"
+SALARY_COLUMNS = ["employeenumber", "date", "type", "amount", "currency", "periodicity", "extra_augm_n-1"]
+BONUS_COLUMNS = ["employeenumber", "type", "start_date", "end_date", "calculation_method", "value", "currency",
+                 "base_salary_effective_date", "periodicity"]
+IMPORT_COLUMNS = {IMPORT_SALARY: SALARY_COLUMNS, IMPORT_BONUS: BONUS_COLUMNS}
+SNAPSHOT_COLUMNS = {BASE_SALARY: ["employeenumber", "date", "type", "amount", "currency", "periodicity"],
+                    BONUS_PERCENT: BONUS_COLUMNS, BONUS_TARGET_VALUE: BONUS_COLUMNS}
+CODE_COLUMNS = ("type", "currency", "periodicity", "calculation_method")         # comparées en valeurs par VALIDATE
+EXPORT_COLUMNS = ["Section", "StartDate", "EndDate", "Amount", "Category", "ContractNumber", "Currency", "IndexedOn",
+                  "IsEligibleFor", "Periodicity"]
+EXPORT_DONE, EXPORT_FAILED = "Successful", ("Failed", "Canceled")
+EXPORT_STATUS_NAMES = {0: "Pending", 1: "Running", 2: "Canceled", 3: "Successful", 4: "Failed"}
+IMPORT_TERMINAL_OK, IMPORT_TERMINAL_KO = ("Success",), ("Failed", "Error", "Canceled", "Cancelled")
+
+# Statuts d'envoi par type d'import (log.ts_remuneration_import)
+SENT, EMPTY, NOT_PUSHED_NON_PRD, BLOCKED_UNRESOLVED, DISABLED, FAILED, INIT_REFERENCE = (
+    "SENT", "EMPTY", "NOT_PUSHED_NON_PRD", "BLOCKED_UNRESOLVED", "DISABLED", "FAILED", "INIT_REFERENCE")
+ADVANCING = (SENT, EMPTY, NOT_PUSHED_NON_PRD, INIT_REFERENCE)   # la référence avance : changements remis ou sans objet
+
+
+# ---------------------------------------------------------------------------
+# Correspondance export -> format des exports de l'existant (cfg.ts_remuneration_mapping)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class MappingRule:
+    section_code: str               # code de section du jeu Compensation (ex. ANNUAL_BASE_SALARY)
+    legacy_section: str             # BASE_SALARY | BONUS_PERCENT | BONUS_TARGET_VALUE
+    type_value: str = ""            # colonne « type » ; vide = code de section
+    calculation_method: str = ""    # colonne « calculation_method » (bonus)
+    effective_date_rule: str = ""   # base_salary_effective_date : BASE_SALARY_DATE | START_DATE | INDEXED_ON
+    date_format: str = "%d/%m/%Y"   # format des dates (strftime) ; l'existant lisait les dates en style 103
+    currency_case: str = "upper"    # upper | raw
+
+
+DEFAULT_MAPPING = [   # hypothèses à confirmer par le mode VALIDATE avant d'activer l'envoi (H-REM-01 à 04)
+    MappingRule("ANNUAL_BASE_SALARY", BASE_SALARY),
+    MappingRule("CONTRACTUAL_BONUS_PERCENTAGE", BONUS_PERCENT, calculation_method="PERCENTAGE",
+                effective_date_rule="BASE_SALARY_DATE"),
+    MappingRule("CONTRACTUAL BONUS", BONUS_TARGET_VALUE, calculation_method="AMOUNT",
+                effective_date_rule="BASE_SALARY_DATE"),
+]
+
+
+def section_key(value: Any) -> str:
+    """« {{ANNUAL_BASE_SALARY}} », « Annual_Base_Salary » -> « ANNUAL_BASE_SALARY » (accolades et casse ignorées)."""
+    return re.sub(r"\s+", " ", str(value or "").replace("{", "").replace("}", "")).strip().upper()
+
+
+def mapping_rows(rules: Iterable[MappingRule]) -> List[dict]:
+    return [dict(rule.__dict__) for rule in rules]
+
+
+def rules_from_rows(rows: Iterable[Mapping[str, Any]]) -> List[MappingRule]:
+    out = []
+    for row in rows:
+        values = {k: (row.get(k) if row.get(k) is not None else MappingRule.__dataclass_fields__[k].default)
+                  for k in MappingRule.__dataclass_fields__}
+        if values["legacy_section"] not in SECTIONS:
+            raise HrisError("REMUNERATION_MAPPING_INVALID", "legacy_section inconnue : " + str(values["legacy_section"]))
+        out.append(MappingRule(**values))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Lecture du contenu d'export (en mémoire : JSON, CSV, XLSX ou ZIP)
+# ---------------------------------------------------------------------------
+def _norm_header(name: Any) -> str:
+    text = unicodedata.normalize("NFD", str(name or ""))
+    return re.sub(r"[^a-z0-9]", "", "".join(c for c in text if unicodedata.category(c) != "Mn").lower())
+
+
+HEADER_ALIASES = {
+    "employeenumber": ("employeenumber", "employeeid", "matricule", "employee", "employeenumberhub"),
+    "section": ("section",), "startdate": ("startdate", "datededebut"), "enddate": ("enddate", "datedefin"),
+    "amount": ("amount", "montant"), "category": ("category", "categorie"),
+    "contractnumber": ("contractnumber", "linkedcontract"), "currency": ("currency", "devise"),
+    "indexedon": ("indexedon", "indexedwith"), "iseligiblefor": ("iseligiblefor",),
+    "periodicity": ("periodicity", "frequency", "frequence"),
+}
+
+
+def parse_export(content: bytes, content_type: str = "") -> List[dict]:
+    """Lignes de l'export, clés normalisées (HEADER_ALIASES). Lève TS_EXPORT_FORMAT si le format est inconnu ou si
+    la colonne du matricule est introuvable (message : noms de colonnes seulement)."""
+    if content[:2] == b"PK":
+        archive = zipfile.ZipFile(io.BytesIO(content))
+        names = archive.namelist()
+        if any(n.startswith("xl/") for n in names):
+            return _normalize(_xlsx_rows(content))
+        inner = next((n for n in names if n.lower().endswith((".json", ".csv", ".txt"))), None)
+        if inner is None:
+            raise HrisError("TS_EXPORT_FORMAT", "archive sans contenu exploitable")
+        return parse_export(archive.read(inner), "")
+    text = content.decode("utf-8-sig", errors="strict") if _is_utf8(content) else content.decode("cp1252")
+    stripped = text.lstrip()
+    if stripped.startswith("[") or stripped.startswith("{"):
+        data = json.loads(stripped)
+        if isinstance(data, dict):
+            data = next((v for v in data.values() if isinstance(v, list)), [])
+        return _normalize([dict(r) for r in data if isinstance(r, dict)])
+    first = stripped.splitlines()[0] if stripped else ""
+    delimiter = max((";", ",", "\t"), key=first.count)
+    reader = csv.DictReader(io.StringIO(stripped, newline=""), delimiter=delimiter)
+    return _normalize([dict(r) for r in reader])
+
+
+def _is_utf8(content: bytes) -> bool:
+    try:
+        content.decode("utf-8")
+        return True
+    except UnicodeDecodeError:
+        return False
+
+
+def _xlsx_rows(content: bytes) -> List[dict]:
+    from openpyxl import load_workbook
+    sheet = load_workbook(io.BytesIO(content), read_only=True, data_only=True).worksheets[0]
+    rows = list(sheet.iter_rows(values_only=True))
+    if not rows:
+        return []
+    header = [str(h) if h is not None else "" for h in rows[0]]
+    return [dict(zip(header, r)) for r in rows[1:]]
+
+
+def _normalize(rows: List[dict]) -> List[dict]:
+    if not rows:
+        return []
+    lookup = {_norm_header(k): k for k in rows[0]}
+    mapping = {}
+    for target, aliases in HEADER_ALIASES.items():
+        source = next((lookup[a] for a in aliases if a in lookup), None)
+        if source is not None:
+            mapping[target] = source
+    if "employeenumber" not in mapping or "section" not in mapping:
+        raise HrisError("TS_EXPORT_FORMAT", "colonnes matricule/section introuvables ; colonnes reçues : "
+                        + ", ".join(sorted(lookup)))
+    return [{target: row.get(source) for target, source in mapping.items()} for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# Instantané au format des exports de l'existant
+# ---------------------------------------------------------------------------
+def _clean(value: Any) -> Optional[str]:
+    """Valeur texte ; vide -> NULL (lecture CSV -> Parquet de l'existant)."""
+    if value is None:
+        return None
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    text = str(value).strip()
+    return text or None
+
+
+def parse_any_date(value: Any) -> Optional[dt.date]:
+    if value is None or value == "":
+        return None
+    if isinstance(value, dt.datetime):
+        return value.date()
+    if isinstance(value, dt.date):
+        return value
+    text = str(value).strip()
+    match = re.match(r"^(\d{4})-(\d{2})-(\d{2})", text)
+    if match:
+        return dt.date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+    match = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})(\s.*)?$", text)
+    if match:
+        return dt.date(int(match.group(3)), int(match.group(2)), int(match.group(1)))
+    raise HrisError("CONVERSION_DATE", "date d'export illisible")
+
+
+def _amount_text(value: Any) -> Optional[str]:
+    text = _clean(value)
+    if text is not None and re.fullmatch(r"[+-]?\d+,\d+", text):
+        text = text.replace(",", ".")            # format des exports de l'existant : point décimal
+    return text
+
+
+def build_snapshot(export_rows: Iterable[Mapping[str, Any]], rules: Sequence[MappingRule]) -> Tuple[Dict[str, List[dict]], dict]:
+    """Lignes de l'export -> trois listes au format des exports de l'existant. Sections non mappées ignorées (comptées)."""
+    by_section = {section_key(rule.section_code): rule for rule in rules}
+    snapshot: Dict[str, List[dict]] = {section: [] for section in SECTIONS}
+    stats: Counter = Counter()
+    pending_bonus: List[Tuple[MappingRule, Mapping[str, Any]]] = []
+    for row in export_rows:
+        rule = by_section.get(section_key(row.get("section")))
+        if rule is None:
+            stats["export_rows_ignored"] += 1
+            continue
+        stats["export_rows_mapped"] += 1
+        if rule.legacy_section == BASE_SALARY:
+            snapshot[BASE_SALARY].append(_base_row(rule, row))
+        else:
+            pending_bonus.append((rule, row))
+    base_dates = defaultdict(list)
+    for base in snapshot[BASE_SALARY]:
+        if base["employeenumber"] and base["date"]:
+            base_dates[base["employeenumber"]].append(base["_date"])
+    for rule, row in pending_bonus:
+        snapshot[rule.legacy_section].append(_bonus_row(rule, row, base_dates))
+    for section in SECTIONS:
+        for line in snapshot[section]:
+            line.pop("_date", None)
+        stats[section.lower() + "_rows"] = len(snapshot[section])
+    return snapshot, dict(stats)
+
+
+def _fmt_date(value: Optional[dt.date], rule: MappingRule) -> Optional[str]:
+    return value.strftime(rule.date_format) if value else None
+
+
+def _currency(value: Any, rule: MappingRule) -> Optional[str]:
+    text = _clean(value)
+    return text.upper() if text and rule.currency_case == "upper" else text
+
+
+def _type(rule: MappingRule, row: Mapping[str, Any]) -> str:
+    return rule.type_value or section_key(row.get("section"))
+
+
+def _base_row(rule: MappingRule, row: Mapping[str, Any]) -> dict:
+    start = parse_any_date(row.get("startdate"))
+    return {"employeenumber": _clean(row.get("employeenumber")), "date": _fmt_date(start, rule),
+            "type": _type(rule, row), "amount": _amount_text(row.get("amount")),
+            "currency": _currency(row.get("currency"), rule), "periodicity": _clean(row.get("periodicity")),
+            "src_section_code": section_key(row.get("section")), "src_category": _clean(row.get("category")),
+            "src_indexed_on": _clean(row.get("indexedon")), "_date": start}
+
+
+def _bonus_row(rule: MappingRule, row: Mapping[str, Any], base_dates: Mapping[str, List[dt.date]]) -> dict:
+    start = parse_any_date(row.get("startdate"))
+    number = _clean(row.get("employeenumber"))
+    effective = None
+    if rule.effective_date_rule == "BASE_SALARY_DATE":
+        dates = sorted(d for d in base_dates.get(number, []) if d and (start is None or d <= start))
+        effective = _fmt_date(dates[-1], rule) if dates else _fmt_date(start, rule)
+    elif rule.effective_date_rule == "INDEXED_ON":
+        indexed = row.get("indexedon")
+        try:
+            effective = _fmt_date(parse_any_date(indexed), rule)
+        except HrisError:
+            effective = _clean(indexed)
+    elif rule.effective_date_rule == "START_DATE":
+        effective = _fmt_date(start, rule)
+    return {"employeenumber": number, "type": _type(rule, row), "start_date": _fmt_date(start, rule),
+            "end_date": _fmt_date(parse_any_date(row.get("enddate")), rule),
+            "calculation_method": rule.calculation_method or None, "value": _amount_text(row.get("amount")),
+            "currency": _currency(row.get("currency"), rule), "base_salary_effective_date": effective,
+            "periodicity": _clean(row.get("periodicity")), "src_section_code": section_key(row.get("section")),
+            "src_category": _clean(row.get("category")), "src_indexed_on": _clean(row.get("indexedon"))}
+
+
+# ---------------------------------------------------------------------------
+# Règles des vues SFTP.vw_BaseSalary_Changes et SFTP.vw_Bonus_Changes (sémantique T-SQL reproduite)
+# ---------------------------------------------------------------------------
+_DECIMAL_TEXT = re.compile(r"^\s*[+-]?(\d+\.?\d*|\.\d+)\s*$")
+_CENT = Decimal("0.01")
+
+
+def to_decimal(value: Optional[str]) -> Optional[Decimal]:
+    """CAST(x AS DECIMAL(20,2)) : NULL -> NULL ; nombre -> arrondi au centime (à l'écart de zéro) ; autre texte ->
+    échec, comme la vue SQL qui faisait échouer le flux (le message ne contient aucune valeur)."""
+    if value is None:
+        return None
+    if not _DECIMAL_TEXT.match(str(value)):
+        raise HrisError("CONVERSION_NUMERIC", "montant non numérique dans l'instantané de rémunération")
+    result = Decimal(str(value).strip()).quantize(_CENT, rounding=ROUND_HALF_UP)
+    return result if result != 0 else Decimal("0.00")
+
+
+def fmt_decimal(value: Optional[Decimal]) -> Optional[str]:
+    """REPLACE(CAST(d AS VARCHAR(50)), '.', ',')."""
+    return None if value is None else format(value, "f").replace(".", ",")
+
+
+def _key(value: Optional[str]) -> Optional[str]:
+    """Égalité T-SQL : NULL ne correspond à rien ; espaces de fin ignorés."""
+    return None if value is None else value.rstrip(" ")
+
+
+def _neq(a: Optional[str], b: Optional[str]) -> bool:
+    """a != b en T-SQL : inconnu (donc faux) si l'un est NULL."""
+    return a is not None and b is not None and a.rstrip(" ") != b.rstrip(" ")
+
+
+def increase_pct(current: Optional[Decimal], previous: Optional[Decimal]) -> Optional[str]:
+    """[extra_augm_n-1] : 0 si égaux ; sinon ROUND(((J - J1) / NULLIF(J1, 0)) * 100, 2) ; NULL si J ou J1 absent."""
+    if current is None or previous is None:
+        return None
+    if current == previous:
+        return "0,00"
+    if previous == 0:
+        return None
+    with localcontext() as ctx:
+        ctx.prec = 60
+        quotient = ((current - previous) / previous).quantize(Decimal("1e-17"), rounding=ROUND_HALF_UP)
+        result = (quotient * 100).quantize(_CENT, rounding=ROUND_HALF_UP)
+    return fmt_decimal(result if result != 0 else Decimal("0.00"))
+
+
+def _index(rows: Iterable[Mapping[str, Any]]) -> Dict[str, List[Mapping[str, Any]]]:
+    out: Dict[str, List[Mapping[str, Any]]] = defaultdict(list)
+    for row in rows:
+        key = _key(row.get("employeenumber"))
+        if key is not None:
+            out[key].append(row)
+    return out
+
+
+def base_salary_changes(current: Sequence[Mapping[str, Any]], previous: Sequence[Mapping[str, Any]]) -> List[dict]:
+    """R-SFTP-010 à 014 : J LEFT JOIN J1 sur employeenumber ; montant changé (non NULL) ou date changée."""
+    previous_by = _index(previous)
+    out = []
+    for j in current:
+        key = _key(j.get("employeenumber"))
+        amount = to_decimal(j.get("amount"))
+        for j1 in (previous_by.get(key) if key is not None else None) or [None]:
+            amount1 = to_decimal(j1.get("amount")) if j1 is not None else None
+            amount_changed = (amount if amount is not None else 0) != (amount1 if amount1 is not None else 0) \
+                and j.get("amount") is not None
+            date_changed = j1 is not None and _neq(j.get("date"), j1.get("date"))
+            if amount_changed or date_changed:
+                out.append({"employeenumber": j.get("employeenumber"), "date": j.get("date"), "type": j.get("type"),
+                            "amount": fmt_decimal(amount), "currency": j.get("currency"),
+                            "periodicity": j.get("periodicity"), "extra_augm_n-1": increase_pct(amount, amount1),
+                            "rule": "R-SFTP-010"})
+    return out
+
+
+def closing_end_date(start_date: Optional[str]) -> Optional[str]:
+    """CONVERT(varchar(19), DATEADD(day, -1, CONVERT(date, start, 103)), 103) + ' 00:00:00' ; NULL si start NULL."""
+    if start_date is None:
+        return None
+    return (parse_any_date(start_date) - dt.timedelta(days=1)).strftime("%d/%m/%Y") + " 00:00:00"
+
+
+def _bonus_out(row: Mapping[str, Any], end_date: Optional[str], currency: Optional[str], rule: str) -> dict:
+    return {"employeenumber": row.get("employeenumber"), "type": row.get("type"), "start_date": row.get("start_date"),
+            "end_date": end_date, "calculation_method": row.get("calculation_method"),
+            "value": fmt_decimal(to_decimal(row.get("value"))), "currency": currency,
+            "base_salary_effective_date": row.get("base_salary_effective_date"), "periodicity": row.get("periodicity"),
+            "rule": rule}
+
+
+def bonus_changes(percent_j: Sequence[Mapping[str, Any]], percent_j1: Sequence[Mapping[str, Any]],
+                  target_j: Sequence[Mapping[str, Any]], target_j1: Sequence[Mapping[str, Any]],
+                  base_j: Sequence[Mapping[str, Any]]) -> List[dict]:
+    """R-SFTP-020 à 027 : UNION (dédoublonnée) des 3 blocs, pour le pourcentage puis pour le montant cible."""
+    base_by = _index(base_j)
+    produced: List[dict] = []
+    for current, previous in ((percent_j, percent_j1), (target_j, target_j1)):
+        previous_by = _index(previous)
+        for j in current:
+            key = _key(j.get("employeenumber"))
+            currencies = [b.get("currency") for b in (base_by.get(key) if key is not None else None) or []] or [None]
+            for j1 in (previous_by.get(key) if key is not None else None) or [None]:
+                value_j = j.get("value") if j.get("value") is not None else "0"          # ISNULL(value, 0) : chaînes
+                value_j1 = j1.get("value") if j1 is not None and j1.get("value") is not None else "0"
+                start_changed = j1 is not None and _neq(j.get("start_date"), j1.get("start_date"))
+                has_value = j.get("value") is not None
+                for currency in currencies:
+                    if (_neq(value_j, value_j1) and has_value) or (start_changed and has_value):
+                        produced.append(_bonus_out(j, j.get("end_date"), currency, "R-SFTP-020"))
+                    if start_changed and has_value:
+                        produced.append(_bonus_out(j1, closing_end_date(j.get("start_date")), currency, "R-SFTP-021"))
+                    if (j1 is not None and j1.get("start_date") is not None and j1.get("value") is not None
+                            and j.get("start_date") is None and j.get("value") is None):
+                        produced.append(_bonus_out(j1, None, currency, "R-SFTP-022"))   # end_date NULL (anomalie conservée)
+    seen, out = set(), []
+    for row in produced:                                                                # UNION : doublons exacts retirés
+        signature = tuple(row.get(c) for c in BONUS_COLUMNS)
+        if signature not in seen:
+            seen.add(signature)
+            out.append(row)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Contenu d'import (mémoire) : même mise en forme que la copie vue -> CSV SFTP de l'existant
+# ---------------------------------------------------------------------------
+def _quoted(value: Any) -> str:
+    if value is None:
+        return ""
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def import_content(import_type: str, rows: Sequence[Mapping[str, Any]]) -> bytes:
+    """Séparateur « ; », en-tête, toutes les valeurs entre guillemets, échappement par barre oblique inverse, UTF-8."""
+    columns = IMPORT_COLUMNS[import_type]
+    lines = [";".join(_quoted(c) for c in columns)] + [";".join(_quoted(r.get(c)) for c in columns) for r in rows]
+    return ("\r\n".join(lines) + "\r\n").encode("utf-8")
+
+
+def import_file_name(import_type: str, day: dt.date) -> str:
+    return f"{import_type}_InsertAndUpdate_{IMPORT_CULTURE}_{IMPORT_FILE_ORDER[import_type]}_{day.strftime('%d%m%Y')}.csv"
+
+
+# ---------------------------------------------------------------------------
+# API TalentSoft (exports et imports), avec le jeton et la session du client d'acquisition
+# ---------------------------------------------------------------------------
+class TalentSoftApi:
+    """Appels des API d'exports et d'imports : même hôte, même jeton (renouvelé selon l'âge) et même session que le
+    client d'acquisition (hris.ts_acquire.TsClient). Aucune redirection suivie ; délais explicites."""
+
+    def __init__(self, client, timeout: Tuple[float, float] = (30.0, 300.0)):
+        self.client, self.timeout = client, timeout
+
+    def _headers(self, accept: str = "application/json") -> dict:
+        headers = dict(self.client._auth_headers())
+        headers["Accept"] = accept
+        return headers
+
+    def _call(self, method: str, path: str, accept: str = "application/json", **kwargs):
+        resp = self.client._session.request(method, self.client.base_url + path, headers=self._headers(accept),
+                                            timeout=self.timeout, allow_redirects=False, **kwargs)
+        if resp.status_code == 401:                       # jeton expiré : renouvelé, appel idempotent rejoué une fois
+            self.client.get_token()
+            resp = self.client._session.request(method, self.client.base_url + path, headers=self._headers(accept),
+                                                timeout=self.timeout, allow_redirects=False, **kwargs)
+        return resp
+
+    def create_export(self, payload: Mapping[str, Any]) -> int:
+        resp = self._call("POST", "/api/hub/v3.0/exports/datasets", json=payload)
+        if resp.status_code != 200:
+            raise HrisError("TS_EXPORT_REFUSED", f"statut {resp.status_code}")
+        data = resp.json()
+        return int(data if not isinstance(data, dict) else next(iter(data.values())))
+
+    def export_status(self, export_id: int) -> str:
+        resp = self._call("GET", f"/api/hub/v3.0/exports/{export_id}/status")
+        if resp.status_code != 200:
+            raise HrisError("TS_EXPORT_STATUS", f"statut {resp.status_code}")
+        value = resp.json()
+        return EXPORT_STATUS_NAMES.get(value, str(value)) if isinstance(value, int) else str(value)
+
+    def export_content(self, export_id: int) -> Tuple[bytes, str]:
+        resp = self._call("GET", f"/api/hub/v3.0/exports/{export_id}/file", accept="*/*")
+        if resp.status_code != 200:
+            raise HrisError("TS_EXPORT_DOWNLOAD", f"statut {resp.status_code}")
+        return resp.content, resp.headers.get("Content-Type", "")
+
+    def submit_import(self, import_type: str, file_name: str, content: bytes) -> int:
+        """Import par l'API (le contenu est transmis en mémoire, jamais écrit). Type, culture et méthode sont aussi
+        portés par le nom, comme les fichiers que l'existant déposait sur le SFTP."""
+        resp = self._call("POST", "/api/administration/v1.0/imports",
+                          files={"file": (file_name, content, "text/csv")},
+                          data={"importTypeCode": import_type, "culture": IMPORT_CULTURE, "importMethod": "InsertUpdate"})
+        if resp.status_code != 200:
+            raise HrisError("TS_IMPORT_REFUSED", f"statut {resp.status_code}")
+        data = resp.json()
+        value = data.get("ImportId", data.get("importId")) if isinstance(data, dict) else data
+        return int(value)
+
+    def import_status(self, import_id: int) -> str:
+        resp = self._call("GET", f"/api/administration/v1.0/imports/{import_id}")
+        if resp.status_code != 200:
+            raise HrisError("TS_IMPORT_STATUS", f"statut {resp.status_code}")
+        data = resp.json()
+        return str(data.get("StatusCode", data.get("statusCode")))
+
+    def latest_imports(self) -> Dict[str, dict]:
+        """Dernier import réussi de chaque type de l'existant (identifiant, date, nom), pour le mode VALIDATE."""
+        resp = self._call("GET", "/api/administration/v1.0/imports")
+        if resp.status_code != 200:
+            raise HrisError("TS_IMPORT_LIST", f"statut {resp.status_code}")
+        latest: Dict[str, dict] = {}
+        for row in resp.json() or []:
+            low = {str(k).lower(): v for k, v in row.items()}
+            code, name = low.get("importtypecode"), str(low.get("importfilename") or "")
+            if code in IMPORT_TYPES and name.startswith(code) and low.get("statuscode") in IMPORT_TERMINAL_OK:
+                when = str(low.get("importcreationdatetime") or "")
+                if code not in latest or when > latest[code]["when"]:
+                    latest[code] = {"id": low.get("importid"), "when": when}
+        return latest
+
+    def import_file(self, import_id: int) -> bytes:
+        resp = self._call("GET", f"/api/administration/v1.0/imports/{import_id}/ImportFile", accept="*/*")
+        if resp.status_code != 200:
+            raise HrisError("TS_IMPORT_FILE", f"statut {resp.status_code}")
+        return resp.content
+
+
+def export_request(only_active_employees: bool) -> dict:
+    return {"ExportType": "Compensation", "IncludeEmployeesName": False, "ExportedColumns": list(EXPORT_COLUMNS),
+            "ColumnFilters": {}, "RecordFilters": {"ExportOnlyCurrentRecords": True, "ExportOnlyModifiedLastDays": 0},
+            "EmployeeFilters": {"ExportOnlyActiveEmployees": bool(only_active_employees), "SearchOperandId": 0}}
+
+
+def extract_compensation(api, *, only_active_employees: bool = False, poll_seconds: float = 10.0,
+                         timeout_seconds: float = 1800.0, sleep: Callable[[float], None] = time.sleep,
+                         clock: Callable[[], float] = time.monotonic) -> List[dict]:
+    export_id = api.create_export(export_request(only_active_employees))
+    deadline = clock() + timeout_seconds
+    while True:
+        status = api.export_status(export_id)
+        if status == EXPORT_DONE:
+            break
+        if status in EXPORT_FAILED:
+            raise HrisError("TS_EXPORT_FAILED", status)
+        if clock() > deadline:
+            raise HrisError("TS_EXPORT_TIMEOUT", f"export {export_id} toujours {status}")
+        sleep(poll_seconds)
+    content, content_type = api.export_content(export_id)
+    return parse_export(content, content_type)
+
+
+def submit_and_follow(api, import_type: str, file_name: str, content: bytes, *, poll_seconds: float = 15.0,
+                      timeout_seconds: float = 1800.0, sleep: Callable[[float], None] = time.sleep,
+                      clock: Callable[[], float] = time.monotonic) -> Tuple[int, str]:
+    """Envoie puis suit l'import jusqu'à un statut final ou l'échéance ; renvoie (identifiant, statut TalentSoft)."""
+    import_id = api.submit_import(import_type, file_name, content)
+    deadline = clock() + timeout_seconds
+    while True:
+        status = api.import_status(import_id)
+        if status in IMPORT_TERMINAL_OK or status in IMPORT_TERMINAL_KO or clock() > deadline:
+            return import_id, status
+        sleep(poll_seconds)
+
+
+# ---------------------------------------------------------------------------
+# Comparaison de STRUCTURE avec le dernier import de l'existant (mode VALIDATE, aucune valeur personnelle)
+# ---------------------------------------------------------------------------
+def _shape(value: str) -> str:
+    return re.sub(r"[A-Za-zÀ-ÿ]", "A", re.sub(r"\d", "9", value))
+
+
+def content_structure(content: bytes) -> dict:
+    text = content.decode("utf-8-sig") if _is_utf8(content) else content.decode("cp1252")
+    first = text.splitlines()[0] if text else ""
+    delimiter = max((";", ","), key=first.count)
+    rows = list(csv.reader(io.StringIO(text, newline=""), delimiter=delimiter, quotechar='"', escapechar="\\"))
+    header, body = (rows[0], [r for r in rows[1:] if any(v.strip() for v in r)]) if rows else ([], [])
+    columns = {}
+    for index, name in enumerate(header):
+        values = [r[index] for r in body if index < len(r)]
+        if name.strip().lower() in CODE_COLUMNS:
+            columns[name] = {"codes": sorted(set(values))[:20]}
+        else:
+            columns[name] = {"shapes": sorted(set(_shape(v) for v in values))[:10]}
+    return {"delimiter": delimiter, "quoted_header": first.startswith('"'), "header": header, "rows": len(body),
+            "columns": columns}
+
+
+def compare_structures(produced: Mapping[str, Any], legacy: Mapping[str, Any]) -> List[str]:
+    """Écarts de structure entre le contenu produit et celui de l'existant (codes et formes, jamais de valeur)."""
+    gaps = []
+    for key in ("delimiter", "quoted_header", "header"):
+        if produced.get(key) != legacy.get(key):
+            gaps.append(f"{key} : produit {produced.get(key)!r} / existant {legacy.get(key)!r}")
+    for name, legacy_column in (legacy.get("columns") or {}).items():
+        mine = (produced.get("columns") or {}).get(name)
+        if mine is None:
+            continue
+        if "codes" in legacy_column:
+            missing = sorted(set(legacy_column["codes"]) - set(mine.get("codes", [])))
+            extra = sorted(set(mine.get("codes", [])) - set(legacy_column["codes"]))
+            if extra:
+                gaps.append(f"{name} : codes produits absents de l'existant {extra} (existant : {legacy_column['codes']})")
+            if missing and not mine.get("codes"):
+                gaps.append(f"{name} : aucun code produit (existant : {legacy_column['codes']})")
+        elif set(mine.get("shapes", [])) - set(legacy_column.get("shapes", [])) and legacy_column.get("shapes"):
+            gaps.append(f"{name} : formes produites {mine.get('shapes')} / existant {legacy_column.get('shapes')}")
+    return gaps
+
+
+# ---------------------------------------------------------------------------
+# Orchestration d'un run (étape REMUNERATION)
+# ---------------------------------------------------------------------------
+def run_remuneration(api, store, context_provider: Callable[[], Mapping[str, Any]], *, run_id: str,
+                     business_date: Optional[dt.date], import_enabled: bool, only_active_employees: bool = False,
+                     now: Optional[dt.datetime] = None, follow: Callable[..., Tuple[int, str]] = submit_and_follow,
+                     extract: Callable[..., List[dict]] = extract_compensation) -> dict:
+    """Lecture, instantané, changements, envoi (si autorisé), avance de la référence par type d'import.
+    Lève TS_IMPORT_FAILED après avoir tout journalisé si un envoi a échoué (comme l'échec du flux de l'existant)."""
+    now = now or utc_now()
+    rules = store.mapping()
+    snapshot, stats = build_snapshot(extract(api, only_active_employees=only_active_employees), rules)
+    store.save_snapshot(run_id, business_date, snapshot)
+    reference = store.reference()
+    first_run = not any(reference.get(section) for section in SECTIONS)
+    changes = {IMPORT_SALARY: [], IMPORT_BONUS: []}
+    if not first_run:
+        changes[IMPORT_SALARY] = base_salary_changes(snapshot[BASE_SALARY], reference.get(BASE_SALARY, []))
+        changes[IMPORT_BONUS] = bonus_changes(snapshot[BONUS_PERCENT], reference.get(BONUS_PERCENT, []),
+                                              snapshot[BONUS_TARGET_VALUE], reference.get(BONUS_TARGET_VALUE, []),
+                                              snapshot[BASE_SALARY])
+    store.save_changes(run_id, business_date, changes)
+    gate = evaluate_gate(context_provider)
+    logs, failures = [], []
+    for import_type in IMPORT_TYPES:
+        rows = changes[import_type]
+        content = import_content(import_type, rows)
+        entry = {"run_id": run_id, "import_type": import_type, "file_name": import_file_name(import_type, now.date()),
+                 "rows": len(rows), "payload_sha256": sha256_hex(content.decode("utf-8")) if rows else None,
+                 "gate_outcome": gate.outcome, "gate_reason": gate.reason_code, "ts_import_id": None,
+                 "ts_import_status": None, "message": "", "created_at_utc": now}
+        if first_run:
+            entry.update(status=INIT_REFERENCE, message="premier run : référence initialisée, rien n'est envoyé")
+        elif not rows:
+            entry.update(status=EMPTY, message="aucun changement")
+        elif gate.outcome == DENIED_NON_PRD:
+            entry.update(status=NOT_PUSHED_NON_PRD, message="workspace non PRD : calculé, non envoyé")
+        elif gate.outcome != ENV_SATISFIED:
+            entry.update(status=BLOCKED_UNRESOLVED, message="nom du workspace non résolu : non envoyé, réévalué au run suivant")
+        elif not import_enabled:
+            entry.update(status=DISABLED, message="envoi désactivé (ts_remuneration_import_enabled) : changements conservés")
+        else:
+            try:
+                import_id, ts_status = follow(api, import_type, entry["file_name"], content)
+                entry.update(ts_import_id=import_id, ts_import_status=ts_status,
+                             status=FAILED if ts_status in IMPORT_TERMINAL_KO else SENT,
+                             message="import suivi jusqu'à " + str(ts_status))
+            except Exception as exc:
+                entry.update(status=FAILED, message=safe_error(exc))
+        entry["reference_advanced"] = entry["status"] in ADVANCING
+        if entry["reference_advanced"]:
+            store.advance_reference(run_id, IMPORT_SECTIONS[import_type], snapshot)
+        if entry["status"] == FAILED:
+            failures.append(import_type)
+        logs.append(entry)
+    store.log_imports(run_id, logs)
+    summary = {"baseSalary_nb_source": len(snapshot[BASE_SALARY]), "baseSalary_nb_inserts": len(changes[IMPORT_SALARY]),
+               "bonusPercentage_nb_source": len(snapshot[BONUS_PERCENT]),
+               "bonusTargetValue_nb_source": len(snapshot[BONUS_TARGET_VALUE]),
+               "bonus_nb_inserts": len(changes[IMPORT_BONUS])}
+    result = {"run_id": run_id, "first_run": first_run, "summary": summary, "snapshot_stats": stats,
+              "gate": gate.outcome, "imports": {e["import_type"]: e["status"] for e in logs},
+              "status": "FAILED" if failures else "OK"}
+    if failures:
+        raise RemunerationFailed(result)
+    return result
+
+
+class RemunerationFailed(HrisError):
+    def __init__(self, result: dict):
+        super().__init__("TS_IMPORT_FAILED", ",".join(t for t, s in result["imports"].items() if s == FAILED))
+        self.result = result
+
+
+# ---------------------------------------------------------------------------
+# Stockage Delta (Spark)
+# ---------------------------------------------------------------------------
+SNAPSHOT_TABLE_COLUMNS = REMUNERATION_SNAPSHOT_COLUMNS
+
+
+class SparkRemunerationStore:
+    def __init__(self, spark, tables):
+        self.spark, self.tables = spark, tables
+
+    def mapping(self) -> List[MappingRule]:
+        rows = [r.asDict() for r in self.spark.table(self.tables("cfg.ts_remuneration_mapping")).collect()]
+        if not rows:
+            raise HrisError("REMUNERATION_MAPPING_EMPTY", "cfg.ts_remuneration_mapping vide : lancer NB_HRIS_SETUP")
+        return rules_from_rows(rows)
+
+    def reference(self) -> Dict[str, List[dict]]:
+        out: Dict[str, List[dict]] = {section: [] for section in SECTIONS}
+        for row in self.spark.table(self.tables("ref.ts_remuneration_snapshot")).collect():
+            data = row.asDict()
+            out.setdefault(data["section"], []).append(data)
+        return out
+
+    def _rows(self, snapshot: Mapping[str, List[dict]], sections: Iterable[str]) -> List[dict]:
+        return [dict({c: line.get(c) for c in SNAPSHOT_TABLE_COLUMNS if c != "section"}, section=section)
+                for section in sections for line in snapshot.get(section, [])]
+
+    def save_snapshot(self, run_id: str, business_date, snapshot: Mapping[str, List[dict]]) -> None:
+        rows = [dict(r, run_id=run_id, business_date=business_date) for r in self._rows(snapshot, SECTIONS)]
+        logical = "stg.ts_remuneration_snapshot"
+        IO.replace_run(self.spark, IO.rows_df(self.spark, rows, logical), self.tables(logical), logical, run_id)
+
+    def save_changes(self, run_id: str, business_date, changes: Mapping[str, List[dict]]) -> None:
+        rows = []
+        for import_type, lines in changes.items():
+            for number, line in enumerate(lines, start=1):
+                rows.append(dict({k.replace("-", "_"): v for k, v in line.items()}, run_id=run_id,
+                                 business_date=business_date, import_type=import_type, line_no=number))
+        logical = "pub.ts_remuneration_change"
+        IO.replace_run(self.spark, IO.rows_df(self.spark, rows, logical), self.tables(logical), logical, run_id)
+
+    def advance_reference(self, run_id: str, sections: Sequence[str], snapshot: Mapping[str, List[dict]]) -> None:
+        """La référence de ces sections devient l'instantané du run (remplacement ciblé, une version Delta)."""
+        logical = "ref.ts_remuneration_snapshot"
+        rows = [dict(r, _source_run_id=run_id, _validated_at_utc=utc_now()) for r in self._rows(snapshot, sections)]
+        predicate = "section IN (" + ",".join(IO.sql_str(s) for s in sections) + ")"
+        (IO.conform(IO.rows_df(self.spark, rows, logical), logical).write.format("delta").mode("overwrite")
+         .option("replaceWhere", predicate).saveAsTable(self.tables(logical)))
+
+    def log_imports(self, run_id: str, entries: List[dict]) -> None:
+        logical = "log.ts_remuneration_import"
+        IO.replace_run(self.spark, IO.rows_df(self.spark, entries, logical), self.tables(logical), logical, run_id)
+
+
+def step_message(result: Mapping[str, Any]) -> str:
+    return json.dumps({k: result.get(k) for k in ("first_run", "summary", "snapshot_stats", "gate", "imports", "status")},
+                      ensure_ascii=False, default=str)[:7800]
 ''')
 
 # METADATA ********************

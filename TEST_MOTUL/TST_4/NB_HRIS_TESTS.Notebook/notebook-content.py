@@ -17,9 +17,9 @@
 # # **Chemin dans le dépôt**
 # # TEST_MOTUL/TST_4/NB_HRIS_TESTS.Notebook/notebook-content.py
 # # **Description fonctionnelle**
-# # Ce notebook vérifie le code du hub sur des données entièrement fictives. Il exécute les tests unitaires des règles de transformation, de l'acquisition TalentSoft contre un faux serveur, de la publication vers l'outil de paie ADP avec des clients simulés et du journal des cellules. Il vérifie aussi que la transformation Spark donne les mêmes résultats que l'implémentation de référence des règles de l'existant. Il peut enfin dérouler des scénarios d'intégration complets dans un schéma isolé du Lakehouse, sans jamais lire ni écrire une table réelle. Il apporte la preuve, dans le contexte réel du workspace, que le code se comporte comme attendu avant de traiter des données de salariés.
+# # Ce notebook vérifie le code du hub sur des données entièrement fictives. Il exécute les tests unitaires des règles de transformation, de l'acquisition TalentSoft contre un faux serveur, de la publication vers l'outil de paie ADP avec des clients simulés, du journal des cellules, des tables de correspondance alimentées par l'API, du flux de rémunération et du câblage du transport ADP (faux clients, aucun réseau). Il vérifie aussi que la transformation Spark donne les mêmes résultats que l'implémentation de référence des règles de l'existant. Il peut enfin dérouler des scénarios d'intégration complets dans un schéma isolé du Lakehouse, sans jamais lire ni écrire une table réelle. Il apporte la preuve, dans le contexte réel du workspace, que le code se comporte comme attendu avant de traiter des données de salariés.
 # # **Dépendances**
-# # Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB, puis enregistre onze modules propres aux tests : le simulateur de l'outil de paie, le jeu de données fictif et neuf modules de tests. Ces modules restent dans ce notebook pour qu'aucun simulateur ne soit jamais présent dans le code de production. Le Lakehouse désigné par le paramètre p_lakehouse_name reçoit, dans le schéma isolé hris_tst, des copies de test de toutes les tables, recréées à chaque campagne, ainsi que la table de rapport zz_test_report. Le contexte d'exécution de Fabric fournit le nom réel du workspace, indispensable aux tests du garde-fou de publication.
+# # Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB, puis enregistre quatorze modules propres aux tests : le simulateur de l'outil de paie, le jeu de données fictif et douze modules de tests. Ces modules restent dans ce notebook pour qu'aucun simulateur ne soit jamais présent dans le code de production. Le Lakehouse désigné par le paramètre p_lakehouse_name reçoit, dans le schéma isolé hris_tst, des copies de test de toutes les tables, recréées à chaque campagne, ainsi que la table de rapport zz_test_report. Le contexte d'exécution de Fabric fournit le nom réel du workspace, indispensable aux tests du garde-fou de publication.
 # # **Fonctionnement et logique de traitement**
 # # Après le chargement de la bibliothèque et des modules de test, la cellule de configuration relève d'abord les réglages par défaut de la session Spark, avant toute modification, car ils font partie des vérifications de plateforme. Elle résout ensuite les noms de tables du schéma de test, ouvre le journal des cellules, applique les réglages de session requis par la transformation et transmet le contexte aux tests d'intégration. La cellule d'exécution construit la liste des tests, éventuellement filtrée, la lance et affiche le compte rendu, les versions des bibliothèques et les réglages relevés. La cellule de rapport écrit ce compte rendu, sans aucune donnée de salarié, dans la table zz_test_report du schéma de test. La clôture écrit les traces du journal puis renvoie un résumé au format texte structuré.
 # # **Paramètres**
@@ -572,7 +572,7 @@ if __name__ == "__main__":
 # CELL ********************
 
 # ============= MODULE test_ts_acquire =============
-register_hris_module('test_ts_acquire', 'ced3888886b11350c33c25065075f4cdf7df8efe1aee5826d847843669c6b75a', r'''"""TU-07 — acquisition TalentSoft (JDD-01) contre un faux serveur HTTP en mémoire. Aucun appel réseau."""
+register_hris_module('test_ts_acquire', '4add74e2f2d4a5a22697e443ceda4c693d6528e7ed2bab0da2c74358a565103e', r'''"""TU-07 — acquisition TalentSoft (JDD-01) contre un faux serveur HTTP en mémoire. Aucun appel réseau."""
 import json
 import os
 import re
@@ -620,18 +620,9 @@ class FakeTalentSoft:
     n_employees : génère n salariés fictifs (tous en position P1) à la place des 3 salariés de base.
     latency : durée simulée de chaque appel GET (mesure de la concurrence réelle).
     fail_after : lève une HrisError fatale au n-ième appel GET.
-    employees : annuaire fourni tel quel (remplace les salariés de base).
-    entities : (matricule, entité hub) -> corps renvoyé, pour imposer par exemple un contrat terminé.
-    situations : matricule -> éléments renvoyés par l'endpoint Situation (dans l'ordre fourni).
-    positions : code de poste -> LegalStructure renvoyée, ou {date AAAA-MM-JJ: LegalStructure}, ou None (404).
-        Un code absent : « Motul France » sauf P3 (« Motul SA »).
     """
 
-    def __init__(self, total_override=None, scripted=None, n_employees=None, latency=0.0, fail_after=None,
-                 employees=None, situations=None, positions=None, entities=None):
-        self.situations = situations or {}
-        self.positions = positions or {}
-        self.entities = entities or {}
+    def __init__(self, total_override=None, scripted=None, n_employees=None, latency=0.0, fail_after=None):
         self.calls = []
         self.scripted = scripted or {}   # chemin (regex) -> liste de statuts à renvoyer d'abord
         self.total_override = total_override
@@ -641,9 +632,7 @@ class FakeTalentSoft:
         self._lock = threading.Lock()
         self._in_flight = 0
         self.max_in_flight = 0
-        if employees is not None:
-            self.employees = employees
-        elif n_employees:
+        if n_employees:
             self.employees = [{"employeeNumber": f"N{i}", "individual": {}} for i in range(n_employees)]
         else:
             self.employees = [
@@ -694,8 +683,8 @@ class FakeTalentSoft:
         if s:
             return s
         path = url[len(TS_PRD_BASE_URL):]
-        if path.startswith("/api/v1/directory/employees?count=1&"):   # comptage ; avec un seul salarié, c'est aussi la liste
-            return FakeResp(200, {"totalCount": self.total_override or len(self.employees), "results": self.employees[:1]})
+        if path.startswith("/api/v1/directory/employees?count=1"):
+            return FakeResp(200, {"totalCount": self.total_override or len(self.employees), "results": []})
         if path.startswith("/api/v1/directory/employees?count="):
             return FakeResp(200, {"totalCount": len(self.employees), "results": self.employees})
         m = re.match(r"/api/hub/v2/employees/(\w+)/(\w+)$", path)
@@ -704,12 +693,7 @@ class FakeTalentSoft:
             return FakeResp(200, self.entity(emp, entity))
         m = re.match(r"/api/hub/v2.0/positions/(\w+)\?date=(.*)$", path)
         if m:
-            code, date = m.group(1), m.group(2)[:10]
-            legal = self.positions.get(code, "Motul France" if code != "P3" else "Motul SA")
-            if isinstance(legal, dict):
-                legal = legal.get(date)          # poste valable seulement à certaines dates
-            if legal is None:
-                return FakeResp(404, {})
+            legal = "Motul France" if m.group(1) != "P3" else "Motul SA"
             return FakeResp(200, [{"field": "LegalStructure", "value": legal}, {"field": "Level", "value": "80 %"},
                                   {"field": "FullTimeEquivalentPercent", "value": 0},
                                   {"field": "CostCenter", "value": "CC1"}])
@@ -718,10 +702,6 @@ class FakeTalentSoft:
         return FakeResp(404, {})
 
     def entity(self, emp, entity):
-        if (emp, entity) in self.entities:
-            return self.entities[(emp, entity)]
-        if entity == "Situation" and emp in self.situations:
-            return self.situations[emp]
         if entity == "Situation":
             pos = {"E1": "P1", "E2": "P2", "E3": "P3"}.get(emp, "P1")
             return [hub("WorkingType", "Ingénieur", "2023-01-01"), hub("Position", pos, "2023-01-01"),
@@ -750,22 +730,6 @@ def make(fake, employee_concurrency=None, **kw):
 
 def gets(fake, suffix):
     return [url for method, url in fake.calls if method == "GET" and url.endswith(suffix)]
-
-
-def pos_url(code, start):
-    return f"{TS_PRD_BASE_URL}/api/hub/v2.0/positions/{code}?date={start}T00:00:00Z"
-
-
-def position_urls(fake):
-    return [url for method, url in fake.calls if method == "GET" and "/positions/" in url]
-
-
-def run_one(situation, positions=None, entities=None):
-    """Extraction d'un seul salarié (S1) dont l'endpoint Situation renvoie `situation`, dans cet ordre."""
-    fake = FakeTalentSoft(employees=[{"employeeNumber": "S1", "individual": {}}], situations={"S1": situation},
-                          positions=positions or {}, entities=entities)
-    ex, stats = make(fake)
-    return ex.run(), stats, fake
 
 
 class SourceIsPrdOnly(unittest.TestCase):
@@ -906,137 +870,6 @@ class Extraction(unittest.TestCase):
         for forbidden in ["E1", "E2", "u1", "1234567890123", "talent-soft", "tok-fictif", "secret-fictif"]:
             self.assertNotIn(forbidden, text)
         self.assertNotIn("secret-fictif", repr(ex.client))
-
-
-def no_position(legal, *extra):
-    """Situation sans aucun élément Position, qui porte sa propre structure juridique (cas des sortis, annuaire PRD)."""
-    return [hub("WorkingType", "Cadre", "2015-01-01"), hub("LegalStructure", legal, "2019-05-01"),
-            hub("GeographicOrganisationStructure", "GEO1", "2019-05-01"), hub("CostCenter", "CC9", "2019-05-01"),
-            hub("OrganisationalStructure", "ORG1", "2019-05-01"), *extra]
-
-
-class SituationLegalStructureFallback(unittest.TestCase):
-    """Sans Position exploitable, la structure juridique est lue sur la situation ; avec une Position, rien ne change."""
-
-    def test_situation_without_position_is_retained_on_its_own_legal_structure(self):
-        records, stats, fake = run_one(no_position("Motul France"))
-        self.assertEqual([r["employeeNumber"] for r in records], ["S1"])
-        self.assertEqual(position_urls(fake), [])                                   # aucun poste à interroger
-        record = records[0]
-        self.assertEqual((record["LegalStructure"], record["GeographicOrganisationStructure"], record["CostCenter"],
-                          record["OrganisationalStructure"], record["WorkingType"]),
-                         ("Motul France", "GEO1", "CC9", "ORG1", "Cadre"))
-        self.assertEqual(record["pourcentage_imputation"], "100")                  # non repris de la situation (sens non démontré)
-        c = stats.counters
-        self.assertEqual((c["retained_phase1"], c["retained_from_situation_legal_structure"], c["situation_without_position"]),
-                         (1, 1, 1))
-        self.assertEqual((c["excluded_missing_position_or_date"], c["excluded_not_motul_france"]), (0, 0))
-
-    def test_other_legal_structure_is_excluded_and_counted_both_ways(self):
-        records, stats, fake = run_one(no_position("Motul Deutschland"))
-        self.assertEqual(records, [])
-        c = stats.counters
-        self.assertEqual((c["excluded_not_motul_france"], c["excluded_not_motul_france_from_situation"],
-                          c["retained_phase1"]), (1, 1, 0))
-
-    def test_the_filter_stays_exact_on_the_fallback(self):
-        for legal, kept in (("Motul France", 1), ("Motul France ", 0), ("motul france", 0), ("Motul SA", 0), ("Lescot", 0)):
-            records, stats, fake = run_one(no_position(legal))
-            self.assertEqual(len(records), kept, repr(legal))
-
-    def test_without_position_and_without_legal_structure_the_original_exclusion_is_kept(self):
-        for items in ([hub("WorkingType", "Cadre", "2015-01-01")], no_position("")):
-            records, stats, fake = run_one(items)
-            self.assertEqual(records, [])
-            c = stats.counters
-            self.assertEqual((c["excluded_missing_position_or_date"], c["situation_no_legal_structure"]), (1, 1))
-            self.assertEqual(position_urls(fake), [])
-
-    def test_a_usable_position_follows_the_original_path_whatever_the_situation_says(self):
-        # la situation dit « Motul Deutschland » mais le poste P1 est « Motul France » : le poste fait foi, comme avant
-        records, stats, fake = run_one([hub("WorkingType", "Cadre", "2023-01-01"), hub("Position", "P1", "2023-01-01"),
-                                        hub("LegalStructure", "Motul Deutschland", "2023-01-01")])
-        self.assertEqual([r["LegalStructure"] for r in records], ["Motul France"])
-        self.assertEqual(len(position_urls(fake)), 1)
-        self.assertEqual((stats.counters["retained_from_situation_legal_structure"], stats.counters["situation_without_position"]),
-                         (0, 0))
-        # et l'inverse : la situation dit « Motul France » mais le poste P3 est « Motul SA » : exclu, sans repli
-        records, stats, fake = run_one([hub("Position", "P3", "2023-01-01"), hub("LegalStructure", "Motul France", "2023-01-01")])
-        self.assertEqual(records, [])
-        self.assertEqual((stats.counters["excluded_not_motul_france"], stats.counters["excluded_not_motul_france_from_situation"]),
-                         (1, 0))
-
-    def test_the_latest_legal_structure_version_wins_whatever_the_order(self):
-        old, new = hub("LegalStructure", "Motul SA", "2015-01-01"), hub("LegalStructure", "Motul France", "2021-01-01")
-        for items, kept in (([old, new], 1), ([new, old], 1)):
-            self.assertEqual(len(run_one([hub("WorkingType", "Cadre", "2015-01-01"), *items])[0]), kept)
-        newer_other = hub("LegalStructure", "Motul SA", "2024-01-01")
-        for items in ([new, newer_other], [newer_other, new]):
-            self.assertEqual(run_one([hub("WorkingType", "Cadre", "2015-01-01"), *items])[0], [])   # la plus récente est « Motul SA »
-
-    def test_former_employee_without_position_is_retained(self):
-        records, stats, fake = run_one(no_position("Motul France"), entities={
-            ("S1", "Contract"): [hub("NatureOfContract", "CDI", "2001-01-01", endDate="2001-12-31")],
-            ("S1", "KeyDates"): [hub("GroupEndDate", "2001-12-31", "2001-12-31")]})
-        self.assertEqual(len(records), 1)       # aucun filtre « actifs uniquement »
-        self.assertEqual((records[0]["date_fin_contract"], records[0]["GroupEndDate"]), ("2001-12-31", "2001-12-31"))
-
-    def assert_unreliable_and_not_masked(self, stats, cause):
-        c = stats.counters
-        self.assertEqual((c[f"phase1_situation_{cause}"], c["excluded_situation_unreliable"]), (1, 1))
-        for masked in ("excluded_no_situation", "excluded_missing_position_or_date", "excluded_not_motul_france",
-                       "phase1_situation_error", "retained_phase1"):
-            self.assertEqual(c[masked], 0, masked)          # une erreur de traitement n'est pas une exclusion métier
-        control = {a["control_code"]: a for a in A.completeness_anomalies(stats.as_dict())}["TS_FILTER_TECHNICAL_FAILURE"]
-        self.assertEqual((control["severity"], control["outcome"]), ("BLOCKING", "FAIL"))
-
-    def test_contradictory_legal_structure_is_never_resolved_by_order(self):
-        for first, second in ((hub("LegalStructure", "Motul France", "2019-05-01"), hub("LegalStructure", "Motul SA", "2019-05-01")),
-                              (hub("LegalStructure", "Motul SA", "2019-05-01"), hub("LegalStructure", "Motul France", "2019-05-01"))):
-            records, stats, fake = run_one([hub("WorkingType", "Cadre", "2015-01-01"), first, second])
-            self.assertEqual(records, [])
-            self.assert_unreliable_and_not_masked(stats, "conflict")
-
-    def test_invalid_date_keeps_the_original_technical_failure_handling(self):
-        # la lecture historique de la situation parse toutes les dates : une date invalide reste une erreur technique
-        # comptée (phase1_situation_error) et reprise par le contrôle bloquant, comme avant ; aucun salarié retenu
-        records, stats, fake = run_one([hub("WorkingType", "Cadre", "2015-01-01"), hub("LegalStructure", "Motul France", "31/12/2019")])
-        self.assertEqual(records, [])
-        self.assertEqual((stats.counters["phase1_situation_error"], stats.counters["retained_phase1"]), (1, 0))
-        control = {a["control_code"]: a for a in A.completeness_anomalies(stats.as_dict())}["TS_FILTER_TECHNICAL_FAILURE"]
-        self.assertEqual((control["severity"], control["outcome"]), ("BLOCKING", "FAIL"))
-        with self.assertRaises(A.SituationDataError) as caught:        # et la lecture explicite des attributs refuse aussi
-            A.situation_own_attributes([hub("LegalStructure", "Motul France", "31/12/2019")])
-        self.assertEqual((caught.exception.code, caught.exception.field), ("invalid_date", "LegalStructure"))
-
-    def test_malformed_items_are_counted_apart(self):
-        records, stats, fake = run_one([hub("WorkingType", "Cadre", "2015-01-01"), {"field": "LegalStructure", "startDate": "2019-05-01"}])
-        self.assertEqual(records, [])
-        self.assert_unreliable_and_not_masked(stats, "malformed")
-
-    def test_unreliable_situation_does_not_stop_the_other_employees(self):
-        fake = FakeTalentSoft(employees=[{"employeeNumber": "S1", "individual": {}}, {"employeeNumber": "S2", "individual": {}}],
-                              situations={"S1": [hub("LegalStructure", "Motul France", "2019-05-01"),
-                                                 hub("LegalStructure", "Motul SA", "2019-05-01")],
-                                          "S2": no_position("Motul France")})
-        ex, stats = make(fake)
-        self.assertEqual([r["employeeNumber"] for r in ex.run()], ["S2"])
-        self.assertEqual((stats.counters["excluded_situation_unreliable"], stats.counters["retained_phase1"]), (1, 1))
-
-    def test_the_error_is_not_fatal_and_carries_no_data(self):
-        self.assertTrue(issubclass(A.SituationDataError, ValueError))
-        self.assertFalse(issubclass(A.SituationDataError, HrisError))        # ne doit pas interrompre l'extraction
-        with self.assertRaises(A.SituationDataError) as caught:
-            A.situation_own_attributes([hub("LegalStructure", "VALEUR-SECRETE", "2019-05-01"),
-                                        hub("LegalStructure", "AUTRE-VALEUR", "2019-05-01")])
-        self.assertNotIn("SECRETE", str(caught.exception))
-        self.assertNotIn("AUTRE", str(caught.exception))
-
-    def test_counters_carry_no_personal_data(self):
-        records, stats, fake = run_one(no_position("Motul France"))
-        text = json.dumps(stats.as_dict())
-        for forbidden in ("S1", "Cadre", "GEO1", "CC9", "Motul France"):
-            self.assertNotIn(forbidden, text)
 
 
 if __name__ == "__main__":
@@ -2175,6 +2008,998 @@ class CellLogSpark(unittest.TestCase):
 
 # CELL ********************
 
+# ============= MODULE test_reference_api =============
+register_hris_module('test_reference_api', '3e2f31814e12d9a926fb8280ee9b8c1af6da63c8676dd16dfa21ce506e36a4aa', r'''"""TU-REF — correspondances sans fichier : partie TalentSoft lue par l'API (faux client), partie ADP saisie par le métier.
+Aucun accès réseau ; valeurs FICTIVES."""
+import datetime as dt
+import json
+import unittest
+import uuid
+
+from hris import reference_api as R
+from hris.common import HrisError
+from hris.model import LOOKUP_JOINS, LOOKUP_TABLES, SOURCE_COLUMNS, USED_LOOKUP_TABLES
+
+NOW = dt.datetime(2026, 10, 13, 8, 0, tzinfo=dt.timezone.utc)
+TODAY = dt.date(2026, 10, 13)
+TECH = {"_loaded_at_utc": NOW, "_loaded_by": "TST", "_change_ref": "talentsoft-api:TEST"}
+
+
+def lib_rows(library, nodes):
+    """Lignes de référentiel au format de l'API (clientCode / field / culture / value)."""
+    rows = []
+    for code, attrs in nodes.items():
+        for culture, label in attrs.get("labels", {}).items():
+            rows.append({"startEffectDate": attrs.get("date", "1900-01-01T00:00:00"), "library": library,
+                         "clientCode": code, "culture": culture, "field": "ShortName", "value": label})
+        for name, value in (("IsActive", attrs.get("active", "Y")), ("ParentClientCode", attrs.get("parent"))):
+            if value is not None:
+                rows.append({"startEffectDate": "1900-01-01T00:00:00", "library": library, "clientCode": code,
+                             "culture": None, "field": name, "value": value})
+        if attrs.get("full"):
+            rows.append({"startEffectDate": "1900-01-01T00:00:00", "library": library, "clientCode": code,
+                         "culture": "fr-fr", "field": "FullName", "value": attrs["full"]})
+    return rows
+
+
+def default_libraries(tag="lib"):
+    libraries = {spec.library for spec in R.CATALOGUE.values() if spec.library}
+    return {lib: lib_rows(lib, {f"{lib[:4].upper()}{i}": {"labels": {"fr-fr": f"{tag} {lib} {i} fr",
+                                                                        "en-gb": f"{tag} {lib} {i} en"}}
+                                for i in (1, 2)}) for lib in libraries}
+
+
+class FakeClient:
+    def __init__(self, libraries, fail=()):
+        self.libraries, self.fail, self.paths = libraries, set(fail), []
+
+    def get(self, path, endpoint):
+        self.paths.append(path)
+        library = path.rsplit("/", 1)[1]
+        if library in self.fail:
+            return None, 503
+        return self.libraries.get(library, []), 200
+
+
+class FakeStore:
+    def __init__(self, tables=None, incompatible=(), observed=None):
+        self.tables = {t: [dict(r) for r in rows] for t, rows in (tables or {}).items()}
+        self.incompatible, self.writes, self.observed_codes = set(incompatible), [], observed or {}
+
+    def read(self, table):
+        if table in self.incompatible:
+            return R.TableState(True, False, "INCOMPATIBLE: colonne manquante x")
+        if table not in self.tables:
+            return R.TableState(False, schema_detail="ABSENTE")
+        return R.TableState(True, True, "CONFORME", tuple(dict(r) for r in self.tables[table]))
+
+    def write(self, table, rows):
+        self.tables[table] = [dict(r) for r in rows]
+        self.writes.append(table)
+
+    def observed(self, keys):
+        return sorted({v for k in keys for v in self.observed_codes.get(k, [])})
+
+
+def row(table, **values):
+    out = {c: None for c in LOOKUP_TABLES[table]}
+    out.update({"_loaded_at_utc": None, "_loaded_by": "AVANT", "_change_ref": "AVANT"})
+    out.update(values)
+    return out
+
+
+def sync(store, client=None, write=True):
+    client = client or FakeClient(default_libraries())
+    return R.synchronize_catalogue(lambda lib: R.fetch_library(client, lib), store, store.observed,
+                                   loaded_by="TST:run", now=NOW, write=write, today=TODAY)
+
+
+class Catalogue(unittest.TestCase):
+    def test_every_table_has_a_source(self):
+        self.assertEqual(sorted(R.CATALOGUE), sorted(LOOKUP_TABLES))
+        for spec in R.CATALOGUE.values():
+            self.assertTrue(spec.library or spec.observed_keys, spec.table)
+
+    def test_observed_keys_feed_the_join_sources(self):
+        key_to_column = dict(SOURCE_COLUMNS)
+        for table in USED_LOOKUP_TABLES:
+            spec = R.CATALOGUE[table]
+            self.assertEqual(sorted(key_to_column[k] for k in spec.observed_keys),
+                             sorted(j["src"] for j in LOOKUP_JOINS if j["table"] == table))
+            self.assertIn(spec.code, {j["key"] for j in LOOKUP_JOINS if j["table"] == table})
+
+    def test_adp_and_business_columns(self):
+        self.assertEqual(R.adp_columns("lu_hr_emp_titre"), ["cd_emp_titre_adp"])
+        self.assertEqual(R.adp_columns("lu_hr_emp_pays"), ["id_emp_pays_adp"])
+        self.assertEqual(R.adp_columns("lu_hr_emp_diplome"), ["cd_emp_diplome_adp", "ds_emp_diplome_adp"])
+        self.assertNotIn("or_geo_entite_adp", R.adp_columns("lu_hr_geo_entite"))
+        self.assertIn("or_geo_entite_adp", R.business_columns("lu_hr_geo_entite"))
+        for spec in R.CATALOGUE.values():
+            self.assertFalse(set(spec.ts_columns) & set(R.business_columns(spec.table)))
+
+
+class Library(unittest.TestCase):
+    def test_labels_parent_versions(self):
+        rows = lib_rows("LegalStructure", {
+            "Motul France": {"labels": {"fr-fr": "Motul France SA", "en-gb": "Motul France Ltd"}, "parent": "GROUP"},
+            "X": {"labels": {"en-gb": "Only english"}},
+            "Y": {"labels": {"de-de": "Nur Deutsch"}, "full": "Libellé long"}})
+        rows.append({"startEffectDate": "2099-01-01", "clientCode": "X", "culture": "en-gb", "field": "ShortName",
+                     "value": "futur"})
+        rows.append({"startEffectDate": "2020-01-01", "clientCode": "X", "culture": "en-gb", "field": "ShortName",
+                     "value": "renamed"})
+        nodes = R.library_nodes(rows, TODAY)
+        self.assertEqual(nodes["Motul France"]["label"], "Motul France SA")
+        self.assertEqual(nodes["Motul France"]["label_en"], "Motul France Ltd")
+        self.assertEqual(nodes["Motul France"]["parent"], "GROUP")
+        self.assertEqual(nodes["X"]["label"], "renamed")
+        self.assertIsNone(nodes["X"]["label_fr"])
+        self.assertEqual((nodes["Y"]["label"], nodes["Y"]["full"]), ("Nur Deutsch", "Libellé long"))
+        self.assertEqual(nodes["X"]["full"], "renamed")
+
+    def test_fetch_library_quotes_and_fails_loudly(self):
+        client = FakeClient({"Title": []}, fail={"CostCenter"})
+        self.assertEqual(R.fetch_library(client, "Title"), [])
+        self.assertTrue(client.paths[-1].endswith("/libraries/Title"))
+        with self.assertRaises(R.LibraryUnavailable):
+            R.fetch_library(client, "CostCenter")
+
+
+class Merge(unittest.TestCase):
+    spec = R.CATALOGUE["lu_hr_geo_entite"]
+
+    def test_insert_update_never_touches_adp(self):
+        existing = [row("lu_hr_geo_entite", cd_geo_entite_ts="Motul France  ", ds_geo_entite_ts="ancien",
+                        cd_geo_entite_adp="MF", or_geo_entite_adp="1"),
+                    row("lu_hr_geo_entite", cd_geo_entite_ts="Fermée", cd_geo_entite_adp="FX"),
+                    row("lu_hr_geo_entite", cd_geo_entite_ts="Inchangée", ds_geo_entite_ts="même")]
+        nodes = {"Motul France": {"label": "nouveau", "parent": "GROUP"}, "Inchangée": {"label": "même"},
+                 "Neuve": {"label": "neuve"}}
+        rows, s = R.merge_catalogue(self.spec, existing, nodes, ["Motul France", "Observée seulement"], TECH)
+        by = {r["cd_geo_entite_ts"].rstrip(): r for r in rows}
+        self.assertEqual((by["Motul France"]["ds_geo_entite_ts"], by["Motul France"]["cd_geo_parent_entite_ts"]),
+                         ("nouveau", "GROUP"))
+        self.assertEqual((by["Motul France"]["cd_geo_entite_adp"], by["Motul France"]["or_geo_entite_adp"]), ("MF", "1"))
+        self.assertEqual(by["Motul France"]["_change_ref"], "talentsoft-api:TEST")
+        self.assertEqual(by["Inchangée"]["_change_ref"], "AVANT")
+        self.assertEqual(by["Fermée"]["cd_geo_entite_adp"], "FX")
+        self.assertIsNone(by["Neuve"]["cd_geo_entite_adp"])
+        self.assertIn("Observée seulement", by)
+        self.assertEqual((s.inserted, s.updated, s.kept_absent, s.observed_not_in_library), (2, 1, 1, 1))
+        self.assertEqual((s.without_adp, s.rows_after), (3, 5))
+
+    def test_duplicate_keys_are_left_alone(self):
+        existing = [row("lu_hr_geo_entite", cd_geo_entite_ts="A"), row("lu_hr_geo_entite", cd_geo_entite_ts="A ")]
+        rows, s = R.merge_catalogue(self.spec, existing, {"B": {"label": "b"}}, [], TECH)
+        self.assertEqual((s.status, len(rows)), ("SKIPPED_DUPLICATE_KEYS", 2))
+
+    def test_long_codes_counted(self):
+        _, s = R.merge_catalogue(self.spec, [], {"Z" * 51: {"label": "z"}}, [], TECH)
+        self.assertEqual(s.codes_over_50, 1)
+
+    def test_observed_from_records(self):
+        records = [{"Gender": "M "}, {"Gender": "F"}, {"Gender": ""}, {"Gender": None}, {"Gender": "M"}]
+        self.assertEqual(R.observed_from_records(records, ["Gender"]), ["F", "M"])
+
+
+class Synchronize(unittest.TestCase):
+    def test_first_run_fills_all_tables_without_adp(self):
+        store = FakeStore(observed={"Gender": ["M", "F"], "Nationality": ["FRA"], "Pays_de_naissance": ["FRA"],
+                                    "adresse_countryCode": ["FR"], "LegalCountry": ["FRA"]})
+        report = sync(store)
+        self.assertEqual(report["status"], "OK")
+        self.assertEqual(len(report["tables_written"]), 17)
+        self.assertEqual(sorted(r["cd_emp_sexe_ts"] for r in store.tables["lu_hr_emp_sexe"]), ["F", "M"])
+        self.assertEqual(sorted(r["cd_emp_pays_ts"] for r in store.tables["lu_hr_emp_pays"]), ["FR", "FRA"])
+        self.assertEqual(sorted(report["used_tables_without_any_adp"]), USED_LOOKUP_TABLES)
+        titre = store.tables["lu_hr_emp_titre"][0]
+        self.assertEqual((titre["_loaded_by"], titre["_change_ref"]), ("TST:run", "talentsoft-api:Title"))
+        self.assertEqual(store.tables["lu_hr_emp_sexe"][0]["_change_ref"], "talentsoft-api:extraction:Gender")
+
+    def test_second_run_writes_nothing(self):
+        store = FakeStore()
+        sync(store)
+        store.writes.clear()
+        report = sync(store)
+        self.assertEqual((store.writes, report["inserted"], report["updated"]), ([], 0, 0))
+
+    def test_library_failure_skips_only_its_tables(self):
+        store = FakeStore()
+        report = sync(store, FakeClient(default_libraries(), fail={"NatureOfContract"}))
+        self.assertEqual(report["status"], "PARTIAL")
+        self.assertEqual(report["tables_skipped"], {"lu_hr_ppc_contrat2": "SKIPPED_LIBRARY_UNAVAILABLE",
+                                                    "lu_hr_ppc_contrat": "SKIPPED_LIBRARY_UNAVAILABLE"})
+        self.assertNotIn("lu_hr_ppc_contrat2", store.writes)
+        self.assertEqual(len(store.writes), 15)
+
+    def test_incompatible_table_never_written(self):
+        store = FakeStore(incompatible={"lu_hr_ppc_classes"})
+        report = sync(store)
+        self.assertEqual(report["tables_skipped"], {"lu_hr_ppc_classes": "SKIPPED_SCHEMA"})
+        self.assertNotIn("lu_hr_ppc_classes", store.writes)
+
+    def test_check_mode_writes_nothing(self):
+        store = FakeStore()
+        report = sync(store, write=False)
+        self.assertEqual((store.writes, report["writes_enabled"]), ([], False))
+        self.assertGreater(report["inserted"], 0)
+
+    def test_adp_codes_survive_label_changes(self):
+        store = FakeStore()
+        sync(store)
+        for r in store.tables["lu_hr_emp_titre"]:
+            r["cd_emp_titre_adp"] = "ADP-" + r["cd_emp_titre_ts"]
+        sync(store, FakeClient(default_libraries(tag="renamed")))
+        self.assertTrue(all(r["cd_emp_titre_adp"] == "ADP-" + r["cd_emp_titre_ts"] for r in store.tables["lu_hr_emp_titre"]))
+        self.assertTrue(all(r["lb_emp_titre_ts"].startswith("renamed") for r in store.tables["lu_hr_emp_titre"]))
+
+
+class Admin(unittest.TestCase):
+    def rows(self):
+        return [row("lu_hr_emp_titre", cd_emp_titre_ts="MR", lb_emp_titre_ts="Monsieur"),
+                row("lu_hr_emp_titre", cd_emp_titre_ts="MS", lb_emp_titre_ts="Madame")]
+
+    def test_assign_adp_codes(self):
+        rows, result = R.apply_assignments("lu_hr_emp_titre", self.rows(),
+                                           {"MR": {"cd_emp_titre_adp": "1", "ds_emp_titre_adp": "M."}},
+                                           {"_loaded_by": "ADMIN", "_change_ref": "CHG-42", "_loaded_at_utc": NOW})
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.changes, [("MR", "cd_emp_titre_adp", None, "1"), ("MR", "ds_emp_titre_adp", None, "M.")])
+        self.assertEqual((rows[0]["cd_emp_titre_adp"], rows[0]["_change_ref"]), ("1", "CHG-42"))
+        self.assertEqual(rows[1]["_change_ref"], "AVANT")
+
+    def test_errors_change_nothing(self):
+        bad = {"MR": {"cd_emp_titre_adp": "1"}, "XX": {"cd_emp_titre_adp": "9"}, "MS": {"lb_emp_titre_ts": "x"}}
+        rows, result = R.apply_assignments("lu_hr_emp_titre", self.rows(), bad, TECH)
+        self.assertEqual(len(result.errors), 2)
+        self.assertEqual((rows[0]["cd_emp_titre_adp"], result.changes), (None, []))
+        for assignments in ({"MR": {"_change_ref": "x"}}, {"MR": {"cd_emp_titre_ts": "x"}}, {"MR": {}},
+                            {"MR": {"cd_emp_titre_adp": True}}, {"MR": {"cd_emp_titre_adp": ["1"]}}):
+            self.assertTrue(R.apply_assignments("lu_hr_emp_titre", self.rows(), assignments, TECH)[1].errors)
+        self.assertTrue(R.apply_assignments("lu_hr_inconnue", self.rows(), {}, TECH)[1].errors)
+        duplicated = self.rows() + [row("lu_hr_emp_titre", cd_emp_titre_ts="MR ")]
+        self.assertTrue(R.apply_assignments("lu_hr_emp_titre", duplicated, {"MS": {"cd_emp_titre_adp": "2"}}, TECH)[1].errors)
+
+    def test_empty_string_clears_and_missing_report(self):
+        rows, _ = R.apply_assignments("lu_hr_emp_titre", self.rows(), {"MR": {"cd_emp_titre_adp": "1"}}, TECH)
+        rows, result = R.apply_assignments("lu_hr_emp_titre", rows, {"MR": {"cd_emp_titre_adp": ""}}, TECH)
+        self.assertEqual(result.changes, [("MR", "cd_emp_titre_adp", "1", None)])
+        missing = R.missing_adp("lu_hr_emp_titre", rows, {"MS": 7, "MR": 3})
+        self.assertEqual([(m["code"], m["label"], m["employees"]) for m in missing],
+                         [("MS", "Madame", 7), ("MR", "Monsieur", 3)])
+
+
+class Reporting(unittest.TestCase):
+    def test_anomalies_never_blocking_and_messages_without_values(self):
+        store = FakeStore()
+        report = sync(store, FakeClient(default_libraries(tag="LIBELLESECRET"), fail={"CostCenter"}))
+        anomalies = R.catalogue_anomalies(report) + R.catalogue_anomalies(None, "TS_AUTH_FAILED")
+        self.assertTrue(all(a["severity"] != "BLOCKING" for a in anomalies))
+        self.assertEqual({a["control_code"] for a in anomalies}, set(R.CATALOGUE_CONTROLS))
+        message = R.step_message(report)
+        json.loads(message)
+        self.assertNotIn("LIBELLESECRET", message + json.dumps(anomalies, default=str))
+        self.assertLessEqual(len(message), 7800)
+
+
+class ReferenceStoreSpark(unittest.TestCase):
+    """Fabric uniquement (NB_HRIS_TESTS) : aller-retour Delta dans le schéma de test isolé, table non utilisée."""
+    table = "lu_hr_emp_diplome"
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            from test_fabric_integration import ENV
+        except ImportError:
+            raise unittest.SkipTest("hors Fabric")
+        if ENV.get("spark") is None:
+            raise unittest.SkipTest("hors Fabric")
+        from hris.model import tables_for_notebook
+        cls.spark = ENV["spark"]
+        cls.T = tables_for_notebook(ENV["notebookutils"].runtime.context, ENV["schema"], ENV["lakehouse"])
+        if not cls.T.test_schema:
+            raise unittest.SkipTest("schéma de test absent")
+        for schema in cls.T.schemas():
+            cls.spark.sql(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+        cls.spark.sql("DROP TABLE IF EXISTS " + cls.T("cfg." + cls.table))   # table de TEST (schéma isolé)
+
+    def test_create_merge_assign_round_trip(self):
+        store = R.SparkReferenceStore(self.spark, self.T)
+        self.assertFalse(store.read(self.table).exists)
+        spec = R.CATALOGUE[self.table]
+        ref = "TST-" + uuid.uuid4().hex[:8]
+        rows, _ = R.merge_catalogue(spec, [], {"D1": {"label": "un"}, "D2": {"label": "deux"}}, [],
+                                    {"_loaded_at_utc": NOW, "_loaded_by": "TST", "_change_ref": ref})
+        store.write(self.table, rows)
+        state = store.read(self.table)
+        self.assertEqual(sorted(r["cd_emp_diplome_ts"] for r in state.rows), ["D1", "D2"])
+        rows, result = R.apply_assignments(self.table, state.rows, {"D1": {"cd_emp_diplome_adp": "A"}},
+                                           {"_loaded_at_utc": NOW, "_loaded_by": "TST", "_change_ref": ref + "-ADP"})
+        self.assertEqual(result.errors, [])
+        store.write(self.table, rows)
+        by = {r["cd_emp_diplome_ts"]: r for r in store.read(self.table).rows}
+        self.assertEqual((by["D1"]["cd_emp_diplome_adp"], by["D1"]["_change_ref"]), ("A", ref + "-ADP"))
+        self.assertIsNone(by["D2"]["cd_emp_diplome_adp"])
+
+
+if __name__ == "__main__":
+    unittest.main()
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE test_remuneration =============
+register_hris_module('test_remuneration', 'dbd5b0991d02eb5cdcae699a537ea4469828106125cd24bf6ab22a34c5c1941c', r'''"""TU-REM — flux rémunération (ex-Pipeline_SIRH-SFTP) en tables : règles des vues SQL, instantané, envoi gardé.
+Faux client API et faux stockage : aucun réseau, aucune table. Matricules et montants FICTIFS."""
+import datetime as dt
+import io
+import json
+import unittest
+import zipfile
+from decimal import Decimal
+
+from hris import remuneration as R
+from hris.common import HrisError
+
+NOW = dt.datetime(2026, 10, 14, 6, 0, tzinfo=dt.timezone.utc)
+PRD = lambda: {"currentWorkspaceName": "HRIS PRD", "currentWorkspaceId": "w", "isForPipeline": True}   # noqa: E731
+DEV = lambda: {"currentWorkspaceName": "Sandbox DEV", "currentWorkspaceId": "w", "isForPipeline": True}   # noqa: E731
+
+
+def base(number, amount, date="01/01/2026", currency="EUR"):
+    return {"employeenumber": number, "date": date, "type": "ANNUAL_BASE_SALARY", "amount": amount,
+            "currency": currency, "periodicity": "annual"}
+
+
+def bonus(number, value, start="01/01/2026", end=None, kind="CONTRACTUAL_BONUS_PERCENTAGE"):
+    return {"employeenumber": number, "type": kind, "start_date": start, "end_date": end, "calculation_method": "PERCENTAGE",
+            "value": value, "currency": "XBO", "base_salary_effective_date": "01/01/2026", "periodicity": "annual"}
+
+
+class BaseSalaryRules(unittest.TestCase):
+    def test_amount_change_new_zero_and_date(self):
+        current = [base("FR000001", "33000"), base("FR000002", "40000"), base("FR000003", "0"),
+                   base("FR000004", "25000", date="01/03/2026"), base("FR000005", None), base("FR000006", "50000"),
+                   base("FR000007", None)]
+        previous = [base("FR000001", "30000"), base("FR000004", "25000"), base("FR000005", None, date="02/01/2026"),
+                    base("FR000006", "50000"), base("FR000007", "28000")]
+        rows = {r["employeenumber"]: r for r in R.base_salary_changes(current, previous)}
+        self.assertEqual(rows["FR000001"]["amount"], "33000,00")
+        self.assertEqual(rows["FR000001"]["extra_augm_n-1"], "10,00")
+        self.assertIsNone(rows["FR000002"]["extra_augm_n-1"])          # nouveau : pas de J-1
+        self.assertNotIn("FR000003", rows)                               # nouveau à 0 : non retenu (comme SQL)
+        self.assertEqual(rows["FR000004"]["extra_augm_n-1"], "0,00")     # date seule changée
+        self.assertIsNone(rows["FR000005"]["amount"])                    # date changée, montant NULL
+        self.assertNotIn("FR000006", rows)
+        self.assertNotIn("FR000007", rows)                               # montant devenu NULL : non retenu (comme SQL)
+
+    def test_rounding_negative_keys_and_duplicates(self):
+        self.assertEqual(R.fmt_decimal(R.to_decimal("10.005")), "10,01")
+        self.assertEqual(R.fmt_decimal(R.to_decimal("-1.005")), "-1,01")
+        self.assertEqual(R.fmt_decimal(R.to_decimal("-0.001")), "0,00")
+        rows = R.base_salary_changes([base("FR000001 ", "110")], [base("FR000001", "100"), base("FR000001", "105")])
+        self.assertEqual(len(rows), 2)                                    # doublon J-1 : lignes multipliées
+        with self.assertRaises(HrisError) as ctx:
+            R.base_salary_changes([base("FR000009", "12 000")], [])
+        self.assertEqual(ctx.exception.code, "CONVERSION_NUMERIC")
+        self.assertNotIn("12", str(ctx.exception))
+
+    def test_increase_pct(self):
+        D = Decimal
+        self.assertEqual(R.increase_pct(D("110.00"), D("100.00")), "10,00")
+        self.assertEqual(R.increase_pct(D("33.33"), D("100.00")), "-66,67")
+        self.assertEqual(R.increase_pct(D("100.50"), D("100.00")), "0,50")
+        self.assertIsNone(R.increase_pct(D("100.00"), D("0.00")))
+        self.assertEqual(R.increase_pct(D("2.00"), D("3.00")), "-33,33")
+
+
+class BonusRules(unittest.TestCase):
+    def test_string_comparison_closures_and_currency(self):
+        base_j = [base("FR000001", "1", currency="EUR"), base("FR000002", "1", currency="USD")]
+        current = [bonus("FR000001", "10.00"), bonus("FR000002", "5", start="01/03/2026"),
+                   bonus("FR000003", None, start=None)]
+        previous = [bonus("FR000001", "10.0"), bonus("FR000002", "5", start="01/01/2026"), bonus("FR000003", "7")]
+        rows = R.bonus_changes(current, previous, [], [], base_j)
+        by_rule = {(r["employeenumber"], r["rule"]): r for r in rows}
+        self.assertIn(("FR000001", "R-SFTP-020"), by_rule)                # '10.00' <> '10.0' : comparaison de chaînes
+        self.assertEqual(by_rule[("FR000001", "R-SFTP-020")]["value"], "10,00")
+        self.assertEqual(by_rule[("FR000001", "R-SFTP-020")]["currency"], "EUR")   # du salaire de base, pas du bonus
+        closing = by_rule[("FR000002", "R-SFTP-021")]
+        self.assertEqual((closing["start_date"], closing["end_date"]), ("01/01/2026", "28/02/2026 00:00:00"))
+        self.assertEqual(closing["currency"], "USD")                      # devise du salaire de base du jour
+        self.assertIsNone(by_rule[("FR000003", "R-SFTP-022")]["end_date"])   # anomalie conservée
+        self.assertIsNone(by_rule[("FR000003", "R-SFTP-022")]["currency"])   # aucun salaire de base
+
+    def test_new_without_value_or_zero_and_union(self):
+        rows = R.bonus_changes([bonus("FR000001", "0"), bonus("FR000002", "3")], [], [], [], [])
+        self.assertEqual([r["employeenumber"] for r in rows], ["FR000002"])   # ISNULL(J1, 0) = '0' : '0' non retenu
+        twice = R.bonus_changes([bonus("FR000001", "3"), bonus("FR000001", "3")], [], [], [], [])
+        self.assertEqual(len(twice), 1)                                    # UNION : doublons exacts retirés
+        target = R.bonus_changes([], [], [bonus("FR000004", "1500", kind="CONTRACTUAL BONUS")], [], [])
+        self.assertEqual(target[0]["value"], "1500,00")
+
+    def test_closing_date_formats(self):
+        self.assertEqual(R.closing_end_date("2026-03-01"), "28/02/2026 00:00:00")
+        self.assertEqual(R.closing_end_date("01/01/2026 00:00:00"), "31/12/2025 00:00:00")
+        self.assertIsNone(R.closing_end_date(None))
+
+
+EXPORT = [
+    {"EmployeeNumber": "FR000001", "Section": "{{ANNUAL_BASE_SALARY}}", "StartDate": "2026-01-01T00:00:00",
+     "EndDate": None, "Amount": 33000.0, "Currency": "eur", "Periodicity": "annual", "Category": "baseSalary"},
+    {"EmployeeNumber": "FR000001", "Section": "{{CONTRACTUAL_BONUS_PERCENTAGE}}", "StartDate": "2026-02-01",
+     "EndDate": "", "Amount": "10,5", "Currency": "eur", "Periodicity": "annual", "Category": "bonus"},
+    {"EmployeeNumber": "FR000002", "Section": "{{CONTRACTUAL BONUS}}", "StartDate": "2026-03-01",
+     "Amount": "1500", "Currency": "eur", "Periodicity": "annual"},
+    {"EmployeeNumber": "FR000003", "Section": "{{ALLOWANCES}}", "StartDate": "2026-03-01", "Amount": "50"},
+]
+
+
+class Snapshot(unittest.TestCase):
+    def test_build_snapshot_default_mapping(self):
+        rows = R.parse_export(json.dumps(EXPORT).encode())
+        snapshot, stats = R.build_snapshot(rows, R.DEFAULT_MAPPING)
+        self.assertEqual(stats["export_rows_ignored"], 1)
+        salary = snapshot[R.BASE_SALARY][0]
+        self.assertEqual((salary["date"], salary["amount"], salary["currency"], salary["type"]),
+                         ("01/01/2026", "33000", "EUR", "ANNUAL_BASE_SALARY"))
+        percent = snapshot[R.BONUS_PERCENT][0]
+        self.assertEqual((percent["value"], percent["end_date"], percent["base_salary_effective_date"],
+                          percent["calculation_method"]), ("10.5", None, "01/01/2026", "PERCENTAGE"))
+        target = snapshot[R.BONUS_TARGET_VALUE][0]
+        self.assertEqual(target["base_salary_effective_date"], "01/03/2026")   # pas de salaire : date de début
+
+    def test_mapping_overrides(self):
+        rules = R.rules_from_rows([dict(r, type_value="Salaire", date_format="%Y-%m-%d", currency_case="raw")
+                                   if r["legacy_section"] == R.BASE_SALARY else r
+                                   for r in R.mapping_rows(R.DEFAULT_MAPPING)])
+        snapshot, _ = R.build_snapshot(R.parse_export(json.dumps(EXPORT).encode()), rules)
+        salary = snapshot[R.BASE_SALARY][0]
+        self.assertEqual((salary["type"], salary["date"], salary["currency"]), ("Salaire", "2026-01-01", "eur"))
+        with self.assertRaises(HrisError):
+            R.rules_from_rows([{"section_code": "X", "legacy_section": "AUTRE"}])
+
+    def test_parse_formats(self):
+        csv_text = "Employee number;Section;Start date;Amount;Currency;Frequency\r\nFR000001;ANNUAL_BASE_SALARY;01/01/2026;10;eur;annual\r\n"
+        rows = R.parse_export(csv_text.encode("utf-8"))
+        self.assertEqual((rows[0]["employeenumber"], rows[0]["periodicity"]), ("FR000001", "annual"))
+        self.assertEqual(R.parse_export(json.dumps({"data": EXPORT[:1]}).encode())[0]["section"], "{{ANNUAL_BASE_SALARY}}")
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("export.csv", csv_text)
+        self.assertEqual(len(R.parse_export(buffer.getvalue())), 1)
+        with self.assertRaises(HrisError) as ctx:
+            R.parse_export(b"Nom;Montant\r\nFR000001;10\r\n")
+        self.assertEqual(ctx.exception.code, "TS_EXPORT_FORMAT")
+        self.assertNotIn("FR000001", str(ctx.exception))
+
+
+class ImportContent(unittest.TestCase):
+    def test_legacy_layout(self):
+        rows = [{"employeenumber": "FR000001", "date": "01/01/2026", "type": 'A"B', "amount": "1,00", "currency": None,
+                 "periodicity": "a\\b", "extra_augm_n-1": None}]
+        text = R.import_content(R.IMPORT_SALARY, rows).decode("utf-8")
+        lines = text.split("\r\n")
+        self.assertEqual(lines[0], '"employeenumber";"date";"type";"amount";"currency";"periodicity";"extra_augm_n-1"')
+        self.assertEqual(lines[1], '"FR000001";"01/01/2026";"A\\"B";"1,00";;"a\\\\b";')
+        self.assertTrue(text.endswith("\r\n"))
+        self.assertEqual(R.import_file_name(R.IMPORT_BONUS, dt.date(2026, 10, 14)),
+                         "RemunTargetBonusHistoIE_InsertAndUpdate_fr-FR_2_14102026.csv")
+
+
+class FakeApi:
+    def __init__(self, export_rows, statuses=("Running", "Successful"), import_status="Success"):
+        self.export_rows, self.statuses, self.import_status_value = export_rows, list(statuses), import_status
+        self.submitted, self.created = [], []
+
+    def create_export(self, payload):
+        self.created.append(payload)
+        return 42
+
+    def export_status(self, export_id):
+        return self.statuses.pop(0) if len(self.statuses) > 1 else self.statuses[0]
+
+    def export_content(self, export_id):
+        return json.dumps(self.export_rows).encode(), "application/json"
+
+    def submit_import(self, import_type, file_name, content):
+        self.submitted.append((import_type, file_name, content))
+        return 100 + len(self.submitted)
+
+    def import_status(self, import_id):
+        return self.import_status_value if not isinstance(self.import_status_value, dict) \
+            else self.import_status_value[import_id]
+
+
+class FakeStore:
+    def __init__(self, reference=None):
+        self.ref = {s: list(v) for s, v in (reference or {}).items()}
+        self.snapshots, self.changes, self.logs, self.advanced = {}, {}, {}, []
+
+    def mapping(self):
+        return list(R.DEFAULT_MAPPING)
+
+    def reference(self):
+        return {s: list(self.ref.get(s, [])) for s in R.SECTIONS}
+
+    def save_snapshot(self, run_id, business_date, snapshot):
+        self.snapshots[run_id] = snapshot
+
+    def save_changes(self, run_id, business_date, changes):
+        self.changes[run_id] = changes
+
+    def advance_reference(self, run_id, sections, snapshot):
+        self.advanced.append((run_id, tuple(sections)))
+        for s in sections:
+            self.ref[s] = list(snapshot[s])
+
+    def log_imports(self, run_id, entries):
+        self.logs[run_id] = entries
+
+
+def run(store, api, context=PRD, enabled=True, run_id="RUN-2", follow=None):
+    kwargs = {"follow": follow} if follow else {}
+    return R.run_remuneration(api, store, context, run_id=run_id, business_date=dt.date(2026, 10, 14),
+                              import_enabled=enabled, now=NOW,
+                              extract=lambda a, only_active_employees: R.parse_export(json.dumps(a.export_rows).encode()),
+                              **kwargs)
+
+
+def follow_fake(api, import_type, file_name, content):
+    return api.submit_import(import_type, file_name, content), api.import_status(100 + len(api.submitted) + 1)
+
+
+def follow_ok(api, import_type, file_name, content):
+    import_id = api.submit_import(import_type, file_name, content)
+    return import_id, "Success"
+
+
+class Orchestration(unittest.TestCase):
+    def changed_export(self):
+        rows = json.loads(json.dumps(EXPORT))
+        rows[0]["Amount"] = 36300.0
+        rows[1]["Amount"] = "12"
+        return rows
+
+    def initialised(self):
+        store = FakeStore()
+        run(store, FakeApi(EXPORT), run_id="RUN-1")
+        return store
+
+    def test_first_run_initialises_reference_without_sending(self):
+        store, api = FakeStore(), FakeApi(EXPORT)
+        result = run(store, api, run_id="RUN-1")
+        self.assertTrue(result["first_run"])
+        self.assertEqual(result["imports"], {R.IMPORT_SALARY: R.INIT_REFERENCE, R.IMPORT_BONUS: R.INIT_REFERENCE})
+        self.assertEqual(api.submitted, [])
+        self.assertEqual(len(store.ref[R.BASE_SALARY]), 1)
+
+    def test_prd_enabled_sends_legacy_content_and_advances(self):
+        store = self.initialised()
+        api = FakeApi(self.changed_export())
+        result = run(store, api, follow=follow_ok)
+        self.assertEqual(result["imports"], {R.IMPORT_SALARY: R.SENT, R.IMPORT_BONUS: R.SENT})
+        salary = [s for s in api.submitted if s[0] == R.IMPORT_SALARY][0]
+        self.assertEqual(salary[1], "RemunSalaryHistoIE_InsertAndUpdate_fr-FR_1_14102026.csv")
+        self.assertIn('"36300,00"', salary[2].decode())
+        self.assertIn('"10,00"', salary[2].decode())                      # [extra_augm_n-1]
+        self.assertEqual(result["summary"]["baseSalary_nb_inserts"], 1)
+        self.assertEqual(store.ref[R.BASE_SALARY][0]["amount"], "36300")
+        self.assertTrue(all(e["reference_advanced"] for e in store.logs["RUN-2"]))
+
+    def test_non_prd_computes_without_sending(self):
+        store = self.initialised()
+        api = FakeApi(self.changed_export())
+        result = run(store, api, context=DEV)
+        self.assertEqual(set(result["imports"].values()), {R.NOT_PUSHED_NON_PRD})
+        self.assertEqual(api.submitted, [])
+        self.assertEqual(len(store.changes["RUN-2"][R.IMPORT_SALARY]), 1)
+
+    def test_disabled_keeps_reference_for_next_run(self):
+        store = self.initialised()
+        result = run(store, FakeApi(self.changed_export()), enabled=False)
+        self.assertEqual(set(result["imports"].values()), {R.DISABLED})
+        self.assertEqual(store.ref[R.BASE_SALARY][0]["amount"], "33000")   # référence inchangée : rien n'est perdu
+
+    def test_failed_import_is_logged_then_raised(self):
+        store = self.initialised()
+        api = FakeApi(self.changed_export())
+
+        def follow(a, import_type, file_name, content):
+            import_id = a.submit_import(import_type, file_name, content)
+            return import_id, ("Failed" if import_type == R.IMPORT_BONUS else "Success")
+        with self.assertRaises(R.RemunerationFailed) as ctx:
+            run(store, api, follow=follow)
+        self.assertEqual(ctx.exception.result["imports"], {R.IMPORT_SALARY: R.SENT, R.IMPORT_BONUS: R.FAILED})
+        logs = {e["import_type"]: e for e in store.logs["RUN-2"]}
+        self.assertTrue(logs[R.IMPORT_SALARY]["reference_advanced"])
+        self.assertFalse(logs[R.IMPORT_BONUS]["reference_advanced"])
+        self.assertEqual(store.ref[R.BONUS_PERCENT][0]["value"], "10.5")
+
+    def test_no_change_and_unresolved_workspace(self):
+        store = self.initialised()
+        result = run(store, FakeApi(EXPORT))
+        self.assertEqual(set(result["imports"].values()), {R.EMPTY})
+        store = self.initialised()
+        result = run(store, FakeApi(self.changed_export()), context=lambda: {})
+        self.assertEqual(set(result["imports"].values()), {R.BLOCKED_UNRESOLVED})
+        self.assertFalse(any(e["reference_advanced"] for e in store.logs["RUN-2"]))
+
+    def test_logs_and_result_carry_no_values(self):
+        store = self.initialised()
+        result = run(store, FakeApi(self.changed_export()), follow=follow_ok)
+        text = json.dumps([result, store.logs["RUN-2"]], default=str) + R.step_message(result)
+        for secret in ("FR000001", "36300", "33000"):
+            self.assertNotIn(secret, text)
+
+
+class Polling(unittest.TestCase):
+    def test_export_polling(self):
+        sleeps = []
+        api = FakeApi(EXPORT, statuses=["Pending", "Running", "Successful"])
+        rows = R.extract_compensation(api, sleep=sleeps.append, clock=lambda: 0)
+        self.assertEqual(len(rows), 4)
+        self.assertEqual(len(sleeps), 2)
+        self.assertFalse(api.created[0]["EmployeeFilters"]["ExportOnlyActiveEmployees"])
+        self.assertTrue(api.created[0]["RecordFilters"]["ExportOnlyCurrentRecords"])
+        with self.assertRaises(HrisError) as ctx:
+            R.extract_compensation(FakeApi(EXPORT, statuses=["Failed"]), sleep=lambda s: None)
+        self.assertEqual(ctx.exception.code, "TS_EXPORT_FAILED")
+        ticks = iter([0, 0, 5000, 5000])
+        with self.assertRaises(HrisError) as ctx:
+            R.extract_compensation(FakeApi(EXPORT, statuses=["Running"]), sleep=lambda s: None,
+                                   clock=lambda: next(ticks), timeout_seconds=10)
+        self.assertEqual(ctx.exception.code, "TS_EXPORT_TIMEOUT")
+
+    def test_import_follow(self):
+        api = FakeApi(EXPORT, import_status="Success")
+        self.assertEqual(R.submit_and_follow(api, R.IMPORT_SALARY, "f.csv", b"x", sleep=lambda s: None)[1], "Success")
+        api = FakeApi(EXPORT, import_status="InProgress")
+        ticks = iter([0, 0, 99999])
+        self.assertEqual(R.submit_and_follow(api, R.IMPORT_SALARY, "f.csv", b"x", sleep=lambda s: None,
+                                             clock=lambda: next(ticks), timeout_seconds=10)[1], "InProgress")
+
+
+class Structure(unittest.TestCase):
+    def test_compare_codes_and_shapes_without_values(self):
+        produced = R.content_structure(R.import_content(R.IMPORT_SALARY, [
+            {"employeenumber": "FR000001", "date": "01/01/2026", "type": "ANNUAL_BASE_SALARY", "amount": "1,00",
+             "currency": "EUR", "periodicity": "annual", "extra_augm_n-1": None}]))
+        legacy = R.content_structure(
+            '"employeenumber";"date";"type";"amount";"currency";"periodicity";"extra_augm_n-1"\r\n'
+            '"FR000002";"01/01/2026 00:00:00";"Salaire de base";"2,00";"EUR";"Annual";"0,00"\r\n'.encode())
+        gaps = R.compare_structures(produced, legacy)
+        self.assertTrue(any(g.startswith("type") for g in gaps))
+        self.assertTrue(any(g.startswith("periodicity") for g in gaps))
+        self.assertTrue(any(g.startswith("date") for g in gaps))
+        self.assertFalse(any(g.startswith("currency") for g in gaps))
+        self.assertNotIn("FR00000", json.dumps([produced, legacy, gaps]))
+
+
+class FakeResponse:
+    def __init__(self, status, payload=None, content=b"", headers=None):
+        self.status_code, self._payload, self.content, self.headers = status, payload, content, headers or {}
+
+    def json(self):
+        return self._payload
+
+
+class FakeSession:
+    def __init__(self, responses):
+        self.responses, self.calls = list(responses), []
+
+    def request(self, method, url, **kwargs):
+        self.calls.append((method, url, kwargs))
+        return self.responses.pop(0)
+
+
+class FakeClient:
+    base_url = "https://motul.talent-soft.com"
+
+    def __init__(self, responses):
+        self._session, self.tokens = FakeSession(responses), 0
+
+    def _auth_headers(self):
+        return {"Authorization": "Bearer t", "Accept": "application/json"}
+
+    def get_token(self):
+        self.tokens += 1
+
+
+class ApiClient(unittest.TestCase):
+    def test_export_creation_retry_on_401_and_import_multipart(self):
+        client = FakeClient([FakeResponse(401), FakeResponse(200, 7), FakeResponse(200, 3),
+                             FakeResponse(200, {"ImportId": 55}), FakeResponse(200, {"StatusCode": "Success"})])
+        api = R.TalentSoftApi(client)
+        self.assertEqual(api.create_export(R.export_request(False)), 7)
+        self.assertEqual(client.tokens, 1)
+        method, url, kwargs = client._session.calls[1]
+        self.assertEqual((method, url), ("POST", "https://motul.talent-soft.com/api/hub/v3.0/exports/datasets"))
+        self.assertFalse(kwargs["allow_redirects"])
+        self.assertEqual(api.export_status(7), "Successful")
+        self.assertEqual(api.submit_import(R.IMPORT_SALARY, "f.csv", b"x"), 55)
+        _, url, kwargs = client._session.calls[3]
+        self.assertTrue(url.endswith("/api/administration/v1.0/imports"))
+        self.assertEqual(kwargs["files"]["file"][0], "f.csv")
+        self.assertEqual(kwargs["data"]["importTypeCode"], R.IMPORT_SALARY)
+        self.assertEqual(api.import_status(55), "Success")
+        with self.assertRaises(HrisError):
+            R.TalentSoftApi(FakeClient([FakeResponse(500)])).create_export({})
+
+
+class RemunerationStoreSpark(unittest.TestCase):
+    """Fabric uniquement (NB_HRIS_TESTS) : instantané, changements, référence et journal en Delta, schéma de test isolé."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            from test_fabric_integration import ENV
+        except ImportError:
+            raise unittest.SkipTest("hors Fabric")
+        if ENV.get("spark") is None:
+            raise unittest.SkipTest("hors Fabric")
+        from hris import spark_io as IO
+        from hris.model import tables_for_notebook
+        cls.spark = ENV["spark"]
+        cls.T = tables_for_notebook(ENV["notebookutils"].runtime.context, ENV["schema"], ENV["lakehouse"])
+        if not cls.T.test_schema:
+            raise unittest.SkipTest("schéma de test absent")
+        logicals = ["cfg.ts_remuneration_mapping", "stg.ts_remuneration_snapshot", "ref.ts_remuneration_snapshot",
+                    "pub.ts_remuneration_change", "log.ts_remuneration_import"]
+        for logical in logicals:
+            cls.spark.sql("DROP TABLE IF EXISTS " + cls.T(logical))      # tables de TEST (schéma isolé)
+        IO.ensure_schemas_and_tables(cls.spark, cls.T, logicals)
+
+    def test_round_trip(self):
+        store = R.SparkRemunerationStore(self.spark, self.T)
+        snapshot, _ = R.build_snapshot(R.parse_export(json.dumps(EXPORT).encode()), R.DEFAULT_MAPPING)
+        store.save_snapshot("TST-REM-1", dt.date(2026, 10, 14), snapshot)
+        store.advance_reference("TST-REM-1", R.SECTIONS, snapshot)
+        reference = store.reference()
+        self.assertEqual({s: len(reference[s]) for s in R.SECTIONS}, {s: len(snapshot[s]) for s in R.SECTIONS})
+        changed = json.loads(json.dumps(EXPORT))
+        changed[0]["Amount"] = 36300.0
+        snapshot2, _ = R.build_snapshot(R.parse_export(json.dumps(changed).encode()), R.DEFAULT_MAPPING)
+        changes = {R.IMPORT_SALARY: R.base_salary_changes(snapshot2[R.BASE_SALARY], reference[R.BASE_SALARY]),
+                   R.IMPORT_BONUS: []}
+        store.save_changes("TST-REM-2", dt.date(2026, 10, 15), changes)
+        store.advance_reference("TST-REM-2", (R.BASE_SALARY,), snapshot2)
+        store.log_imports("TST-REM-2", [{"run_id": "TST-REM-2", "import_type": R.IMPORT_SALARY, "rows": 1,
+                                         "status": R.SENT, "reference_advanced": True, "created_at_utc": NOW}])
+        self.assertEqual(store.reference()[R.BASE_SALARY][0]["amount"], "36300")
+        self.assertEqual(len(store.reference()[R.BONUS_PERCENT]), 1)              # bonus non touchés
+        saved = self.spark.table(self.T("pub.ts_remuneration_change")).where("run_id = 'TST-REM-2'").collect()
+        self.assertEqual((saved[0]["amount"], saved[0]["extra_augm_n_1"]), ("36300,00", "10,00"))
+
+
+if __name__ == "__main__":
+    unittest.main()
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE test_adp_wiring =============
+register_hris_module('test_adp_wiring', 'bdc098e3285d8579c97c0188f9d592add896431520bb3ebbf847577771a4d06d', r'''"""TU-ADP-W — câblage du transport ADP réel : encodage des chemins (défaut latent corrigé), jeton OAuth, fabrique.
+Aucun réseau : connexions factices ; le verrou d'activation n'est levé que le temps d'un test, puis restauré."""
+import http.client
+import json
+import os
+import ssl
+import tempfile
+import unittest
+
+from hris import adp_spark as S
+from hris import adp_transport as TR
+from hris.common import HrisError, SecretValue
+
+FILTER_PATH = "hr/v2/workers?$filter=workers/workerID/idValue eq 'FR000001'"
+
+
+class RequestTarget(unittest.TestCase):
+    def test_spaces_encoded_reserved_kept(self):
+        self.assertEqual(TR.request_target("/", FILTER_PATH),
+                         "/hr/v2/workers?$filter=workers/workerID/idValue%20eq%20'FR000001'")
+        self.assertEqual(TR.request_target("/", "events/hr/v1/worker.hire"), "/events/hr/v1/worker.hire")
+
+    def test_same_target_as_requests(self):
+        try:
+            import requests
+        except ImportError:
+            self.skipTest("requests absent")
+        for path in (FILTER_PATH, "payroll/v2/workers/G3ABC/pay-distributions", "hr/v2/workers/FR000001"):
+            prepared = requests.Request("GET", "https://accounts.eu.adp.com/" + path).prepare()
+            self.assertEqual(TR.request_target("/", path), prepared.path_url)
+
+
+class CapturingConnection(http.client.HTTPSConnection):
+    """Vraie validation http.client (putrequest/putheader), sans réseau : l'envoi est capturé."""
+
+    def __init__(self, response_status=200, response_body=b"{}"):
+        super().__init__("accounts.eu.adp.com", 443)
+        self.sent, self._status, self._body = [], response_status, response_body
+
+    def connect(self):
+        pass
+
+    def send(self, data):
+        self.sent.append(data)
+
+    def getresponse(self):
+        status, body = self._status, self._body
+
+        class Response:
+            reason = "OK"
+
+            def __init__(self):
+                self.status = status
+
+            def read(self, n=-1):
+                return body
+
+            def getheader(self, name, default=""):
+                return "application/json"
+        return Response()
+
+    def close(self):
+        pass
+
+
+def bare_transport(conn):
+    transport = TR.AdpHttpTransport.__new__(TR.AdpHttpTransport)   # constructeur verrouillé : attributs posés à la main
+    transport.host, transport.base_path, transport.timeout = "accounts.eu.adp.com", "/", 30.0
+    transport._bearer, transport._ctx = (lambda: "jeton"), None
+    transport._connection = lambda: conn
+    return transport
+
+
+class TransportPaths(unittest.TestCase):
+    def test_get_with_filter_passes_http_client_validation(self):
+        conn = CapturingConnection(200, b'{"workers": []}')
+        saved = TR.ADP_READ_POLICY_ESTABLISHED
+        TR.ADP_READ_POLICY_ESTABLISHED = True
+        try:
+            status, _ = bare_transport(conn).get(FILTER_PATH)
+        finally:
+            TR.ADP_READ_POLICY_ESTABLISHED = saved
+        self.assertEqual(status, 200)
+        self.assertIn(b"GET /hr/v2/workers?$filter=workers/workerID/idValue%20eq%20'FR000001' HTTP/1.1", conn.sent[0])
+
+    def test_post_uses_encoded_target(self):
+        conn = CapturingConnection(200, b'{"ok": true}')
+        result = bare_transport(conn).post("events/hr/v1/worker.hire", b"{}")
+        self.assertEqual(result.outcome, TR.ACCEPTED)
+        self.assertTrue(conn.sent[0].startswith(b"POST /events/hr/v1/worker.hire HTTP/1.1"))
+
+    def test_unencoded_path_was_refused(self):
+        with self.assertRaises(http.client.InvalidURL):            # le défaut corrigé
+            CapturingConnection().putrequest("GET", "/" + FILTER_PATH)
+
+
+class Token(unittest.TestCase):
+    def make(self, responses, clock):
+        conns = []
+
+        def factory():
+            status, body = responses.pop(0)
+            conns.append(CapturingConnection(status, body))
+            return conns[-1]
+        token = TR.OAuthToken(None, SecretValue("id&1"), SecretValue("s+2"), 30, clock=clock, connection_factory=factory)
+        return token, conns
+
+    def test_fetch_cache_refresh(self):
+        now = [0.0]
+        token, conns = self.make([(200, json.dumps({"access_token": "A", "expires_in": 3600}).encode()),
+                                  (200, json.dumps({"access_token": "B", "expires_in": 3600}).encode())],
+                                 lambda: now[0])
+        self.assertEqual(token(), "A")
+        self.assertEqual(token(), "A")
+        self.assertEqual(len(conns), 1)
+        raw = b"".join(conns[0].sent)
+        self.assertIn(b"POST /auth/oauth/v2/token HTTP/1.1", raw)
+        self.assertIn(b"client_id=id%261&client_secret=s%2B2&grant_type=client_credentials", raw)
+        now[0] = 3600.0
+        self.assertEqual(token(), "B")
+        self.assertEqual(repr(token), "OAuthToken(***)")
+
+    def test_refusals(self):
+        for status, body in ((401, b"{}"), (200, b"pas du json"), (200, b"{}")):
+            token, _ = self.make([(status, body)], lambda: 0.0)
+            with self.assertRaises(HrisError) as ctx:
+                token()
+            self.assertEqual(ctx.exception.code, "ADP_AUTH_FAILED")
+
+
+class Factory(unittest.TestCase):
+    PEM = {"client-id-adp": "id", "client-secret-adp": "secret",
+           "MOTUL-SA-cer": "-----BEGIN CERTIFICATE-----AAAA-----END CERTIFICATE-----",
+           "motulsa-auth-key": "-----BEGIN RSA PRIVATE KEY-----BBBB-----END RSA PRIVATE KEY-----"}
+
+    def test_refuses_without_reading_secrets_while_locked(self):
+        reads = []
+        factory = S.RealAdpTransportFactory("https://kv", 30, get_secret=lambda kv, name: reads.append(name))
+        with self.assertRaises(HrisError) as ctx:
+            factory()
+        self.assertEqual((ctx.exception.code, reads), ("ADP_ACTIVATION_NOT_APPROVED", []))
+
+    def test_wiring_when_approved(self):
+        events = []
+
+        class Token:
+            def __init__(self, context, client_id, client_secret, timeout):
+                events.append(("token_init", context, client_id.reveal(), client_secret.reveal()))
+
+            def __call__(self):
+                events.append(("token_call",))
+                return "T"
+
+        class Transport:
+            def __init__(self, context, bearer, timeout, _allow_construction=False):
+                events.append(("transport", context, _allow_construction))
+
+        saved = TR.ADP_ACTIVATION_APPROVED
+        TR.ADP_ACTIVATION_APPROVED = True
+        try:
+            reads = []
+            factory = S.RealAdpTransportFactory(
+                "https://kv", 30, get_secret=lambda kv, name: reads.append((kv, name)) or self.PEM[name],
+                context_builder=lambda cert, key: ("ctx", cert.splitlines()[0], key.splitlines()[0]),
+                token_class=Token, transport_class=Transport)
+            factory()
+            self.assertEqual(sorted(n for _, n in reads), sorted(self.PEM))
+            self.assertEqual([e[0] for e in events], ["token_init", "token_call", "transport"])
+            self.assertEqual(events[0][1], ("ctx", "-----BEGIN CERTIFICATE-----", "-----BEGIN RSA PRIVATE KEY-----"))
+            self.assertTrue(events[2][2])
+            empty = dict(self.PEM, **{"client-secret-adp": ""})
+            with self.assertRaises(HrisError) as ctx:
+                S.RealAdpTransportFactory("https://kv", 30, get_secret=lambda kv, name: empty[name],
+                                          token_class=Token, transport_class=Transport)()
+            self.assertEqual(ctx.exception.code, "ADP_SECRET_EMPTY")
+            with self.assertRaises(HrisError) as ctx:
+                S.RealAdpTransportFactory("", 30, get_secret=lambda kv, name: "x")()
+            self.assertEqual(ctx.exception.code, "PARAM_MISSING")
+        finally:
+            TR.ADP_ACTIVATION_APPROVED = saved
+        self.assertFalse(TR.ADP_ACTIVATION_APPROVED)
+
+
+class MtlsContext(unittest.TestCase):
+    def test_invalid_material_refused_and_nothing_left_on_disk(self):
+        root = tempfile.gettempdir()
+        before = {n for n in os.listdir(root) if n.startswith("hris-adp-")}
+        with self.assertRaises(ssl.SSLError):
+            TR.mtls_context("-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n",
+                            "-----BEGIN RSA PRIVATE KEY-----\nBBBB\n-----END RSA PRIVATE KEY-----\n")
+        after = {n for n in os.listdir(root) if n.startswith("hris-adp-")}
+        self.assertEqual(after, before)
+
+
+if __name__ == "__main__":
+    unittest.main()
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 # ============= IMPORTS =============
 # Standard libraries
 import datetime as dt
@@ -2186,11 +3011,14 @@ from typing import Dict, Iterator
 
 # Internal HRIS library (chargée par %run T4_NB_HRIS_LIB) and test modules (cellules précédentes)
 import test_adp_publication
+import test_adp_wiring
 import test_cell_log
 import test_contract_markers
 import test_fabric_integration
 import test_legacy_logs
 import test_parity_transform
+import test_reference_api
+import test_remuneration
 import test_spark_transform_parity
 import test_tables_naming
 import test_ts_acquire
@@ -2300,7 +3128,8 @@ def library_versions() -> Dict[str, str]:
 cell_log.start("RUN_TESTS")
 try:
     test_modules = [test_parity_transform, test_ts_acquire, test_adp_publication, test_contract_markers,
-                    test_legacy_logs, test_tables_naming, test_spark_transform_parity, test_cell_log]
+                    test_legacy_logs, test_tables_naming, test_spark_transform_parity, test_cell_log,
+                    test_reference_api, test_remuneration, test_adp_wiring]
     run_integration = as_bool(p_run_integration)
     if run_integration:
         test_modules.append(test_fabric_integration)
@@ -2308,7 +3137,8 @@ try:
     only = [fragment.strip() for fragment in p_only.split(",") if fragment.strip()]
     for test_module in test_modules:
         for test in iterate_tests(unittest.defaultTestLoader.loadTestsFromModule(test_module)):
-            if not run_integration and "CellLogSpark" in test.id():
+            if not run_integration and any(name in test.id() for name in (
+                    "CellLogSpark", "ReferenceStoreSpark", "RemunerationStoreSpark")):
                 continue                                # écrit dans le schéma de test : réservé à l'intégration
             if not only or any(fragment in test.id() for fragment in only):
                 suite.addTest(test)
