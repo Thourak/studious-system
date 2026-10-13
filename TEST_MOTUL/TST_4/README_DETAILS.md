@@ -260,7 +260,7 @@ salariés en poste : leur comportement sur des sortis reste à valider avec le m
 
 | Sujet | Règle |
 |---|---|
-| Parallélisme | fenêtre glissante sur tous les salariés, sans lots ni pause ; 10 requêtes simultanées et 8 salariés en parallèle par défaut (paramètres `p_ts_request_concurrency` et `p_ts_employee_concurrency`, 1 à 40 ; l'existant : 5 et 2, lots de 75, pause de 2 s) |
+| Parallélisme | fenêtre glissante sur tous les salariés, sans lots ni pause ; 16 requêtes simultanées et 16 salariés en parallèle par défaut (plafonds fixes, non adaptatifs ; paramètres `p_ts_request_concurrency` et `p_ts_employee_concurrency`, 1 à 40 ; l'existant : 5 et 2, lots de 75, pause de 2 s) |
 | Reprises | 429, 503 et erreurs réseau : jusqu'à 3 essais (2 pour situation et poste), attente doublée à chaque essai |
 | `Retry-After` | respecté, plafonné à 60 s (amélioration) |
 | Disjoncteur | 5 échecs réseau → requêtes ignorées pendant 60 s |
