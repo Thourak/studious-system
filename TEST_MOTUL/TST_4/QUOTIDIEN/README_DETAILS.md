@@ -1,18 +1,36 @@
-# Hub RH TalentSoft PRD → Lakehouse (puis ADP) sur Fabric — fonctionnement détaillé
+# Pipeline quotidien — fonctionnement détaillé
 
-Ce document détaille chaque point de la [vue d'ensemble](README.md). Il s'adresse aux personnes qui présentent,
-développent, exploitent ou dépannent le hub. Les noms entre accents graves sont ceux des objets, tables, paramètres
-et colonnes tels qu'ils apparaissent dans Fabric. Chaque affirmation indique, quand c'est utile, si elle a été
+Ce document détaille le dossier `QUOTIDIEN` : le pipeline planifié et tout ce qu'il exécute. Il s'adresse aux
+personnes qui présentent, développent, exploitent ou dépannent le hub. Vue d'ensemble : [README](../README.md) ·
+traitements ponctuels (premier chargement, installation, codes ADP) : [ONESHOT](../ONESHOT/README_DETAILS.md) ·
+tests : [TESTS](../TESTS/README_DETAILS.md). Les noms entre accents graves sont ceux des objets, tables, paramètres et
+colonnes tels qu'ils apparaissent dans Fabric. Chaque affirmation indique, quand c'est utile, si elle a été
 **vérifiée** (mesurée ou exécutée) ou si elle reste **non vérifiée**.
 
-**Sommaire** — [Contexte](#contexte) · [Architecture](#architecture) · [Lancement](#lancement) ·
-[Contrôle du run](#run-control) · [Acquisition](#acquisition) · [Transformation](#transformation) ·
-[Comparaison](#comparaison) · [Promotion](#promotion) · [Publication ADP](#publication) · [Tables](#tables) ·
-[Sécurité](#securite) · [Tests et preuves](#tests) · [Git et Fabric](#git) · [Exploitation](#exploitation) ·
-[Journal des cellules](#journal-cellules) · [Refactorisation TST_4](#tst4) · [Démonstration](#demo) ·
-[Blocages](#blocages) · [Questions probables](#faq) · [Glossaire](#glossaire)
+**Sommaire** — [Contenu](#contenu) · [Contexte](#contexte) · [Architecture](#architecture) · [Lancement](#lancement) ·
+[Contrôle du run](#run-control) · [Acquisition](#acquisition) · [Correspondances](#correspondances) ·
+[Transformation](#transformation) · [Comparaison](#comparaison) · [Promotion](#promotion) ·
+[Rémunération](#remuneration) · [Publication ADP](#publication) · [Tables](#tables) · [Sécurité](#securite) ·
+[Exploitation](#exploitation) · [Journal des cellules](#journal-cellules) · [Refactorisation TST_4](#tst4) ·
+[Questions probables](#faq) · [Glossaire](#glossaire)
 
 ---
+
+<a id="contenu"></a>
+## Contenu du dossier
+
+| Objet (nom dans Fabric) | Dossier du dépôt | Rôle |
+|---|---|---|
+| `T4_PL_HRIS_ORCHESTRATOR` | `PL_HRIS_ORCHESTRATOR.DataPipeline` | le pipeline : enchaîne les étapes d'un run et gère les échecs ; **seul pipeline planifié** (06:00, heure de Paris) |
+| `T4_VL_HRIS` | `VL_HRIS.VariableLibrary` | paramètres de l'environnement, sans secret ; lus par les deux pipelines |
+| `T4_NB_HRIS_LIB` | `NB_HRIS_LIB.Notebook` | bibliothèque commune `hris` (21 modules), chargée par `%run` par tous les notebooks, y compris ceux de `ONESHOT` et `TESTS` |
+| `T4_NB_HRIS_RUN_CONTROL` | `NB_HRIS_RUN_CONTROL.Notebook` | ouvre un run (verrou, registre), le clôture ou le déclare en échec |
+| `T4_NB_HRIS_TS_ACQUIRE` | `NB_HRIS_TS_ACQUIRE.Notebook` | extraction TalentSoft PRD, contrôles de complétude, partie TalentSoft des correspondances |
+| `T4_NB_HRIS_REMUNERATION` | `NB_HRIS_REMUNERATION.Notebook` | flux rémunération par API, en parallèle de l'acquisition ; mode `VALIDATE` à la main |
+| `T4_NB_HRIS_TRANSFORM` | `NB_HRIS_TRANSFORM.Notebook` | règles SQL de production : correspondances, rejets, format paie |
+| `T4_NB_HRIS_COMPARE` | `NB_HRIS_COMPARE.Notebook` | delta contre la référence, décision `VALIDATED` ou `BLOCKED` |
+| `T4_NB_HRIS_PROMOTE` | `NB_HRIS_PROMOTE.Notebook` | mise à jour de la référence et outbox |
+| `T4_NB_HRIS_PUBLISH_ADP` | `NB_HRIS_PUBLISH_ADP.Notebook` | publication ADP : garde-fou sur le workspace d'exécution, activation verrouillée |
 
 <a id="contexte"></a>
 ## Contexte, objectifs et périmètre
@@ -26,7 +44,7 @@ actuel, l'e-mail d'erreur n'était jamais envoyé, tout workspace non-DEV était
 
 | Sujet | Existant | Cette version |
 |---|---|---|
-| Orchestration | 5 pipelines Synapse, 2 Function Apps, 3 Logic Apps | 1 pipeline planifié, 12 notebooks, 1 variable library |
+| Orchestration | 5 pipelines Synapse, 2 Function Apps, 3 Logic Apps | 2 pipelines (le quotidien, seul planifié ; le premier chargement, lancé à la main), 12 notebooks, 1 variable library |
 | Échanges entre étapes | fichiers JSON, Parquet, CSV, drapeau de fin | tables Delta uniquement |
 | Échanges avec TalentSoft | API (salariés) et SFTP (correspondances, rémunération) | API uniquement : salariés, référentiels, export et import de rémunération |
 | Delta | J contre J-1 sur fichiers, absents non détectés | comparaison à la **référence du dernier run validé**, absents détectés |
@@ -70,14 +88,17 @@ flowchart LR
     NB -.->|"verrouillé"| ADP
 ```
 
-**Les items.** Dix notebooks, une variable library et un pipeline sont créés dans le dossier de workspace
-`TEST_MOTUL/TEST_2`. Le Lakehouse préexiste dans `TEST_MOTUL/TEST_1` ; il est réutilisé, non dupliqué (le nom
-documenté `LH_HRIS` est remplacé par le Lakehouse désigné, `MOTUL_LH_HRIS`).
+**Les items.** Ils sont rangés dans trois sous-dossiers de `TEST_MOTUL/TST_4`
+([organisation](../README.md#organisation)). Ce dossier-ci, `QUOTIDIEN`, contient le pipeline planifié, ses sept
+notebooks d'étape, la bibliothèque commune et la variable library. Le Lakehouse préexiste dans `TEST_MOTUL/TEST_1` ;
+il est réutilisé, non dupliqué (le nom documenté `LH_HRIS` est remplacé par le Lakehouse désigné, `MOTUL_LH_HRIS`).
 
-**Une bibliothèque, une seule copie.** Le code métier vit dans une bibliothèque Python (`hris`, 19 modules de
-production, dont `hris.reference_api` ajouté pour les correspondances) portée par le notebook `T3_nb_hris_lib` (dossier `NB_HRIS_LIB.Notebook`), une cellule par module, avec
-l'empreinte SHA-256 de chaque module vérifiée au chargement. Chaque notebook la charge par `%run T3_nb_hris_lib`
-(deuxième cellule), qui exécute ses cellules dans l'interpréteur du notebook appelant. Jusqu'à la version T3, la
+**Une bibliothèque, une seule copie.** Le code métier vit dans une bibliothèque Python (`hris`, 21 modules,
+dont `hris.reference_api` pour les correspondances et `hris.bootstrap` pour le premier chargement) portée par le
+notebook `T4_NB_HRIS_LIB` (dossier `QUOTIDIEN/NB_HRIS_LIB.Notebook`), une cellule par module, avec l'empreinte SHA-256
+de chaque module vérifiée au chargement. Chaque notebook la charge par `%run T4_NB_HRIS_LIB` (deuxième cellule), y
+compris ceux des dossiers `ONESHOT` et `TESTS` ; la commande exécute ses cellules dans l'interpréteur du notebook
+appelant. Jusqu'à la version T3, la
 bibliothèque était copiée à l'identique dans chaque notebook (environ 5 550 lignes par notebook) faute de
 vérification du `%run` en exécution par pipeline ; voir [Refactorisation TST_4](#tst4) pour ce qui reste à vérifier
 dans Fabric.
@@ -107,10 +128,13 @@ suppression globale.
 ## Lancement et paramètres
 
 **Déclenchement.** Planification Fabric **quotidienne à 06:00, heure de Paris** (`Romance Standard Time`), déclarée
-dans `PL_HRIS_ORCHESTRATOR.DataPipeline/.schedules` (format Git de Fabric, `jobType` `Execute`) ; lancement manuel
-toujours possible. Les runs planifiés prennent les valeurs par défaut (`NORMAL`) : le tout premier run se lance à la
-main en `INIT_REFERENCE`. Attention : la planification est portée par l'item, donc active dans **chaque** workspace
-synchronisé avec ce dossier (DEV compris) ; la désactiver dans l'interface du workspace où elle n'est pas voulue.
+dans `QUOTIDIEN/PL_HRIS_ORCHESTRATOR.DataPipeline/.schedules` (format Git de Fabric, `jobType` `Execute`) ;
+lancement manuel toujours possible. C'est le **seul pipeline planifié**. Les runs planifiés prennent les valeurs par
+défaut (`NORMAL`) : le tout premier run passe par le pipeline de premier chargement `T4_PL_HRIS_BOOTSTRAP`, qui choisit
+lui-même `INIT_REFERENCE` ([détail](../ONESHOT/README_DETAILS.md#premier-chargement)). État actuel : planification
+**désactivée** dans le workspace (`"enabled": false`, `UserDisabled`), à activer à la fin du premier chargement.
+Attention : la planification est portée par l'item, donc active dans **chaque** workspace synchronisé avec ce dossier
+(DEV compris) ; la désactiver dans l'interface du workspace où elle n'est pas voulue.
 
 **Paramètres du pipeline `PL_HRIS_ORCHESTRATOR`.**
 
@@ -219,8 +243,10 @@ peut relancer implicitement la publication.
 **Reprise fidèle de la Function existante** (règles R-TS de la spécification A01), avec quelques améliorations
 techniques.
 
-**Authentification.** OAuth2 `client_credentials` sur `POST /api/token`, sans scope. Les deux secrets sont lus par
-`notebookutils.credentials.getSecret` à l'exécution ; ils sont encapsulés (jamais affichés, jamais en paramètre).
+**Authentification.** OAuth2 `client_credentials` sur `POST /api/token`, sans scope. Cible : les deux secrets lus par
+`notebookutils.credentials.getSecret` à l'exécution, encapsulés (jamais affichés, jamais en paramètre). **État actuel
+de `TST_4`** : cette lecture est commentée et les identifiants sont écrits dans le code de l'acquisition, contournement
+temporaire du blocage ci-dessous en attendant l'environnement Fabric de Motul.
 
 **Étapes.**
 
@@ -277,11 +303,12 @@ destination résolue, **secrets non résolus**.
 
 **Le blocage constaté.** `getSecret` échoue avec `401 AKV10032: Invalid issuer`. Le workspace d'exécution appartient
 au tenant SBI ; le Key Vault qui porte les identifiants TalentSoft PRD appartient au tenant Motul ; le jeton émis par
-le premier n'est pas accepté par le second. Il n'a été ni contourné, ni résolu par copie de secret. Voir
-[Blocages](#blocages).
+le premier n'est pas accepté par le second. Il n'est pas résolu : l'acquisition le contourne par des identifiants
+écrits dans son code (à retirer dès que le coffre est lisible), le flux rémunération lit le coffre et échoue donc tant
+que le blocage dure. Voir [Blocages](../README.md#blocages).
 
 <a id="correspondances"></a>
-## Correspondances TalentSoft → ADP, sans aucun fichier
+## Correspondances TalentSoft → ADP, sans aucun fichier : partie TalentSoft
 
 **Principe.** Les 17 tables `cfg.lu_hr_*` (13 lues par la transformation) sont la seule source des correspondances ;
 aucun fichier CSV n'est lu (décisions D-FIL-00 et D-REF-01). Chaque table a deux parties, alimentées différemment :
@@ -289,7 +316,7 @@ aucun fichier CSV n'est lu (décisions D-FIL-00 et D-REF-01). Chaque table a deu
 | Partie | Colonnes | Source | Écrite par |
 |---|---|---|---|
 | TalentSoft | code (clé de jointure), libellés, parent | API Core HR `GET /api/hub/v2.0/libraries/{type}` et, pour le sexe, la nationalité et les pays, codes relevés dans l'extraction du run | `NB_HRIS_TS_ACQUIRE`, étape `REFERENCE_CATALOGUE`, à chaque run |
-| ADP | codes, libellés et ordre ADP | **le métier** : TalentSoft ne stocke aucun code ADP | `NB_HRIS_REFERENCE_ADMIN`, à la main |
+| ADP | codes, libellés et ordre ADP | **le métier** : TalentSoft ne stocke aucun code ADP | `NB_HRIS_REFERENCE_ADMIN`, à la main ([saisie](../ONESHOT/README_DETAILS.md#codes-adp)) |
 
 ```mermaid
 flowchart LR
@@ -332,33 +359,18 @@ n'interrompt jamais l'acquisition : elle consigne l'étape `REFERENCE_CATALOGUE`
 non bloquants, `REFERENCE_CATALOGUE` (tables sautées) et `REFERENCE_ADP_MISSING` (codes TalentSoft sans code ADP). Le
 paramètre `p_sync_reference_catalogue` de l'acquisition permet de la désactiver.
 
-**Saisie des codes ADP** (`NB_HRIS_REFERENCE_ADMIN`). Trois modes :
-
-| Mode | Effet |
-|---|---|
-| `REPORT` (défaut) | par table, codes TalentSoft sans code ADP, triés par nombre d'occurrences dans la dernière extraction, colonnes modifiables et modèle de saisie JSON prêt à compléter |
-| `CHECK` | applique la saisie en mémoire et affiche chaque changement, sans écrire |
-| `APPLY` | écrit la saisie ; `p_change_ref` (ticket, validation) obligatoire, recopié dans `_change_ref` |
-
-Une saisie se fait table par table, au format `{"<code TalentSoft>": {"<colonne ADP>": "<valeur>"}}`. Elle est écrite
-en entier ou pas du tout : code absent de la table, colonne TalentSoft ou technique, valeur non textuelle font tout
-refuser. Chaque écriture crée une version Delta : retour arrière possible par `RESTORE TABLE … TO VERSION AS OF n`.
-
 **Contrôle de la transformation.** `MAPPING_TABLE_EMPTY` bloque désormais aussi une table utilisée qui n'a **aucun code
 ADP** : après la première synchronisation, les tables contiennent les codes TalentSoft seuls, et la transformation
 reste bloquée tant que le métier n'a rien saisi, au lieu de rejeter silencieusement tous les salariés. Une fois des
 codes saisis, un code TalentSoft employé sans code ADP fait rejeter les salariés concernés (`Référence_Rejet`), comme
 une correspondance absente dans l'existant.
 
-**Limites.** Les codes ADP de l'existant ne sont pas repris : ils n'existaient que dans les fichiers du SFTP, qui ne
-sont plus lus ; ils doivent être ressaisis par le métier. Un code de plus de 50 caractères ne peut pas être retrouvé
-par la jointure (valeurs source tronquées à 50) : il est compté dans la trace. L'existant typait certaines colonnes
-(`CHAR(n)` complété d'espaces, `INT`) ; le Lakehouse garde le texte saisi.
+**Limites.** Un code de plus de 50 caractères ne peut pas être retrouvé par la jointure (valeurs source tronquées à
+50) : il est compté dans la trace. L'existant typait certaines colonnes (`CHAR(n)` complété d'espaces, `INT`) ; le
+Lakehouse garde le texte saisi.
 
-**Première mise en service.** 1. `NB_HRIS_TESTS`. 2. Un run du pipeline : l'acquisition remplit la partie TalentSoft ;
-la transformation s'arrête sur `MAPPING_TABLE_EMPTY` (aucun code ADP). 3. `NB_HRIS_REFERENCE_ADMIN` en `REPORT`, puis
-saisie table par table (`CHECK`, puis `APPLY`). 4. Nouveau run : la transformation passe ; les codes restants sans
-correspondance apparaissent en `Référence_Rejet` et dans `REFERENCE_ADP_MISSING`.
+**Saisie des codes ADP** : voir [ONESHOT](../ONESHOT/README_DETAILS.md#codes-adp). **Première mise en service** : voir
+le [premier chargement](../ONESHOT/README_DETAILS.md#premier-chargement).
 
 <a id="transformation"></a>
 ## Transformation — `NB_HRIS_TRANSFORM`
@@ -659,7 +671,9 @@ utilisées.
 ## Sécurité et confidentialité
 
 - **Secrets** : lus à l'exécution, encapsulés (représentation `SecretValue(***)`), jamais en paramètre, en variable de
-  pipeline, en table, en fichier ni en sortie. Aucun motif de secret n'a été trouvé en balayant le code et le dossier Git.
+  pipeline, en table, en fichier ni en sortie. **Exception temporaire** : les identifiants TalentSoft sont écrits dans
+  le code de l'acquisition (contournement de B-01, dans `TST_3` puis `TST_4`), donc présents dans l'historique Git. Ils
+  sont à retirer dès que le coffre est lisible, et à renouveler auprès de TalentSoft.
 - **Assainissement** : tout message écrit dans une table masque les URL, adresses, IBAN, jetons et toute suite de quatre
   chiffres ou plus ; les compteurs construits par le code sont conservés.
 - **Sorties de notebooks** : JSON court, compteurs uniquement ; aucune donnée RH.
@@ -672,83 +686,12 @@ utilisées.
   documentation qui les réservait à la production.
 - **Pas de copie ailleurs** : aucun secret, aucune donnée RH n'a été copié vers un autre emplacement.
 
-<a id="tests"></a>
-## Tests et preuves
-
-```mermaid
-flowchart BT
-    U["Unitaires locaux : 68 tests"] --> NR["Non-régression contre la Function ADP d'origine : 2 scénarios"]
-    U --> SP["Parité Spark et SQL de production : 3 tests"]
-    NR --> FI["Intégration Fabric, schéma isolé : 71 tests au total"]
-    SP --> FI
-    FI --> PR["Pipeline manuel : 4 runs"]
-    PR --> LK["Contrôles dans le Lakehouse"]
-```
-
-| Niveau | Contenu | Résultat |
-|---|---|---|
-| Unitaires locaux | parité T-SQL et règles, acquisition (faux serveur), publication (clients fictifs), import de logs, noms de tables, pipeline, marqueurs de contrat | **68 réussis** |
-| Non-régression NR-03 | la Function ADP d'origine (fichier non modifié) et le portage exécutés localement contre le **même simulateur** : même séquence de requêtes d'écriture, mêmes corps JSON, mêmes lignes de log ; scénarios nominal et erreurs HTTP | **2 réussis** |
-| Parité Spark | la transformation Spark égale l'implémentation de référence du SQL sur des cas limites | **3 réussis** (locaux, repris dans la campagne Fabric) |
-| Prototype d'origine | 10 tests du garde-fou initial, conservé intact | **10 réussis** |
-| Fabric, données fictives | schéma isolé `hris_tst`, contexte réel du workspace | campagne 1 : 65 tests, 1 erreur de test corrigée ; campagne 2 : 66, 0 échec ; **campagne 3 : 71, 0 échec**, sans Lakehouse par défaut ; 1 test ignoré dans Fabric (cohérence des marqueurs, vérifiée en local) |
-| Analyse statique | syntaxe de 49 fichiers ; noms indéfinis des 10 notebooks (avec un contrôle positif) | **0 problème** |
-| Correspondances par l'API (TST_4) | lecture des référentiels, fusion de la partie TalentSoft (ajouts, libellés, aucune suppression, aucune colonne ADP écrite), saisie ADP tout ou rien, contrôles non bloquants, aucune valeur journalisée ; faux client API, aucun réseau | **19 tests locaux** : 18 réussis, 1 test Spark ignoré hors Fabric ; 10 mutations du code toutes détectées ; exécution simulée du notebook d'administration et de l'étape d'acquisition : 13 vérifications ; **non exécuté dans Fabric** |
-| Flux rémunération et câblage ADP (TST_4) | règles des vues SQL (décimal, chaînes, clôtures, union), instantané, lecture des exports (JSON, CSV, archive), contenu d'import, garde-fou et avance de la référence, suivi des exports et imports, comparaison de structure ; encodage des chemins ADP (même cible que `requests`, validation réelle de `http.client`), jeton OAuth, fabrique verrouillée | **31 tests locaux** et 1 test Spark (Fabric) ; 10 mutations du flux toutes détectées ; exécution simulée du notebook : 10 vérifications ; **non exécuté dans Fabric** |
-| Sondes de plateforme | deux notebooks de sonde, sans Lakehouse par défaut | noms partiels et à 3 parties en échec ; 4 parties opérationnels |
-
-**Scénarios d'intégration Fabric** : verrou et concurrence (deux acquisitions simultanées, une seule réussit, bail
-expiré) ; premier chargement bloqué puis `INIT_REFERENCE` puis run courant avec outbox et garde-fou réel ; refus d'un
-`INIT_REFERENCE` sur référence non vide ; lot vide ; revalidation après renseignement d'un seuil ; correspondance
-manquante qui n'interrompt que l'enrichissement ; libération du verrou en fin de run.
-
-**Scénarios de publication** (clients fictifs) : tous les noms de workspace, y compris `PREPRD`, `NOTPRD`, `prd` ;
-intention durable avant envoi ; plantage avant, pendant et après l'envoi ; `2xx` inexploitable, `401`, `429`, `5xx`,
-délai, redirection ; absence de retry et de renvoi ; dépendances ; deux modifications légitimes successives du même
-champ ; obsolescence sans perte ; réconciliation ; décisions manuelles.
-
-**Ce qui n'est pas prouvé.** Aucune extraction réelle, donc aucun contrôle de parité sur des données réelles (les écarts
-`ISDATE` et `ISNUMERIC` ne sont pas mesurés) ; aucune publication ; le comportement du lien Lakehouse après une
-synchronisation Git n'est pas vérifiable sans commit.
-
-<a id="git"></a>
-## Intégration Git et Fabric
-
-**Dépôt et association.** Dépôt GitHub `thourak/studious-system`, branche `main`, **répertoire `/`**, associé au
-workspace. Les items HRIS sont dans `TEST_MOTUL/TEST_2` ; le Lakehouse reste dans `TEST_MOTUL/TEST_1`.
-
-**Format natif.** Un dossier par item : `<Nom>.Notebook/` (`notebook-content.py` et `.platform`),
-`<Nom>.DataPipeline/` (`pipeline-content.json` et `.platform`), `<Nom>.VariableLibrary/` (fichiers de définition). Le
-contenu des fichiers est l'**export du service Fabric**, pas une reconstitution : les cellules de code sont comparées à
-celles déployées, et le dossier est contrôlé (références, noms, absence de marqueur non résolu, `retry = 0`).
-**Exception TST_4** : les fichiers de ce dossier ont été modifiés localement lors de la refactorisation (format natif
-et `logicalId` conservés) ; ils ne sont plus un export du service tant qu'ils n'ont pas été synchronisés.
-
-**Identifiants.** Chaque item a un identifiant réel (propre au workspace) et un identifiant **logique** (celui de Git).
-Les 12 items sont créés mais non commités : leur identifiant logique n'existe pas encore. Ceux des fichiers préparés
-sont **prédits** d'après une règle observée sur les 4 items déjà validés depuis ce workspace (permutation déterministe
-de l'identifiant réel) ; ce sont des prédictions que Fabric confirmera au commit. Les références du pipeline vers les
-notebooks utilisent ces identifiants logiques, avec un identifiant de workspace nul (même workspace), comme les pipelines
-déjà synchronisés.
-
-**Contenu du dossier** : `VL_HRIS`, neuf notebooks (dont `NB_HRIS_PUBLISH_ADP` pour son garde-fou, référencé par le
-pipeline) et le pipeline. Exclus : l'import des logs historiques (non requis, import réel interdit), les
-notifications, un Environment (inutile), un second Lakehouse.
-
-**État constaté.** Aucun commit ni push n'a eu lieu. La branche distante est en avance sur le workspace ; 390 éléments du
-sandbox sont non commités, donc un « tout valider » depuis Fabric serait faux.
-
-| Voie | Opérations | Point d'attention |
-|---|---|---|
-| **A, recommandée** | commit sélectif des seuls 12 items depuis Fabric | Fabric attribue les identifiants logiques ; la mise à jour préalable avec la branche distante est peut-être exigée |
-| **B** | commit et push des fichiers préparés, puis mise à jour depuis Git | les items homonymes existent déjà dans le workspace : le comportement de Fabric (rapprochement ou collision) **n'est pas vérifié** |
-
 <a id="exploitation"></a>
 ## Exploitation : relancer, vérifier, reprendre
 
-**Relancer.** Pipeline `PL_HRIS_ORCHESTRATOR`, premier run en `INIT_REFERENCE`, les suivants en `NORMAL` ; ou par
-l'API. Un run réel exige préalablement : l'accès aux secrets (blocage), un pré-contrôle réussi, le contenu des
-correspondances.
+**Relancer.** Premier run : pipeline `T4_PL_HRIS_BOOTSTRAP` ([détail](../ONESHOT/README_DETAILS.md#premier-chargement)).
+Ensuite : pipeline `PL_HRIS_ORCHESTRATOR` en `NORMAL`, planifié, ou lancé à la main ou par l'API. Un run réel exige
+préalablement : l'accès aux secrets (blocage), un pré-contrôle réussi, le contenu des correspondances.
 
 **Durées observées** : démarrage d'une session Spark de quelques minutes par notebook ; un run qui échoue à l'acquisition
 dure de 12 à 15 minutes (3 runs mesurés). Ne pas lancer deux gros jobs en
@@ -849,7 +792,7 @@ FROM log.cell_execution WHERE run_id = '<run_id>' ORDER BY started_at_utc;
 
 | Sujet | Avant (T3) | TST_4 |
 |---|---|---|
-| Bibliothèque `hris` | copiée dans chaque notebook (≈ 5 550 lignes × 9) | une copie, `T3_nb_hris_lib`, chargée par `%run` ; une cellule par module |
+| Bibliothèque `hris` | copiée dans chaque notebook (≈ 5 550 lignes × 9) | une copie, `T4_NB_HRIS_LIB`, chargée par `%run` ; une cellule par module |
 | Modules métier | 17 | 16 identiques à l'octet près ; `model` : ajout du DDL `log.cell_execution` ; nouveau module `cell_log` |
 | Configuration | lue dans la cellule de traitement | cellule dédiée, minimale : workspace réel (contexte), Lakehouse (`VL_HRIS`), réglages de session |
 | Structure | 1 cellule de traitement | Markdown (R01), `%run`, imports, paramètres commentés, configuration, une fonction par cellule, traitements protégés, clôture |
@@ -867,59 +810,20 @@ refactorisation.
 
 **À vérifier dans Fabric avant de considérer le process 1 validé** (rien n'a été déployé ni exécuté) :
 
-1. Synchroniser les items (voir [Git](#git)) : `TST_4` réutilise les `logicalId` et les noms `T3_*` de `TST_3`, les deux
-   dossiers ne peuvent pas coexister dans un même workspace sans renommage et nouveaux identifiants.
+1. Synchroniser les items (voir [Git](../ONESHOT/README_DETAILS.md#git)) : `TST_4` a ses propres noms (`T4_*`) et
+   identifiants logiques, distincts de ceux de `TST_3`.
 2. Lever B-01 par une voie validée (coffre lisible depuis le workspace d'exécution). Le run du 08/10 n'a obtenu ses
-   secrets que parce qu'ils étaient écrits dans le code de `TST_3` (commit `e817e10`) ; `TST_4` ne reprend pas ce
-   contournement, son acquisition échouera donc sur `TS_SECRET_RESOLUTION` tant que B-01 n'est pas levé.
-3. Exécuter `T3_NB_HRIS_SETUP` (crée `log.cell_execution`, attendu : `created = 1`, aucun `INCOMPATIBLE`).
-4. Exécuter `T3_NB_HRIS_TESTS` (attendu : 0 échec, dont `CellLogSpark`).
-5. Exécuter `T3_PL_HRIS_ORCHESTRATOR` en `NORMAL` et comparer, pour ce run, les sorties des activités, `ctl.run`,
+   secrets que parce qu'ils étaient écrits dans le code de `TST_3` (commit `e817e10`). L'acquisition de `TST_4` reprend
+   ce contournement (lecture du coffre commentée) en attendant l'environnement Fabric de Motul : identifiants à retirer
+   du code dès que le coffre est lisible. Le flux rémunération lit, lui, le coffre.
+3. Exécuter `T4_NB_HRIS_SETUP` (crée `log.cell_execution`, attendu : `created = 1`, aucun `INCOMPATIBLE`).
+4. Exécuter `T4_NB_HRIS_TESTS` (attendu : 0 échec, dont `CellLogSpark`).
+5. Exécuter `T4_PL_HRIS_ORCHESTRATOR` en `NORMAL` et comparer, pour ce run, les sorties des activités, `ctl.run`,
    `ctl.run_step`, `log.anomaly` et les volumes de `stg.ts_employee_raw` à ceux du run du 08/10, puis lire
-   `log.cell_execution`. Vérifier en particulier que `%run T3_nb_hris_lib` s'exécute en mode pipeline.
+   `log.cell_execution`. Vérifier en particulier que `%run T4_NB_HRIS_LIB` s'exécute en mode pipeline.
 
-<a id="demo"></a>
-## Parcours de démonstration (15 minutes, dans le plan)
-
-| # | Montrer | Message |
-|---|---|---|
-| 1 | Le dossier `TEST_2` dans le workspace : notebooks, pipeline, variable library | les objets existent, ce n'est pas qu'un catalogue |
-| 2 | `VL_HRIS` : variables et absence de secret | séparation source, exécution, destination |
-| 3 | Historique d'un run du pipeline : vue des activités du run en échec contrôlé | l'enchaînement, la gestion d'échec unique, le motif réel |
-| 4 | `ctl.run`, `ctl.run_step`, `log.anomaly` pour ce run | le blocage est **tracé** (`TS_SECRET_RESOLUTION`), pas caché |
-| 5 | Résultat du contrôle de Lakehouse sur ce run puis sur un run fictif | les contrôles distinguent réel et fixture, et ne mentent pas |
-| 6 | Le run fictif complet : référence, outbox, décision du garde-fou | `DENIED_NON_PRD`, zéro transport, zéro tentative réseau |
-| 7 | Les deux sondes de plateforme | pourquoi les noms de tables sont à quatre parties |
-| 8 | Le diff Git préparé et la note de synchronisation | ce qui reste à autoriser |
-
-<a id="blocages"></a>
-## Blocages, décisions et prochaines étapes
-
-| Réf. | Blocage | Constat | Action précise |
-|---|---|---|---|
-| B-01 | Secrets TalentSoft PRD inaccessibles | `AKV10032 Invalid issuer` : coffre d'un autre tenant | fournir un workspace DEV dans le tenant Motul **ou** valider un accès inter-tenant ; aucune copie de secret |
-| B-02 | Codes ADP des correspondances absents | partie TalentSoft alimentée par l'API à chaque run (écrit, jamais exécuté dans Fabric) ; TalentSoft ne stocke aucun code ADP (mesuré) | faire saisir les codes ADP par le métier dans `NB_HRIS_REFERENCE_ADMIN` ([détail](#correspondances)) |
-| B-03 | Contrat final de publication absent | 17 points d'usage recensés | fournir le contrat ; appliquer point par point ; lever C00 en dernier |
-| B-04 | Notifications | mécanisme et destinataires non décidés | décider ; aucun envoi à ce jour |
-| D-FIL-01 | Flux rémunération (CSV SFTP) | **levé** : export et import par API, tables seulement ([détail](#remuneration)) | valider la structure (`VALIDATE`), puis `ts_remuneration_import_enabled = true` en PRD |
-| G-01 | Synchronisation Git | rien commité ; voies A et B | choisir la voie ; l'autorisation de commit et push est à donner |
-
-**Décisions à rendre avant toute activation d'ADP** (hors périmètre de cette étape) : convention de nommage des
-workspaces (`PREPRD`, `NOTPRD`, `prd`), identité d'exécution, seuils d'anomalie, isolement des erreurs par salarié et
-traitement d'une erreur d'existence ADP, liste blanche d'adresses IP chez ADP, politique des lectures ADP.
-
-**Valeurs par défaut appliquées, non validées** : clé `id_unique`, 71 colonnes comparées, comparaison sur données finales,
-absents supprimés de la référence, rejetés conservés, fuseau de Paris, bail de 240 minutes, trois tentatives maximales.
-
-**Prochaines étapes, dans l'ordre.**
-
-1. Lever B-01 (nouvelle cible ou accès validé) puis relancer le pré-contrôle.
-2. Premier run réel en `INIT_REFERENCE` ; contrôle `verify_lakehouse` ; revue des volumes avec le métier.
-3. Lever B-02 (saisie des codes ADP dans `NB_HRIS_REFERENCE_ADMIN`, après un premier run qui remplit la partie
-   TalentSoft) puis valider la transformation sur données réelles (mesure des écarts de parité).
-4. Choisir la voie Git et synchroniser.
-5. Pipeline de déploiement vers UAT et PRD, après validation distincte.
-6. Contrat ADP puis checklist d'activation, **indépendamment** du reste.
+Le pipeline `T4_PL_HRIS_BOOTSTRAP` enchaîne désormais les étapes 3 à 5
+([détail](../ONESHOT/README_DETAILS.md#premier-chargement)).
 
 <a id="faq"></a>
 ## Questions probables
@@ -939,13 +843,17 @@ une personne tranche et sa décision est tracée.
 ses effets de bord (`PREPRD`, `prd`) sont documentés et à trancher avant activation.
 
 **Pourquoi la bibliothèque n'est-elle plus copiée dans chaque notebook ?** Depuis TST_4, elle est chargée par
-`%run T3_nb_hris_lib` : une seule copie, donc aucune dérive possible entre notebooks, et des notebooks d'environ 200
+`%run T4_NB_HRIS_LIB` : une seule copie, donc aucune dérive possible entre notebooks, et des notebooks d'environ 200
 lignes au lieu de 5 600. La page Microsoft « Develop, execute, and manage notebooks » indique « Notebook reference works
 in both interactive mode and pipeline » (même workspace uniquement), mais une note de la même page ne liste que des
 magics de cellule (`%%pyspark`, `%%sql`, `%%configure`…) parmi celles supportées en pipeline : la documentation reste
 ambiguë. Les pipelines du dépôt `FR_BI_FABRIC` appellent déjà des notebooks qui commencent par `%run nb_shareddef`. Le
 point reste à **vérifier dans ce workspace** au premier run (voir [Refactorisation TST_4](#tst4)). L'intégrité reste
 garantie par empreinte.
+
+**Pourquoi deux pipelines ?** Le pipeline quotidien porte toutes les étapes métier. Le pipeline de premier
+chargement l'appelle, après l'installation et les tests, dans le mode adapté, puis dit quoi faire ensuite ; il ne
+duplique aucune étape. Seul le pipeline quotidien est planifié.
 
 **Peut-on démontrer que rien n'a été envoyé à ADP ?** Applicativement oui (garde-fou journalisé, transport jamais
 construit, sentinelle réseau, aucune opération) ; une preuve réseau externe n'était pas disponible.
@@ -969,3 +877,4 @@ acquisitions simultanées).
 | Fixture | jeu de données fictif, réservé aux tests isolés |
 | `logicalId` | identifiant d'un item dans Git ; distinct de l'identifiant réel dans le workspace |
 | Quatre parties | nom de table complet : workspace, Lakehouse, schéma, table |
+| Premier chargement | exécution guidée du pipeline quotidien par `T4_PL_HRIS_BOOTSTRAP`, jusqu'à la construction de la référence |

@@ -13,9 +13,9 @@
 # **Nom de l'objet**
 # # T3_NB_HRIS_SETUP. C'est le nom affiché dans Microsoft Fabric pour le notebook qui installe le socle du Lakehouse du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_SETUP.Notebook.
 # # **Type d'objet**
-# # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Il n'est pas appelé par le pipeline : on le lance à la main lors de l'installation et après toute évolution du modèle de données.
+# # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline quotidien ne l'appelle pas. Le pipeline de premier chargement T4_PL_HRIS_BOOTSTRAP l'appelle en premier et s'arrête si une table est incompatible. On peut aussi le lancer à la main après toute évolution du modèle de données.
 # # **Chemin dans le dépôt**
-# # TEST_MOTUL/TST_4/NB_HRIS_SETUP.Notebook/notebook-content.py
+# # TEST_MOTUL/TST_4/ONESHOT/NB_HRIS_SETUP.Notebook/notebook-content.py
 # # **Description fonctionnelle**
 # # Ce notebook prépare le Lakehouse dont dépendent tous les autres notebooks du hub. Il crée, s'ils n'existent pas, les six schémas cfg, stg, ref, pub, ctl et log, puis les quarante-huit tables du modèle de données, dont la table de journal des cellules log.cell_execution et les cinq tables du flux de rémunération. Il insère ensuite, uniquement si elles sont absentes, la ligne de paramétrage du processus, la ligne de verrou à l'état libéré et les trois lignes de correspondance du flux de rémunération (hypothèses à confirmer par le mode VALIDATE de T4_NB_HRIS_REMUNERATION). Une table existante n'est jamais supprimée, vidée, remplacée ni modifiée : son schéma est comparé à la définition attendue et tout écart est signalé comme incompatible, sans correction automatique. Les dix-sept tables de correspondance sont créées vides : leur partie TalentSoft est ensuite alimentée à chaque run par l'acquisition, depuis l'API, et leurs codes ADP sont saisis dans T4_NB_HRIS_REFERENCE_ADMIN.
 # # **Dépendances**

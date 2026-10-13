@@ -15,7 +15,7 @@
 # # **Type d'objet**
 # # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline T3_PL_HRIS_ORCHESTRATOR l'appelle dans l'activité Publish, après une promotion réussie, sans aucune reprise automatique.
 # # **Chemin dans le dépôt**
-# # TEST_MOTUL/TST_4/NB_HRIS_PUBLISH_ADP.Notebook/notebook-content.py
+# # TEST_MOTUL/TST_4/QUOTIDIEN/NB_HRIS_PUBLISH_ADP.Notebook/notebook-content.py
 # # **Description fonctionnelle**
 # # Ce notebook décide si les salariés à publier peuvent être envoyés à l'outil de paie ADP et, dans cette version, n'envoie jamais rien. Le garde-fou lit le nom réel du workspace dans le contexte de ce notebook, au moment de la publication, et l'écrit dans un journal avant toute action. Si ce nom ne contient pas la chaîne PRD, abréviation de production, les éléments sont marqués comme non publiés hors production et aucun appel n'a lieu. Si le nom ne peut pas être lu, les éléments restent en attente et la décision pourra être réévaluée. Si le nom contient PRD, la condition d'environnement est remplie mais ne suffit pas : l'activation reste verrouillée dans le code tant que le contrat final de publication n'est pas validé. Avant tout envoi, l'intention est enregistrée durablement, ce qui garantit qu'un envoi incertain n'est jamais répété automatiquement.
 # # **Dépendances**

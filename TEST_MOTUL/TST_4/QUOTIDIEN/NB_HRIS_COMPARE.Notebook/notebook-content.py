@@ -15,7 +15,7 @@
 # # **Type d'objet**
 # # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline T3_PL_HRIS_ORCHESTRATOR l'appelle dans l'activité Compare, après une transformation réussie.
 # # **Chemin dans le dépôt**
-# # TEST_MOTUL/TST_4/NB_HRIS_COMPARE.Notebook/notebook-content.py
+# # TEST_MOTUL/TST_4/QUOTIDIEN/NB_HRIS_COMPARE.Notebook/notebook-content.py
 # # **Description fonctionnelle**
 # # Ce notebook compare les salariés mis en forme pour la paie par la transformation à la référence, c'est-à-dire l'état validé lors du dernier run promu. Chaque salarié, identifié par la clé id_unique, est classé comme nouveau, modifié, inchangé, absent ou rejeté, en comparant l'empreinte de sa ligne. Le notebook rassemble ensuite tous les contrôles bloquants du run, ceux de l'acquisition et de la transformation compris, et décide si le run est validé ou bloqué. Un premier chargement en mode NORMAL est bloqué parce que la référence est vide. Le mode INIT_REFERENCE est refusé si la référence n'est pas vide. Le recalcul est interdit dès qu'une écriture de promotion a eu lieu pour ce run.
 # # **Dépendances**

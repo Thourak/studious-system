@@ -15,7 +15,7 @@
 # # **Type d'objet**
 # # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline T3_PL_HRIS_ORCHESTRATOR l'appelle dans l'activité Transform, après une acquisition réussie.
 # # **Chemin dans le dépôt**
-# # TEST_MOTUL/TST_4/NB_HRIS_TRANSFORM.Notebook/notebook-content.py
+# # TEST_MOTUL/TST_4/QUOTIDIEN/NB_HRIS_TRANSFORM.Notebook/notebook-content.py
 # # **Description fonctionnelle**
 # # Ce notebook reproduit, à l'identique et défauts compris, les règles de transformation que l'existant appliquait en langage de requête structuré avant l'envoi vers l'outil de paie ADP. Il découpe les données brutes de chaque salarié en soixante-neuf colonnes tronquées à cinquante caractères, contrôle les tables de correspondance, enrichit chaque salarié par quinze jointures, sépare les salariés rejetés avec le motif de leur rejet et met en forme les soixante-douze colonnes attendues par la paie, avec une empreinte de ligne. Si une table de correspondance est absente, vide, incomplète ou contient une clé en double, seul l'enrichissement est interrompu : le découpage reste écrit et un contrôle bloquant est enregistré, ce qui évite un rejet massif trompeur. Une erreur de conversion de date ou de montant fait échouer le run, comme dans l'existant.
 # # **Dépendances**

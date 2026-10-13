@@ -15,13 +15,13 @@
 # # **Type d'objet**
 # # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Il n'est jamais lancé seul par le pipeline. Chaque notebook du flux le charge au début de son exécution par la commande magique %run, qui exécute ses cellules dans le même interpréteur que le notebook appelant.
 # # **Chemin dans le dépôt**
-# # TEST_MOTUL/TST_4/NB_HRIS_LIB.Notebook/notebook-content.py
+# # TEST_MOTUL/TST_4/QUOTIDIEN/NB_HRIS_LIB.Notebook/notebook-content.py
 # # **Description fonctionnelle**
-# # Ce notebook est la bibliothèque commune du hub d'intégration des ressources humaines de Motul. Ce hub extrait les salariés depuis TalentSoft, applique les règles de transformation de l'existant, compare le résultat à l'état validé précédent et prépare la publication vers l'outil de paie ADP. Le notebook contient l'unique copie du code métier, organisé en vingt modules Python regroupés sous le nom hris. Auparavant, chaque notebook embarquait sa propre copie complète de ce code ; la copie unique supprime ce dédoublement et garantit que tous les notebooks exécutent exactement le même code. Le notebook ne lit et n'écrit aucune donnée et ne prépare aucune configuration d'environnement : il rend seulement des fonctions disponibles.
+# # Ce notebook est la bibliothèque commune du hub d'intégration des ressources humaines de Motul. Ce hub extrait les salariés depuis TalentSoft, applique les règles de transformation de l'existant, compare le résultat à l'état validé précédent et prépare la publication vers l'outil de paie ADP. Le notebook contient l'unique copie du code métier, organisé en vingt et un modules Python regroupés sous le nom hris. Auparavant, chaque notebook embarquait sa propre copie complète de ce code ; la copie unique supprime ce dédoublement et garantit que tous les notebooks exécutent exactement le même code. Le notebook ne lit et n'écrit aucune donnée et ne prépare aucune configuration d'environnement : il rend seulement des fonctions disponibles.
 # # **Dépendances**
-# # Le notebook n'appelle aucun autre notebook et ne lit aucune table. Pour vérifier l'empreinte de chaque module et l'enregistrer dans l'interpréteur, il n'utilise que la bibliothèque standard de Python. Les modules s'appuient ensuite, au moment où les notebooks métier les appellent, sur Spark et sur le format de table Delta fournis par Fabric, ainsi que sur la bibliothèque requests pour les appels réseau de l'acquisition, qui lit aussi les référentiels TalentSoft alimentant les tables de correspondance. Dix notebooks dépendent de celui-ci par la commande %run T4_NB_HRIS_LIB : T3_NB_HRIS_SETUP, T3_NB_HRIS_RUN_CONTROL, T3_NB_HRIS_TS_ACQUIRE, T4_NB_HRIS_REMUNERATION, T4_NB_HRIS_REFERENCE_ADMIN, T3_NB_HRIS_TRANSFORM, T3_NB_HRIS_COMPARE, T3_NB_HRIS_PROMOTE, T3_NB_HRIS_PUBLISH_ADP et T3_NB_HRIS_TESTS. Tout renommage de ce notebook impose de corriger cette commande dans chacun d'eux.
+# # Le notebook n'appelle aucun autre notebook et ne lit aucune table. Pour vérifier l'empreinte de chaque module et l'enregistrer dans l'interpréteur, il n'utilise que la bibliothèque standard de Python. Les modules s'appuient ensuite, au moment où les notebooks métier les appellent, sur Spark et sur le format de table Delta fournis par Fabric, ainsi que sur la bibliothèque requests pour les appels réseau de l'acquisition, qui lit aussi les référentiels TalentSoft alimentant les tables de correspondance. Onze notebooks dépendent de celui-ci par la commande %run T4_NB_HRIS_LIB, répartis dans trois dossiers. Le dossier QUOTIDIEN, celui de ce notebook, contient T4_NB_HRIS_RUN_CONTROL, T4_NB_HRIS_TS_ACQUIRE, T4_NB_HRIS_REMUNERATION, T4_NB_HRIS_TRANSFORM, T4_NB_HRIS_COMPARE, T4_NB_HRIS_PROMOTE et T4_NB_HRIS_PUBLISH_ADP. Le dossier ONESHOT contient T4_NB_HRIS_SETUP, T4_NB_HRIS_REFERENCE_ADMIN et T4_NB_HRIS_BOOTSTRAP. Le dossier TESTS contient T4_NB_HRIS_TESTS. La commande %run désigne ce notebook par son seul nom. Son fonctionnement d'un dossier à l'autre n'est pas décrit par la documentation de Fabric : le premier lancement du pipeline T4_PL_HRIS_BOOTSTRAP le vérifie dès son activité Setup. Tout renommage de ce notebook impose de corriger cette commande dans chacun d'eux.
 # # **Fonctionnement et logique de traitement**
-# # La première cellule de code importe les quatre bibliothèques standard nécessaires. La cellule suivante définit la fonction register_hris_module. Celle-ci vérifie l'empreinte cryptographique du texte d'un module, calculée avec l'algorithme de hachage sécurisé SHA-256, puis crée le module dans l'interpréteur et l'exécute. En cas d'erreur, elle affiche le nom du module et la trace complète avant de relancer l'erreur. Chacune des vingt cellules suivantes enregistre un module, dans l'ordre de leurs dépendances : constantes et assainissement des messages, émulation des règles du langage de requête de l'existant, modèle de données, acquisition TalentSoft, transformation, comparaison, contrôle du run, publication, étapes du pipeline, lecture des journaux historiques, journal des cellules, tables de correspondance (partie TalentSoft lue par l'API, partie ADP saisie par le métier), puis flux de rémunération TalentSoft par API. La dernière cellule rassemble les empreintes chargées et affiche une ligne de synthèse. Pour modifier un module, il faut remplacer son texte puis recalculer son empreinte. Une empreinte qui ne correspond pas bloque le chargement, ce qui empêche d'exécuter un code modifié par erreur.
+# # La première cellule de code importe les quatre bibliothèques standard nécessaires. La cellule suivante définit la fonction register_hris_module. Celle-ci vérifie l'empreinte cryptographique du texte d'un module, calculée avec l'algorithme de hachage sécurisé SHA-256, puis crée le module dans l'interpréteur et l'exécute. En cas d'erreur, elle affiche le nom du module et la trace complète avant de relancer l'erreur. Chacune des vingt et une cellules suivantes enregistre un module, dans l'ordre de leurs dépendances : constantes et assainissement des messages, émulation des règles du langage de requête de l'existant, modèle de données, acquisition TalentSoft, transformation, comparaison, contrôle du run, publication, étapes du pipeline, lecture des journaux historiques, journal des cellules, tables de correspondance (partie TalentSoft lue par l'API, partie ADP saisie par le métier), flux de rémunération TalentSoft par API, puis premier chargement guidé (choix du mode et action suivante). La dernière cellule rassemble les empreintes chargées et affiche une ligne de synthèse. Pour modifier un module, il faut remplacer son texte puis recalculer son empreinte. Une empreinte qui ne correspond pas bloque le chargement, ce qui empêche d'exécuter un code modifié par erreur.
 # # **Paramètres**
 # # Ce notebook n'a aucun paramètre. Il s'exécute dans le contexte du notebook qui le charge et partage ses variables. Aucun nom de workspace, de Lakehouse ou de secret n'y est lu.
 # # **Sorties produites**
@@ -6211,7 +6211,7 @@ def spark_writer(spark, tables) -> Callable[[List[dict]], None]:
 # CELL ********************
 
 # ============= MODULE hris.reference_api =============
-register_hris_module('hris.reference_api', 'bbfcd037c731af917c009604f770588567cd8b28764903f6dd62c690bb351205', r'''"""hris.reference_api — tables de correspondance cfg.lu_hr_* sans aucun fichier : partie TalentSoft lue par l'API.
+register_hris_module('hris.reference_api', '0cc94f15aced3436e95bc761518740b1729a41c2f0bb26fce66d5eb15c38970d', r'''"""hris.reference_api — tables de correspondance cfg.lu_hr_* sans aucun fichier : partie TalentSoft lue par l'API.
 
 Constat (sonde en lecture seule du 13/10/2026 sur le tenant de production, métadonnées seulement) :
   * les 49 référentiels du Core HR (GET /api/hub/v2.0/libraries/{type}) portent clientCode, ShortName (libellé traduit
@@ -6232,6 +6232,7 @@ Aucune valeur n'est journalisée : noms de tables, comptes et statuts seulement.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
@@ -6534,6 +6535,221 @@ def missing_adp(table: str, rows: Sequence[Mapping[str, Any]], usage: Mapping[st
             label = next((row.get(c) for c in label_columns if _filled(row.get(c))), None)
             out.append({"code": key, "label": label, "employees": int(usage.get(key, 0))})
     return sorted(out, key=lambda item: (-item["employees"], item["code"]))
+
+
+# ---------------------------------------------------------------------------
+# Saisie par grille collée : copier-coller depuis Excel ou un résultat de requête SQL (aucun fichier)
+# ---------------------------------------------------------------------------
+GRID_CODE_ALIAS = "code"                                 # en-tête accepté à la place de la colonne de code de la table
+GRID_EMPTY_TEXTS = ("", "NULL")                          # cellule vide, ou NULL affiché par un éditeur SQL : rien à écrire
+GRID_INFO_COLUMNS = ("libelle_ts", "occurrences")        # colonnes d'aide du modèle de REPORT, ignorées à la lecture
+GRID_SECTION = re.compile(r"#\s*(lu_hr_[A-Za-z0-9_]+)")  # « # lu_hr_emp_titre » ouvre la grille d'une table
+
+
+@dataclass
+class GridTable:
+    table: str
+    assignments: Dict[str, Dict[str, str]] = field(default_factory=dict)   # code de la grille -> {colonne: valeur}
+    columns: List[str] = field(default_factory=list)                       # colonnes modifiables lues
+    ignored_columns: List[str] = field(default_factory=list)               # colonnes TalentSoft ou inconnues
+    rows: int = 0
+    rows_without_value: int = 0                                            # code sans aucune valeur : rien à écrire
+
+
+def _grid_cell(cell: str) -> str:
+    text = cell.strip()
+    if len(text) >= 2 and text[0] == text[-1] == '"':   # cellule mise entre guillemets par Excel
+        text = text[1:-1].replace('""', '"').strip()
+    return text
+
+
+def _grid_cells(line: str) -> List[str]:
+    """Cellules d'une ligne : tabulations (copier-coller), sinon points-virgules (en-têtes tapés à la main)."""
+    separator = "\t" if "\t" in line or ";" not in line else ";"
+    cells = [_grid_cell(cell) for cell in line.split(separator)]
+    while cells and cells[-1] == "":
+        cells.pop()                                      # Excel copie un rectangle : cellules vides en fin de ligne
+    return cells
+
+
+def _grid_header(table: str, names: Sequence[str]) -> Tuple[int, List[Tuple[int, str]], List[str], List[str]]:
+    """Position du code TalentSoft, colonnes modifiables (position, nom), colonnes ignorées, erreurs."""
+    spec = CATALOGUE[table]
+    editable = set(business_columns(table))
+    errors = [f"en-tête en double : {name}" for name, count in Counter(names).items() if name and count > 1]
+    codes = [i for i, name in enumerate(names) if name in (spec.code, GRID_CODE_ALIAS)]
+    if len(codes) != 1:
+        errors.append(f"une seule colonne de code TalentSoft attendue ({spec.code} ou {GRID_CODE_ALIAS})")
+    used, ignored = [], []
+    for i, name in enumerate(names):
+        if i in codes:
+            continue
+        if name in editable:
+            used.append((i, name))
+        elif name.endswith("_adp") or name.startswith("or_"):
+            errors.append(f"colonne inconnue pour {table} : {name}")     # faute de frappe probable sur une colonne ADP
+        elif name not in GRID_INFO_COLUMNS:
+            ignored.append(name or f"colonne {i + 1} sans nom")
+    if not used:
+        errors.append(f"aucune colonne modifiable pour {table} ({', '.join(business_columns(table))})")
+    return (codes[0] if len(codes) == 1 else -1), used, ignored, errors
+
+
+def parse_grid(text: str, default_table: str = "") -> Tuple[Dict[str, GridTable], List[str]]:
+    """Lit une grille collée dans le notebook : une ligne d'en-têtes (noms des colonnes de la table, comme dans
+    l'existant), puis une ligne par code TalentSoft ; séparateur tabulation, celui d'un copier-coller depuis Excel ou un
+    éditeur SQL (point-virgule accepté dans une ligne sans tabulation). Plusieurs tables à la suite si chacune est
+    précédée d'une ligne « # lu_hr_... » ; sinon la table est `default_table`. Les autres lignes qui commencent par #
+    sont des commentaires. Une cellule vide ou NULL ne change rien ; les colonnes TalentSoft sont ignorées."""
+    grids: Dict[str, GridTable] = {}
+    errors: List[str] = []
+    current: Optional[GridTable] = None
+    header: Optional[Tuple[int, List[Tuple[int, str]], int]] = None   # code, colonnes, largeur
+    skipping = False
+    if default_table:
+        if default_table not in CATALOGUE:
+            return grids, [f"table inconnue : {default_table}"]
+        current = grids.setdefault(default_table, GridTable(default_table))
+    for number, line in enumerate(str(text or "").lstrip("﻿").splitlines(), start=1):
+        if not line.strip("\t ;"):
+            continue
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            match = GRID_SECTION.match(stripped)
+            if match:
+                table, header, skipping, current = match.group(1).lower(), None, False, None   # existant : organisationalStructure
+                if table not in CATALOGUE:
+                    errors.append(f"ligne {number} : table inconnue : {table}")
+                    skipping = True
+                elif default_table and table != default_table:
+                    errors.append(f"ligne {number} : la grille {table} ne correspond pas à p_table ({default_table})")
+                    skipping = True
+                else:
+                    current = grids.setdefault(table, GridTable(table))
+            continue
+        if skipping:
+            continue
+        if current is None:
+            errors.append(f"ligne {number} : table non désignée (p_table, ou ligne « # lu_hr_... » avant la grille)")
+            skipping = True
+            continue
+        if header is None:
+            names = [cell.strip("[]` ").lower() for cell in _grid_cells(line)]
+            code_index, used, ignored, problems = _grid_header(current.table, names)
+            if problems:
+                errors.extend(f"ligne {number} : {message}" for message in problems)
+                skipping = True
+                continue
+            header = (code_index, used, len(names))
+            current.columns += [name for _, name in used if name not in current.columns]
+            current.ignored_columns += [name for name in ignored if name not in current.ignored_columns]
+            continue
+        code_index, used, width = header
+        cells = _grid_cells(line)
+        if len(cells) > width:
+            errors.append(f"ligne {number} : {len(cells)} cellules pour {width} en-têtes")
+            continue
+        cells += [""] * (width - len(cells))
+        code = _norm(cells[code_index])
+        values = {name: cells[i] for i, name in used if cells[i] not in GRID_EMPTY_TEXTS}
+        current.rows += 1
+        if code is None:
+            if values:
+                errors.append(f"ligne {number} : valeurs sans code TalentSoft")
+            continue
+        if not values:
+            current.rows_without_value += 1
+            continue
+        previous = current.assignments.setdefault(code, {})
+        conflict = sorted(c for c in values if c in previous and previous[c] != values[c])
+        if conflict:
+            errors.append(f"ligne {number} : code {code} déjà saisi avec d'autres valeurs ({', '.join(conflict)})")
+            continue
+        previous.update(values)
+    if not errors and not any(grid.rows for grid in grids.values()):
+        errors.append("grille vide : aucune ligne de code TalentSoft")
+    return grids, errors
+
+
+@dataclass
+class GridResolution:
+    assignments: Dict[str, Dict[str, str]] = field(default_factory=dict)   # code de la table -> {colonne: valeur}
+    unknown: List[str] = field(default_factory=list)                       # codes absents de la table : ignorés
+    case_matched: List[Tuple[str, str]] = field(default_factory=list)      # (code de la grille, code de la table)
+    errors: List[str] = field(default_factory=list)
+
+
+def resolve_grid(table: str, rows: Sequence[Mapping[str, Any]], grid: Mapping[str, Mapping[str, str]]) -> GridResolution:
+    """Rapproche les codes de la grille de ceux de la table : à l'identique, sinon à la casse près quand un seul code
+    correspond. Un code absent de la table est ignoré et listé, car une grille reprise de l'existant peut contenir des
+    codes que TalentSoft n'emploie plus ; les autres contrôles restent ceux de `apply_assignments`."""
+    spec = CATALOGUE[table]
+    exact = {key for key in (_norm(r.get(spec.code)) for r in rows) if key}
+    folded: Dict[str, List[str]] = {}
+    for key in sorted(exact):
+        folded.setdefault(key.casefold(), []).append(key)
+    result = GridResolution()
+    origin: Dict[str, str] = {}
+    for code in sorted(grid):
+        if code in exact:
+            target = code
+        else:
+            candidates = folded.get(code.casefold(), [])
+            if len(candidates) > 1:
+                result.errors.append(f"code {code} ambigu à la casse près : {', '.join(candidates)}")
+                continue
+            if not candidates:
+                result.unknown.append(code)
+                continue
+            target = candidates[0]
+            result.case_matched.append((code, target))
+        values = result.assignments.setdefault(target, {})
+        conflict = sorted(c for c in grid[code] if c in values and values[c] != grid[code][c])
+        if conflict:
+            result.errors.append(f"codes {origin[target]} et {code} : valeurs différentes pour {target} "
+                                 f"({', '.join(conflict)})")
+            continue
+        values.update(grid[code])
+        origin.setdefault(target, code)
+    return result
+
+
+def grid_template(table: str, missing: Sequence[Mapping[str, Any]]) -> List[str]:
+    """Modèle de grille (REPORT) : code TalentSoft, aides (libellé, occurrences), colonnes ADP à remplir."""
+    columns = adp_columns(table)
+    lines = ["\t".join([CATALOGUE[table].code, *GRID_INFO_COLUMNS, *columns])]
+    for item in missing:
+        label = re.sub(r"\s+", " ", str(item.get("label") or "")).strip()
+        lines.append("\t".join([item["code"], label, str(item.get("employees", 0))] + [""] * len(columns)))
+    return lines
+
+
+GRID_BANNER = ("# Grille à remplir (colonnes *_adp), à coller dans p_grid de T4_NB_HRIS_REFERENCE_ADMIN : CHECK, puis "
+               "APPLY. Copier d'ici à la fin.")
+
+
+def adp_grid_report(store, tables: Sequence[str], usage: Callable[[str], Mapping[str, int]],
+                    max_lines: int = 100) -> Tuple[Dict[str, Any], List[str]]:
+    """Synthèse par table et grille à remplir, au format de p_grid, les codes les plus employés d'abord
+    (REPORT de NB_HRIS_REFERENCE_ADMIN et STATUS de NB_HRIS_BOOTSTRAP). `usage(table)` : occurrences par code."""
+    summary: Dict[str, Any] = {}
+    lines: List[str] = [GRID_BANNER]
+    for table in tables:
+        state = store.read(table)
+        if not state.schema_ok:
+            summary[table] = state.schema_detail[:200]
+            lines.append(f"# {table} : table non conforme, {state.schema_detail[:200]}")
+            continue
+        missing = missing_adp(table, state.rows, usage(table))
+        concerned = sum(item["employees"] for item in missing)
+        summary[table] = {"codes": len(state.rows), "without_adp": len(missing), "occurrences_without_adp": concerned}
+        lines.append(f"# {table} : {len(state.rows)} codes TalentSoft, {len(missing)} sans code ADP "
+                     f"({concerned} occurrence(s) dans l'extraction)")
+        if missing:
+            lines += grid_template(table, missing[:max_lines])
+            if len(missing) > max_lines:
+                lines.append(f"# {len(missing) - max_lines} autre(s) code(s) non affiché(s) : augmenter p_max_lines")
+    return summary, lines
 
 
 # ---------------------------------------------------------------------------
@@ -7443,6 +7659,151 @@ class SparkRemunerationStore:
 def step_message(result: Mapping[str, Any]) -> str:
     return json.dumps({k: result.get(k) for k in ("first_run", "summary", "snapshot_stats", "gate", "imports", "status")},
                       ensure_ascii=False, default=str)[:7800]
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# ============= MODULE hris.bootstrap =============
+register_hris_module('hris.bootstrap', 'a5cec272f5a0a22bcc7fa26a767c44803fdae95853980f54738dcb84a10a431e', r'''"""hris.bootstrap — premier chargement guidé : pipeline PL_HRIS_BOOTSTRAP, lancé à la main et jamais planifié.
+
+Le pipeline enchaîne l'installation (NB_HRIS_SETUP), les tests sur données fictives (NB_HRIS_TESTS), PLAN, un run complet
+de l'orchestrateur quotidien (PL_HRIS_ORCHESTRATOR) dans le mode choisi par PLAN, puis STATUS (NB_HRIS_BOOTSTRAP).
+  * PLAN juge la référence comme la comparaison (ref.ts_employee_adp, D-CMP-06) : vide -> INIT_REFERENCE (premier
+    chargement, ou reprise après un premier run bloqué, car la référence reste vide tant qu'aucun run n'est promu) ;
+    présente -> NORMAL. Le pipeline est donc rejouable sans jamais réinitialiser la référence. Un verrou tenu par un run
+    en cours (bail non expiré) arrête le pipeline avant tout run.
+  * STATUS lit l'issue du run lancé (ctl.run, ctl.run_step, log.anomaly) et en déduit UNE action suivante. Il n'écrit
+    rien. Aucune donnée personnelle : statuts, codes de contrôle et comptes seulement.
+"""
+from __future__ import annotations
+
+import datetime as dt
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
+
+from hris import spark_io as IO
+from hris.common import (PROCESS_CODE, RUN_BLOCKED, RUN_NOT_PUBLISHED_NON_PRD, RUN_SKIPPED_CONCURRENT, RUN_SUCCEEDED,
+                         to_utc_naive, utc_now)
+
+MODE_INIT, MODE_NORMAL = "INIT_REFERENCE", "NORMAL"
+PLAN_OK, PLAN_LOCK_BUSY = "OK", "LOCK_BUSY"
+
+ENABLE_SCHEDULE = "ENABLE_SCHEDULE"     # run abouti : activer la planification du pipeline quotidien
+ENTER_ADP_CODES = "ENTER_ADP_CODES"     # correspondances sans code ADP : grille à saisir, puis relancer ce pipeline
+FIX_REMUNERATION = "FIX_REMUNERATION"   # run salariés abouti, flux rémunération en échec
+RETRY_LATER = "RETRY_LATER"             # un autre run tenait le verrou
+INVESTIGATE = "INVESTIGATE"             # échec ou blocage à analyser (ctl.run_step, log.anomaly)
+NEXT_ACTIONS = (ENABLE_SCHEDULE, ENTER_ADP_CODES, FIX_REMUNERATION, RETRY_LATER, INVESTIGATE)
+DONE_STATUSES = (RUN_SUCCEEDED, RUN_NOT_PUBLISHED_NON_PRD)   # NOT_PUBLISHED_NON_PRD : run complet hors PRD (garde-fou)
+ADP_CODES_CONTROL = "MAPPING_TABLE_EMPTY"                    # table vide ou sans aucun code ADP (B-02)
+DAILY_PIPELINE = "T4_PL_HRIS_ORCHESTRATOR"
+ADMIN_NOTEBOOK = "T4_NB_HRIS_REFERENCE_ADMIN"
+
+
+def plan(reference_rows: int, lock: Optional[Mapping[str, Any]], now: Optional[dt.datetime] = None) -> dict:
+    """Mode du run à lancer, ou refus si un run tient le verrou."""
+    now = to_utc_naive(now or utc_now())
+    expires = lock.get("lease_expires_at_utc") if lock else None
+    busy = bool(lock) and lock.get("lock_status") == "HELD" and (expires is None or to_utc_naive(expires) > now)
+    mode = MODE_INIT if int(reference_rows) == 0 else MODE_NORMAL
+    reason = ("référence vide : premier chargement (INIT_REFERENCE)" if mode == MODE_INIT else
+              f"référence présente ({int(reference_rows)} lignes) : premier chargement déjà fait, run courant (NORMAL)")
+    result = {"status": PLAN_LOCK_BUSY if busy else PLAN_OK, "run_mode": mode, "reference_rows": int(reference_rows),
+              "reason": reason}
+    if busy:
+        result["message"] = ("un run tient le verrou jusqu'à " + str(expires) + " (run " + str(lock.get("holder_run_id"))
+                             + ") : relancer ce pipeline après sa fin")
+    return result
+
+
+def latest_steps(steps: Iterable[Mapping[str, Any]]) -> Dict[str, str]:
+    """Dernier statut de chaque étape : le journal est en ajout (STARTED puis statut final, tentatives numérotées)."""
+    best: Dict[str, tuple] = {}
+    for step in steps:
+        key = (int(step.get("attempt_no") or 0), step.get("status") != "STARTED",
+               str(step.get("ended_at_utc") or step.get("started_at_utc") or ""))
+        code = step.get("step_code")
+        if code and (code not in best or key >= best[code][0]):
+            best[code] = (key, step.get("status"))
+    return {code: value[1] for code, value in sorted(best.items())}
+
+
+def outcome(run: Optional[Mapping[str, Any]], steps: Iterable[Mapping[str, Any]],
+            anomalies: Iterable[Mapping[str, Any]]) -> dict:
+    """Action suivante après le run de l'orchestrateur ; `ok` seulement si le premier chargement est terminé."""
+    if run is None:
+        return {"ok": False, "next_action": INVESTIGATE, "run_id": None, "run_mode": None, "run_status": None,
+                "steps": {}, "blocking_controls": [], "remuneration": None, "error_code": None,
+                "message": "aucun run enregistré par l'orchestrateur : voir l'activité RunStart de " + DAILY_PIPELINE}
+    status, mode = run.get("status"), run.get("run_mode")
+    step_status = latest_steps(steps)
+    blocking = sorted({a["control_code"] for a in anomalies
+                       if a.get("severity") == "BLOCKING" and a.get("outcome") == "FAIL" and a.get("control_code")})
+    remuneration = step_status.get("REMUNERATION")
+    failed_steps = sorted(code for code, value in step_status.items() if value == "FAILED")
+    if status == RUN_SKIPPED_CONCURRENT:
+        action = RETRY_LATER
+        message = "un autre run tenait le verrou : relancer ce pipeline plus tard"
+    elif status == RUN_BLOCKED and ADP_CODES_CONTROL in blocking:
+        action = ENTER_ADP_CODES
+        message = ("correspondances sans code ADP (" + ADP_CODES_CONTROL + ") : coller la grille affichée par "
+                   "l'activité Status dans p_grid de " + ADMIN_NOTEBOOK + " (CHECK, puis APPLY), puis relancer ce "
+                   "pipeline" + _others(blocking, {ADP_CODES_CONTROL}))
+    elif status in DONE_STATUSES and remuneration == "FAILED":
+        action = FIX_REMUNERATION
+        message = (f"run {mode} abouti ({status}) mais flux rémunération en échec (ctl.run_step, étape REMUNERATION) : "
+                   "rétablir l'accès au coffre TalentSoft ou passer remuneration_enabled à false, puis relancer")
+    elif status in DONE_STATUSES:
+        action = ENABLE_SCHEDULE
+        message = f"run {mode} abouti ({status}) : activer la planification quotidienne de {DAILY_PIPELINE}"
+    else:
+        action = INVESTIGATE
+        message = (f"run {mode} terminé en {status}"
+                   + (" ; contrôles bloquants : " + ", ".join(blocking) if blocking else "")
+                   + (" ; étapes en échec : " + ", ".join(failed_steps) if failed_steps else "")
+                   + (" ; erreur : " + str(run.get("error_code")) if run.get("error_code") else "")
+                   + " : voir ctl.run_step et log.anomaly")
+    return {"ok": action == ENABLE_SCHEDULE, "next_action": action, "run_id": run.get("run_id"), "run_mode": mode,
+            "run_status": status, "steps": step_status, "blocking_controls": blocking, "remuneration": remuneration,
+            "error_code": run.get("error_code"), "message": message}
+
+
+def _others(blocking: Sequence[str], handled: set) -> str:
+    rest = [code for code in blocking if code not in handled]
+    return " ; autres contrôles bloquants : " + ", ".join(rest) if rest else ""
+
+
+# ---------------------------------------------------------------------------
+# Lectures Spark (aucune écriture)
+# ---------------------------------------------------------------------------
+def read_plan_inputs(spark, T) -> dict:
+    lock = (spark.table(T("ctl.process_lock")).where(f"process_code = {IO.sql_str(PROCESS_CODE)}").collect())
+    return {"reference_rows": spark.table(T("ref.ts_employee_adp")).count(),
+            "lock": lock[0].asDict() if lock else None}
+
+
+def find_run(spark, T, since: dt.datetime) -> Optional[dict]:
+    """Run le plus récent du processus ouvert depuis `since` (déclenchement du pipeline d'amorçage)."""
+    bound = to_utc_naive(since).isoformat(sep=" ", timespec="microseconds")
+    rows = (spark.table(T("ctl.run"))
+            .where(f"process_code = {IO.sql_str(PROCESS_CODE)} AND started_at_utc >= TIMESTAMP'{bound}'")
+            .orderBy("started_at_utc", ascending=False).limit(1).collect())
+    return rows[0].asDict() if rows else None
+
+
+def read_status_inputs(spark, T, run_id: str) -> dict:
+    predicate = f"run_id = {IO.sql_str(IO.check_run_id(run_id))}"
+    steps = [r.asDict() for r in spark.table(T("ctl.run_step")).where(predicate)
+             .select("step_code", "attempt_no", "status", "started_at_utc", "ended_at_utc").collect()]
+    anomalies = [r.asDict() for r in spark.table(T("log.anomaly")).where(predicate)
+                 .select("control_code", "severity", "outcome").collect()]
+    return {"steps": steps, "anomalies": anomalies}
 ''')
 
 # METADATA ********************

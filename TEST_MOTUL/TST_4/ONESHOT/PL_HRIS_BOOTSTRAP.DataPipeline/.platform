@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "DataPipeline",
+    "displayName": "T4_PL_HRIS_BOOTSTRAP",
+    "description": "Premier chargement guidé, lancé à la main, jamais planifié : SETUP, tests, mode choisi selon la référence, run complet de T4_PL_HRIS_ORCHESTRATOR, action suivante."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "69a855fd-b02f-4459-87bd-f7deacf40d8f"
+  }
+}

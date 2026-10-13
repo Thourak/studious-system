@@ -1,0 +1,354 @@
+{
+  "properties": {
+    "description": "Premier chargement guidé, lancé à la main, jamais planifié : installation (SETUP), tests sur données fictives, choix du mode (INIT_REFERENCE si la référence est vide, sinon NORMAL), run complet de T4_PL_HRIS_ORCHESTRATOR, puis action suivante (activer la planification, saisir les codes ADP ou analyser). Rejouable sans risque.",
+    "activities": [
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "1804cb1d-8f7a-4e36-81e0-bc42b3c2a176",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "p_lakehouse_name": {
+              "value": {
+                "value": "@pipeline().libraryVariables.lakehouse_name",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_log_cell_success": {
+              "value": {
+                "value": "@pipeline().libraryVariables.log_cell_success",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Setup",
+        "dependsOn": []
+      },
+      {
+        "type": "IfCondition",
+        "typeProperties": {
+          "expression": {
+            "value": "@not(equals(json(activity('Setup').output.result.exitValue).status, 'OK'))",
+            "type": "Expression"
+          },
+          "ifTrueActivities": [
+            {
+              "type": "Fail",
+              "typeProperties": {
+                "message": "Socle incompatible : une table existante diffère du modèle (voir la sortie de l'activité Setup). Aucun run lancé.",
+                "errorCode": "HRIS_SETUP_INCOMPATIBLE"
+              },
+              "name": "SetupIncompatible",
+              "dependsOn": []
+            }
+          ],
+          "ifFalseActivities": []
+        },
+        "name": "IfSetupIncompatible",
+        "dependsOn": [
+          {
+            "activity": "Setup",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "IfCondition",
+        "typeProperties": {
+          "expression": {
+            "value": "@equals(toLower(pipeline().parameters.p_run_tests), 'true')",
+            "type": "Expression"
+          },
+          "ifTrueActivities": [
+            {
+              "type": "TridentNotebook",
+              "typeProperties": {
+                "notebookId": "10ca4d3b-9ae3-4321-b4f9-e9cef6543580",
+                "workspaceId": "00000000-0000-0000-0000-000000000000",
+                "parameters": {
+                  "p_test_schema": {
+                    "value": {
+                      "value": "hris_tst",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_lakehouse_name": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.lakehouse_name",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_run_integration": {
+                    "value": {
+                      "value": "true",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_fail_on_error": {
+                    "value": {
+                      "value": "true",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_log_cell_success": {
+                    "value": {
+                      "value": "@pipeline().libraryVariables.log_cell_success",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  }
+                }
+              },
+              "policy": {
+                "timeout": "0.01:00:00",
+                "retry": 0,
+                "retryIntervalInSeconds": 30,
+                "secureInput": false,
+                "secureOutput": false
+              },
+              "name": "Tests",
+              "dependsOn": []
+            }
+          ],
+          "ifFalseActivities": []
+        },
+        "name": "IfRunTests",
+        "dependsOn": [
+          {
+            "activity": "IfSetupIncompatible",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "72936960-d705-4923-b5d7-d02e8d72d79d",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "p_mode": {
+              "value": {
+                "value": "PLAN",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_lakehouse_name": {
+              "value": {
+                "value": "@pipeline().libraryVariables.lakehouse_name",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_log_cell_success": {
+              "value": {
+                "value": "@pipeline().libraryVariables.log_cell_success",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.00:20:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Plan",
+        "dependsOn": [
+          {
+            "activity": "IfRunTests",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "IfCondition",
+        "typeProperties": {
+          "expression": {
+            "value": "@not(equals(json(activity('Plan').output.result.exitValue).status, 'OK'))",
+            "type": "Expression"
+          },
+          "ifTrueActivities": [
+            {
+              "type": "Fail",
+              "typeProperties": {
+                "message": {
+                  "value": "@json(activity('Plan').output.result.exitValue).message",
+                  "type": "Expression"
+                },
+                "errorCode": "HRIS_LOCK_BUSY"
+              },
+              "name": "LockBusy",
+              "dependsOn": []
+            }
+          ],
+          "ifFalseActivities": []
+        },
+        "name": "IfLockBusy",
+        "dependsOn": [
+          {
+            "activity": "Plan",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ExecutePipeline",
+        "typeProperties": {
+          "pipeline": {
+            "referenceName": "de4c1c39-1106-4aa7-996c-87477535cdfc",
+            "type": "PipelineReference"
+          },
+          "waitOnCompletion": true,
+          "parameters": {
+            "p_run_mode": {
+              "value": "@json(activity('Plan').output.result.exitValue).run_mode",
+              "type": "Expression"
+            }
+          }
+        },
+        "name": "RunOrchestrator",
+        "dependsOn": [
+          {
+            "activity": "IfLockBusy",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "72936960-d705-4923-b5d7-d02e8d72d79d",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "p_mode": {
+              "value": {
+                "value": "STATUS",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_since": {
+              "value": {
+                "value": "@string(pipeline().TriggerTime)",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_lakehouse_name": {
+              "value": {
+                "value": "@pipeline().libraryVariables.lakehouse_name",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_log_cell_success": {
+              "value": {
+                "value": "@pipeline().libraryVariables.log_cell_success",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "Status",
+        "dependsOn": [
+          {
+            "activity": "RunOrchestrator",
+            "dependencyConditions": [
+              "Completed"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "IfCondition",
+        "typeProperties": {
+          "expression": {
+            "value": "@not(equals(json(activity('Status').output.result.exitValue).next_action, 'ENABLE_SCHEDULE'))",
+            "type": "Expression"
+          },
+          "ifTrueActivities": [
+            {
+              "type": "Fail",
+              "typeProperties": {
+                "message": {
+                  "value": "@json(activity('Status').output.result.exitValue).message",
+                  "type": "Expression"
+                },
+                "errorCode": {
+                  "value": "@concat('HRIS_', json(activity('Status').output.result.exitValue).next_action)",
+                  "type": "Expression"
+                }
+              },
+              "name": "NextActionRequired",
+              "dependsOn": []
+            }
+          ],
+          "ifFalseActivities": []
+        },
+        "name": "IfNextActionRequired",
+        "dependsOn": [
+          {
+            "activity": "Status",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      }
+    ],
+    "parameters": {
+      "p_run_tests": {
+        "type": "string",
+        "defaultValue": "true"
+      }
+    },
+    "libraryVariables": {
+      "lakehouse_name": {
+        "type": "String",
+        "variableName": "lakehouse_name",
+        "libraryName": "T4_VL_HRIS"
+      },
+      "log_cell_success": {
+        "type": "String",
+        "variableName": "log_cell_success",
+        "libraryName": "T4_VL_HRIS"
+      }
+    }
+  }
+}

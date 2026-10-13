@@ -15,7 +15,7 @@
 # **Type d'objet**
 # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline T3_PL_HRIS_ORCHESTRATOR l'appelle à l'ouverture du run (activité RunStart), à sa clôture (activité RunEnd) et en cas d'échec (activités RunFail et RunEndFail).
 # **Chemin dans le dépôt**
-# TEST_MOTUL/TST_4/NB_HRIS_RUN_CONTROL.Notebook/notebook-content.py
+# TEST_MOTUL/TST_4/QUOTIDIEN/NB_HRIS_RUN_CONTROL.Notebook/notebook-content.py
 # **Description fonctionnelle**
 # Ce notebook encadre chaque exécution du hub, qui extrait les salariés depuis TalentSoft, les transforme, les compare à l'état validé précédent et prépare leur publication vers l'outil de paie ADP. À l'ouverture, il contrôle les paramètres, calcule la date métier dans le fuseau de Paris, pose un verrou pour qu'un seul run soit actif à la fois et enregistre le run dans le registre. Si le verrou est déjà pris, le run se termine proprement avec le statut SKIPPED_CONCURRENT, sans erreur et sans aucune écriture métier. À la clôture, il calcule le statut final, écrit le résumé du run, libère le verrou et prépare le contenu d'une notification sans donnée personnelle, dont l'envoi reste bloqué. En cas d'échec, il marque le run en échec avec un message assaini et libère le verrou.
 # **Dépendances**

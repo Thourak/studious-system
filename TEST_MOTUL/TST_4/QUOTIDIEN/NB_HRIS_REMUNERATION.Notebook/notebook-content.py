@@ -15,7 +15,7 @@
 # # **Type d'objet**
 # # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline T4_PL_HRIS_ORCHESTRATOR l'appelle dans l'activité Remuneration, en parallèle de l'acquisition, comme l'existant lançait son flux de rémunération en parallèle du flux principal. On peut aussi le lancer à la main en mode VALIDATE.
 # # **Chemin dans le dépôt**
-# # TEST_MOTUL/TST_4/NB_HRIS_REMUNERATION.Notebook/notebook-content.py
+# # TEST_MOTUL/TST_4/QUOTIDIEN/NB_HRIS_REMUNERATION.Notebook/notebook-content.py
 # # **Description fonctionnelle**
 # # Ce notebook reprend le second flux de l'existant, le pipeline Synapse Pipeline_SIRH-SFTP, sans aucun fichier. L'existant lisait chaque jour trois exports CSV de TalentSoft sur le SFTP (salaire de base annuel, bonus en pourcentage et bonus en montant cible), calculait les changements par rapport à la veille et redéposait sur le SFTP deux fichiers CSV que TalentSoft importait dans son historique de rémunération. Ici, la rémunération est lue par l'API d'exports de TalentSoft (jeu Compensation), l'instantané du jour est écrit en table, les changements sont calculés par les règles des deux vues SQL de l'existant reproduites à l'identique, particularités comprises, et les lignes à importer sont écrites en table. Elles sont ensuite envoyées par l'API d'imports de TalentSoft, sous les mêmes types d'import et avec les mêmes colonnes que les fichiers de l'existant ; le contenu exigé par cette API est construit en mémoire et n'est écrit nulle part. La veille n'est plus l'archive précédente, mais la référence du dernier envoi accepté, ce qui évite de réémettre deux fois les mêmes changements ou d'en perdre après un échec.
 # # **Dépendances**

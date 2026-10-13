@@ -13,17 +13,17 @@
 # **Nom de l'objet**
 # # T3_NB_HRIS_TESTS. C'est le nom affiché dans Microsoft Fabric pour le notebook de tests du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_TESTS.Notebook.
 # # **Type d'objet**
-# # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Il n'est pas appelé par le pipeline : on le lance à la main avant une mise en service ou après une modification du code.
+# # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline quotidien ne l'appelle pas. Le pipeline de premier chargement T4_PL_HRIS_BOOTSTRAP l'appelle avant tout run réel, avec p_fail_on_error à true. On le lance aussi à la main avant une mise en service ou après une modification du code.
 # # **Chemin dans le dépôt**
-# # TEST_MOTUL/TST_4/NB_HRIS_TESTS.Notebook/notebook-content.py
+# # TEST_MOTUL/TST_4/TESTS/NB_HRIS_TESTS.Notebook/notebook-content.py
 # # **Description fonctionnelle**
-# # Ce notebook vérifie le code du hub sur des données entièrement fictives. Il exécute les tests unitaires des règles de transformation, de l'acquisition TalentSoft contre un faux serveur, de la publication vers l'outil de paie ADP avec des clients simulés, du journal des cellules, des tables de correspondance alimentées par l'API, du flux de rémunération et du câblage du transport ADP (faux clients, aucun réseau). Il vérifie aussi que la transformation Spark donne les mêmes résultats que l'implémentation de référence des règles de l'existant. Il peut enfin dérouler des scénarios d'intégration complets dans un schéma isolé du Lakehouse, sans jamais lire ni écrire une table réelle. Il apporte la preuve, dans le contexte réel du workspace, que le code se comporte comme attendu avant de traiter des données de salariés.
+# # Ce notebook vérifie le code du hub sur des données entièrement fictives. Il exécute les tests unitaires des règles de transformation, de l'acquisition TalentSoft contre un faux serveur, de la publication vers l'outil de paie ADP avec des clients simulés, du journal des cellules, des tables de correspondance alimentées par l'API et de leur saisie par grille collée, du flux de rémunération, du câblage du transport ADP (faux clients, aucun réseau) et des décisions du premier chargement guidé. Il vérifie aussi que la transformation Spark donne les mêmes résultats que l'implémentation de référence des règles de l'existant. Il peut enfin dérouler des scénarios d'intégration complets dans un schéma isolé du Lakehouse, sans jamais lire ni écrire une table réelle. Il apporte la preuve, dans le contexte réel du workspace, que le code se comporte comme attendu avant de traiter des données de salariés.
 # # **Dépendances**
-# # Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB, puis enregistre quatorze modules propres aux tests : le simulateur de l'outil de paie, le jeu de données fictif et douze modules de tests. Ces modules restent dans ce notebook pour qu'aucun simulateur ne soit jamais présent dans le code de production. Le Lakehouse désigné par le paramètre p_lakehouse_name reçoit, dans le schéma isolé hris_tst, des copies de test de toutes les tables, recréées à chaque campagne, ainsi que la table de rapport zz_test_report. Le contexte d'exécution de Fabric fournit le nom réel du workspace, indispensable aux tests du garde-fou de publication.
+# # Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB, puis enregistre quinze modules propres aux tests : le simulateur de l'outil de paie, le jeu de données fictif et treize modules de tests. Ces modules restent dans ce notebook pour qu'aucun simulateur ne soit jamais présent dans le code de production. Le Lakehouse désigné par le paramètre p_lakehouse_name reçoit, dans le schéma isolé hris_tst, des copies de test de toutes les tables, recréées à chaque campagne, ainsi que la table de rapport zz_test_report. Le contexte d'exécution de Fabric fournit le nom réel du workspace, indispensable aux tests du garde-fou de publication.
 # # **Fonctionnement et logique de traitement**
 # # Après le chargement de la bibliothèque et des modules de test, la cellule de configuration relève d'abord les réglages par défaut de la session Spark, avant toute modification, car ils font partie des vérifications de plateforme. Elle résout ensuite les noms de tables du schéma de test, ouvre le journal des cellules, applique les réglages de session requis par la transformation et transmet le contexte aux tests d'intégration. La cellule d'exécution construit la liste des tests, éventuellement filtrée, la lance et affiche le compte rendu, les versions des bibliothèques et les réglages relevés. La cellule de rapport écrit ce compte rendu, sans aucune donnée de salarié, dans la table zz_test_report du schéma de test. La clôture écrit les traces du journal puis renvoie un résumé au format texte structuré.
 # # **Paramètres**
-# # Le paramètre p_test_schema désigne le schéma isolé ; sa valeur par défaut est hris_tst et il ne doit jamais être vide, sous peine d'écrire dans les tables réelles. Le paramètre p_lakehouse_name donne le nom du Lakehouse cible, en pratique la variable lakehouse_name de la bibliothèque de variables VL_HRIS ; il est obligatoire puisqu'aucun Lakehouse par défaut n'est attaché. Le paramètre p_run_integration vaut true par défaut et active les scénarios d'intégration avec écriture dans le schéma de test ; à false, seuls les tests sans écriture de table sont lancés. Le paramètre p_only, vide par défaut, restreint la campagne aux tests dont l'identifiant contient l'un des fragments donnés, séparés par des virgules. Le paramètre p_log_cell_success vaut true par défaut et active les traces de réussite des cellules ; les échecs sont toujours tracés.
+# # Le paramètre p_test_schema désigne le schéma isolé ; sa valeur par défaut est hris_tst et il ne doit jamais être vide, sous peine d'écrire dans les tables réelles. Le paramètre p_lakehouse_name donne le nom du Lakehouse cible, en pratique la variable lakehouse_name de la bibliothèque de variables VL_HRIS ; il est obligatoire puisqu'aucun Lakehouse par défaut n'est attaché. Le paramètre p_run_integration vaut true par défaut et active les scénarios d'intégration avec écriture dans le schéma de test ; à false, seuls les tests sans écriture de table sont lancés. Le paramètre p_only, vide par défaut, restreint la campagne aux tests dont l'identifiant contient l'un des fragments donnés, séparés par des virgules. Le paramètre p_fail_on_error vaut false par défaut : le notebook se termine alors normalement et seul son compte rendu signale les échecs. À true, il échoue après avoir écrit son rapport si un test échoue, ce qui arrête le pipeline T4_PL_HRIS_BOOTSTRAP avant tout run réel. Le paramètre p_log_cell_success vaut true par défaut et active les traces de réussite des cellules ; les échecs sont toujours tracés.
 # # **Sorties produites**
 # # Le notebook ajoute une ligne de compte rendu dans la table zz_test_report du schéma de test et des traces dans la copie de test du journal des cellules. Sa valeur de sortie est un texte structuré qui contient le nombre de tests exécutés, la liste des échecs, des erreurs et des tests ignorés, les informations de plateforme et, au plus, dix extraits de traces d'échec. Aucune de ces sorties ne contient de donnée réelle de salarié.
 # # **Limitations connues et points d'attention**
@@ -2009,7 +2009,7 @@ class CellLogSpark(unittest.TestCase):
 # CELL ********************
 
 # ============= MODULE test_reference_api =============
-register_hris_module('test_reference_api', '3e2f31814e12d9a926fb8280ee9b8c1af6da63c8676dd16dfa21ce506e36a4aa', r'''"""TU-REF — correspondances sans fichier : partie TalentSoft lue par l'API (faux client), partie ADP saisie par le métier.
+register_hris_module('test_reference_api', '75484d8bce986fe07596df11d17840c3e7691f6e35d55ada7c182a108889332c', r'''"""TU-REF — correspondances sans fichier : partie TalentSoft lue par l'API (faux client), partie ADP saisie par le métier.
 Aucun accès réseau ; valeurs FICTIVES."""
 import datetime as dt
 import json
@@ -2267,6 +2267,144 @@ class Admin(unittest.TestCase):
         missing = R.missing_adp("lu_hr_emp_titre", rows, {"MS": 7, "MR": 3})
         self.assertEqual([(m["code"], m["label"], m["employees"]) for m in missing],
                          [("MS", "Madame", 7), ("MR", "Monsieur", 3)])
+
+
+class Grid(unittest.TestCase):
+    """Grille collée (tabulations) : résultat d'un SELECT * sur l'existant, ou modèle de REPORT rempli dans Excel."""
+
+    def titres(self):
+        return [row("lu_hr_emp_titre", cd_emp_titre_ts="MR", lb_emp_titre_ts="Monsieur", cd_emp_titre_adp="ANCIEN"),
+                row("lu_hr_emp_titre", cd_emp_titre_ts="MS", lb_emp_titre_ts="Madame"),
+                row("lu_hr_emp_titre", cd_emp_titre_ts="Dr", lb_emp_titre_ts="Docteur")]
+
+    def test_legacy_select_star_pasted(self):
+        text = ("cd_emp_titre_ts\tlb_emp_titre_ts\tds_emp_titre_ts\tcd_emp_titre_adp\tds_emp_titre_adp\tor_emp_titre\n"
+                "MR\tMonsieur\tMonsieur\t1\tM.\t1\n"
+                "MS  \tMadame\tMadame\t2\tNULL\t2\t\t\n"
+                "DR\tDocteur\tDocteur\t3\t\t\n"
+                "OLD\tAncien\tAncien\t9\t\t9\n"
+                "VIDE\tSans code ADP\t\tNULL\t\t\n")
+        grids, errors = R.parse_grid(text, "lu_hr_emp_titre")
+        self.assertEqual(errors, [])
+        grid = grids["lu_hr_emp_titre"]
+        self.assertEqual(grid.columns, ["cd_emp_titre_adp", "ds_emp_titre_adp", "or_emp_titre"])
+        self.assertEqual(grid.ignored_columns, ["lb_emp_titre_ts", "ds_emp_titre_ts"])
+        self.assertEqual((grid.rows, grid.rows_without_value), (5, 1))
+        self.assertEqual(grid.assignments["MS"], {"cd_emp_titre_adp": "2", "or_emp_titre": "2"})
+        resolution = R.resolve_grid("lu_hr_emp_titre", self.titres(), grid.assignments)
+        self.assertEqual((resolution.unknown, resolution.case_matched, resolution.errors), (["OLD"], [("DR", "Dr")], []))
+        rows, outcome = R.apply_assignments("lu_hr_emp_titre", self.titres(), resolution.assignments, TECH)
+        self.assertEqual(outcome.errors, [])
+        by = {r["cd_emp_titre_ts"]: r for r in rows}
+        self.assertEqual((by["MR"]["cd_emp_titre_adp"], by["MR"]["ds_emp_titre_adp"]), ("1", "M."))
+        self.assertEqual((by["MS"]["cd_emp_titre_adp"], by["MS"]["ds_emp_titre_adp"]), ("2", None))
+        self.assertEqual((by["Dr"]["cd_emp_titre_adp"], by["Dr"]["lb_emp_titre_ts"]), ("3", "Docteur"))
+
+    def test_empty_cell_never_clears(self):
+        grids, errors = R.parse_grid("code\tcd_emp_titre_adp\tds_emp_titre_adp\nMR\t\tM.\n", "lu_hr_emp_titre")
+        self.assertEqual(errors, [])
+        rows, outcome = R.apply_assignments("lu_hr_emp_titre", self.titres(), grids["lu_hr_emp_titre"].assignments, TECH)
+        self.assertEqual(outcome.changes, [("MR", "ds_emp_titre_adp", None, "M.")])
+        self.assertEqual(rows[0]["cd_emp_titre_adp"], "ANCIEN")
+
+    def test_report_template_round_trip_several_tables(self):
+        lines = ["# lu_hr_emp_titre : 3 codes TalentSoft, 2 sans code ADP"]
+        lines += R.grid_template("lu_hr_emp_titre", [{"code": "MS", "label": "Madame\tlong", "employees": 7},
+                                                     {"code": "Dr", "label": None, "employees": 1}])
+        self.assertEqual(lines[1:], ["cd_emp_titre_ts\tlibelle_ts\toccurrences\tcd_emp_titre_adp",
+                                     "MS\tMadame long\t7\t", "Dr\t\t1\t"])
+        lines[2] += "2"
+        lines += ["# commentaire", "# lu_hr_ppc_contrat2 : 0 sans code ADP", "# lu_hr_emp_sexe : 1 sans code ADP"]
+        lines += R.grid_template("lu_hr_emp_sexe", [{"code": "F", "label": "", "employees": 4}])
+        lines[-1] = lines[-1] + "F"
+        grids, errors = R.parse_grid("\r\n".join(lines) + "\r\n\t\t\t\r\n", "")
+        self.assertEqual(errors, [])
+        self.assertEqual(sorted(grids), ["lu_hr_emp_sexe", "lu_hr_emp_titre", "lu_hr_ppc_contrat2"])
+        self.assertEqual(grids["lu_hr_emp_titre"].assignments, {"MS": {"cd_emp_titre_adp": "2"}})
+        self.assertEqual(grids["lu_hr_emp_titre"].rows_without_value, 1)
+        self.assertEqual(grids["lu_hr_emp_sexe"].assignments, {"F": {"cd_emp_sexe_adp": "F"}})
+        self.assertEqual((grids["lu_hr_ppc_contrat2"].rows, grids["lu_hr_emp_titre"].ignored_columns), (0, []))
+
+    def test_semicolons_quotes_brackets(self):
+        text = '﻿[CODE];[cd_emp_titre_adp];ds_emp_titre_adp\nMR;"0""1";"Monsieur ""M."""\n'
+        grids, errors = R.parse_grid(text, "lu_hr_emp_titre")
+        self.assertEqual(errors, [])
+        self.assertEqual(grids["lu_hr_emp_titre"].assignments,
+                         {"MR": {"cd_emp_titre_adp": '0"1', "ds_emp_titre_adp": 'Monsieur "M."'}})
+        typed_header = "cd_emp_titre_ts;lb_emp_titre_ts;ds_emp_titre_adp\nMS\tMadame ; Mme\tMme\nMR\n"
+        grids, errors = R.parse_grid(typed_header, "lu_hr_emp_titre")
+        self.assertEqual((errors, grids["lu_hr_emp_titre"].assignments), ([], {"MS": {"ds_emp_titre_adp": "Mme"}}))
+        self.assertEqual(grids["lu_hr_emp_titre"].rows_without_value, 1)
+
+    def test_header_errors_skip_the_section(self):
+        cases = {
+            "lb_emp_titre_ts\tcd_emp_titre_adp\nMR\t1": "colonne de code",
+            "code\tcd_emp_titre_ts\tcd_emp_titre_adp\nMR\tMR\t1": "colonne de code",
+            "code\tcd_emp_titre_adq\nMR\t1": "aucune colonne modifiable",
+            "code\tcd_titre_adp\tcd_emp_titre_adp\nMR\t1\t1": "colonne inconnue",
+            "code\tcd_emp_titre_adp\tcd_emp_titre_adp\nMR\t1\t1": "en double",
+            "code\tlb_emp_titre_ts\nMR\tx": "aucune colonne modifiable",
+        }
+        for text, expected in cases.items():
+            grids, errors = R.parse_grid(text, "lu_hr_emp_titre")
+            self.assertTrue(any(expected in e for e in errors), (text, errors))
+            self.assertTrue(all(e.startswith("ligne 1 :") for e in errors), errors)
+            self.assertEqual(grids["lu_hr_emp_titre"].assignments, {})
+
+    def test_row_and_section_errors(self):
+        cases = {
+            "code\tcd_emp_titre_adp\nMR\t1\textra": "cellules pour",
+            "code\tcd_emp_titre_adp\nMR\t1\nMR\t2": "déjà saisi",
+            "code\tcd_emp_titre_adp\n\t1": "sans code",
+            "# lu_hr_inconnue\ncode\tx_adp\nA\t1": "table inconnue",
+            "# lu_hr_emp_sexe\ncode\tcd_emp_sexe_adp\nF\tF": "ne correspond pas",
+            "": "grille vide",
+            "# seulement des commentaires": "grille vide",
+        }
+        for text, expected in cases.items():
+            _, errors = R.parse_grid(text, "lu_hr_emp_titre")
+            self.assertTrue(any(expected in e for e in errors), (text, errors))
+        _, errors = R.parse_grid("code\tcd_emp_titre_adp\nMR\t1\nMS\t2", "")
+        self.assertEqual(errors, ["ligne 1 : table non désignée (p_table, ou ligne « # lu_hr_... » avant la grille)"])
+        self.assertEqual(R.parse_grid("code\tcd_emp_titre_adp\nMR\t1", "lu_hr_x")[1], ["table inconnue : lu_hr_x"])
+        grids, errors = R.parse_grid("code\tcd_emp_titre_adp\nMR\t1\nMR \t1\n", "lu_hr_emp_titre")
+        self.assertEqual((errors, grids["lu_hr_emp_titre"].assignments), ([], {"MR": {"cd_emp_titre_adp": "1"}}))
+        legacy_name = "# lu_hr_organisationalStructure\nCD_ORGANISATIONALSTRUCTURE_TS\tcd_organisationalstructure_adp\nOS1\tA\n"
+        grids, errors = R.parse_grid(legacy_name, "")
+        self.assertEqual((errors, grids["lu_hr_organisationalstructure"].assignments),
+                         ([], {"OS1": {"cd_organisationalstructure_adp": "A"}}))
+
+    def test_grid_report_feeds_parse_grid(self):
+        store = FakeStore({"lu_hr_emp_titre": self.titres(), "lu_hr_emp_sexe": [row("lu_hr_emp_sexe", cd_emp_sexe_ts="F"),
+                                                                                 row("lu_hr_emp_sexe", cd_emp_sexe_ts="M")]},
+                          incompatible={"lu_hr_ppc_classes"})
+        usage = {"lu_hr_emp_titre": {"MS": 9, "Dr": 1}, "lu_hr_emp_sexe": {"F": 5, "M": 4}}
+        tables = ["lu_hr_emp_titre", "lu_hr_emp_sexe", "lu_hr_ppc_classes", "lu_hr_geo_entite"]
+        summary, lines = R.adp_grid_report(store, tables, lambda t: usage.get(t, {}), max_lines=1)
+        self.assertEqual(summary["lu_hr_emp_titre"], {"codes": 3, "without_adp": 2, "occurrences_without_adp": 10})
+        self.assertEqual(summary["lu_hr_geo_entite"], {"codes": 0, "without_adp": 0, "occurrences_without_adp": 0})
+        self.assertTrue(summary["lu_hr_ppc_classes"].startswith("INCOMPATIBLE"))
+        self.assertEqual(lines[0], R.GRID_BANNER)
+        self.assertIn("MS\tMadame\t9\t", lines)
+        self.assertNotIn("Dr\tDocteur\t1\t", lines)
+        self.assertIn("# 1 autre(s) code(s) non affiché(s) : augmenter p_max_lines", lines)
+        grids, errors = R.parse_grid("\n".join(lines).replace("MS\tMadame\t9\t", "MS\tMadame\t9\t2")
+                                     .replace("F\t\t5\t", "F\t\t5\tF"), "")
+        self.assertEqual(errors, [])
+        self.assertEqual((grids["lu_hr_emp_titre"].assignments, grids["lu_hr_emp_sexe"].assignments),
+                         ({"MS": {"cd_emp_titre_adp": "2"}}, {"F": {"cd_emp_sexe_adp": "F"}}))
+
+    def test_resolution_conflicts(self):
+        rows = self.titres() + [row("lu_hr_emp_titre", cd_emp_titre_ts="dr")]
+        resolution = R.resolve_grid("lu_hr_emp_titre", rows, {"DR": {"cd_emp_titre_adp": "3"}})
+        self.assertEqual((resolution.assignments, len(resolution.errors)), ({}, 1))
+        resolution = R.resolve_grid("lu_hr_emp_titre", self.titres(),
+                                    {"MS": {"cd_emp_titre_adp": "2"}, "ms": {"cd_emp_titre_adp": "3"}})
+        self.assertEqual(len(resolution.errors), 1)
+        resolution = R.resolve_grid("lu_hr_emp_titre", self.titres(),
+                                    {"MS": {"cd_emp_titre_adp": "2"}, "ms": {"ds_emp_titre_adp": "Mme"}})
+        self.assertEqual((resolution.errors, resolution.assignments),
+                         ([], {"MS": {"cd_emp_titre_adp": "2", "ds_emp_titre_adp": "Mme"}}))
 
 
 class Reporting(unittest.TestCase):
@@ -3000,6 +3138,117 @@ if __name__ == "__main__":
 
 # CELL ********************
 
+# ============= MODULE test_bootstrap =============
+register_hris_module('test_bootstrap', '629c18f0261bc195afdd4c236f6d3035d01a5254551c169836981d596cd24c27', r'''"""TU-BOOT — premier chargement guidé (PL_HRIS_BOOTSTRAP) : choix du mode (PLAN) et action suivante (STATUS).
+Aucun accès réseau ni Spark ; valeurs FICTIVES."""
+import datetime as dt
+import json
+import unittest
+
+from hris import bootstrap as B
+
+NOW = dt.datetime(2026, 10, 14, 6, 0, tzinfo=dt.timezone.utc)
+LATER = dt.datetime(2026, 10, 14, 9, 0)          # naïf UTC, comme les colonnes TIMESTAMP du Lakehouse
+EARLIER = dt.datetime(2026, 10, 14, 5, 0)
+
+
+def run(status, mode="INIT_REFERENCE", error_code=None):
+    return {"run_id": "RUN-1", "status": status, "run_mode": mode, "error_code": error_code}
+
+
+def step(code, status, attempt=1, ended=None):
+    return {"step_code": code, "status": status, "attempt_no": attempt, "started_at_utc": EARLIER, "ended_at_utc": ended}
+
+
+def anomaly(code, severity="BLOCKING", outcome="FAIL"):
+    return {"control_code": code, "severity": severity, "outcome": outcome}
+
+
+class Plan(unittest.TestCase):
+    def test_mode_follows_reference(self):
+        self.assertEqual(B.plan(0, None, NOW)["run_mode"], "INIT_REFERENCE")
+        normal = B.plan(431, None, NOW)
+        self.assertEqual((normal["run_mode"], normal["status"], normal["reference_rows"]), ("NORMAL", "OK", 431))
+
+    def test_lock(self):
+        held = {"lock_status": "HELD", "holder_run_id": "RUN-0", "lease_expires_at_utc": LATER}
+        busy = B.plan(0, held, NOW)
+        self.assertEqual(busy["status"], "LOCK_BUSY")
+        self.assertIn("RUN-0", busy["message"])
+        self.assertEqual(B.plan(0, dict(held, lease_expires_at_utc=EARLIER), NOW)["status"], "OK")
+        self.assertEqual(B.plan(0, dict(held, lease_expires_at_utc=None), NOW)["status"], "LOCK_BUSY")
+        self.assertEqual(B.plan(0, dict(held, lock_status="RELEASED"), NOW)["status"], "OK")
+        self.assertNotIn("message", B.plan(0, None, NOW))
+
+
+class Steps(unittest.TestCase):
+    def test_latest_status_per_step(self):
+        steps = [step("ACQUIRE", "STARTED"), step("ACQUIRE", "SUCCEEDED", ended=LATER),
+                 step("TRANSFORM", "FAILED", ended=EARLIER), step("TRANSFORM", "STARTED", attempt=2),
+                 step("PROMOTE", "SUCCEEDED", ended=LATER), step("PROMOTE", "STARTED")]
+        self.assertEqual(B.latest_steps(steps), {"ACQUIRE": "SUCCEEDED", "PROMOTE": "SUCCEEDED", "TRANSFORM": "STARTED"})
+
+
+class Outcome(unittest.TestCase):
+    def test_first_load_done(self):
+        for status, mode in (("SUCCEEDED", "INIT_REFERENCE"), ("NOT_PUBLISHED_NON_PRD", "NORMAL")):
+            result = B.outcome(run(status, mode), [step("REMUNERATION", "SUCCEEDED")], [anomaly("X", outcome="PASS")])
+            self.assertEqual((result["ok"], result["next_action"]), (True, "ENABLE_SCHEDULE"))
+            self.assertIn("T4_PL_HRIS_ORCHESTRATOR", result["message"])
+        self.assertTrue(B.outcome(run("SUCCEEDED"), [], [])["ok"])          # flux rémunération désactivé : aucune étape
+
+    def test_adp_codes_missing(self):
+        result = B.outcome(run("BLOCKED"), [], [anomaly("MAPPING_TABLE_EMPTY"), anomaly("TS_FILTER_TECHNICAL_FAILURE"),
+                                                anomaly("MAPPING_TABLE_EMPTY"), anomaly("REJECT_RATE", "WARNING")])
+        self.assertEqual((result["ok"], result["next_action"]), (False, "ENTER_ADP_CODES"))
+        self.assertEqual(result["blocking_controls"], ["MAPPING_TABLE_EMPTY", "TS_FILTER_TECHNICAL_FAILURE"])
+        self.assertIn("T4_NB_HRIS_REFERENCE_ADMIN", result["message"])
+        self.assertIn("autres contrôles bloquants : TS_FILTER_TECHNICAL_FAILURE", result["message"])
+        self.assertNotIn("autres", B.outcome(run("BLOCKED"), [], [anomaly("MAPPING_TABLE_EMPTY")])["message"])
+
+    def test_remuneration_failure_is_not_done(self):
+        steps = [step("REMUNERATION", "STARTED"), step("REMUNERATION", "FAILED", ended=LATER)]
+        result = B.outcome(run("SUCCEEDED"), steps, [])
+        self.assertEqual((result["ok"], result["next_action"], result["remuneration"]),
+                         (False, "FIX_REMUNERATION", "FAILED"))
+
+    def test_other_outcomes(self):
+        self.assertEqual(B.outcome(run("SKIPPED_CONCURRENT"), [], [])["next_action"], "RETRY_LATER")
+        blocked = B.outcome(run("BLOCKED", "INIT_REFERENCE"), [], [anomaly("REFERENCE_NOT_EMPTY"),
+                                                                   anomaly("MAPPING_TABLE_EMPTY", outcome="PASS")])
+        self.assertEqual((blocked["next_action"], blocked["blocking_controls"]), ("INVESTIGATE", ["REFERENCE_NOT_EMPTY"]))
+        self.assertIn("REFERENCE_NOT_EMPTY", blocked["message"])
+        failed = B.outcome(run("FAILED", error_code="TRANSFORM_FAILED"), [step("TRANSFORM", "FAILED")], [])
+        self.assertEqual(failed["next_action"], "INVESTIGATE")
+        self.assertIn("TRANSFORM_FAILED", failed["message"])
+        self.assertIn("étapes en échec : TRANSFORM", failed["message"])
+        for status in ("STARTED", "PUBLISHED_PARTIAL", "ACQUIRED"):
+            self.assertFalse(B.outcome(run(status), [], [])["ok"], status)
+        missing = B.outcome(None, [], [])
+        self.assertEqual((missing["next_action"], missing["run_id"]), ("INVESTIGATE", None))
+
+    def test_every_action_is_known_and_serializable(self):
+        cases = [B.outcome(run(s), [], a) for s, a in (("SUCCEEDED", []), ("BLOCKED", [anomaly("MAPPING_TABLE_EMPTY")]),
+                                                       ("SKIPPED_CONCURRENT", []), ("FAILED", []))]
+        cases.append(B.outcome(None, [], []))
+        for result in cases:
+            self.assertIn(result["next_action"], B.NEXT_ACTIONS)
+            self.assertEqual(json.loads(json.dumps(result, default=str))["next_action"], result["next_action"])
+
+
+if __name__ == "__main__":
+    unittest.main()
+''')
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 # ============= IMPORTS =============
 # Standard libraries
 import datetime as dt
@@ -3012,6 +3261,7 @@ from typing import Dict, Iterator
 # Internal HRIS library (chargée par %run T4_NB_HRIS_LIB) and test modules (cellules précédentes)
 import test_adp_publication
 import test_adp_wiring
+import test_bootstrap
 import test_cell_log
 import test_contract_markers
 import test_fabric_integration
@@ -3023,7 +3273,7 @@ import test_spark_transform_parity
 import test_tables_naming
 import test_ts_acquire
 from hris.cell_log import CellLog, report_unlogged_failure, spark_writer
-from hris.common import as_bool, json_exit
+from hris.common import HrisError, as_bool, json_exit
 from hris.model import tables_for_notebook
 from hris.transform import ensure_session_settings
 
@@ -3040,6 +3290,7 @@ p_test_schema = "hris_tst"       # schéma isolé des tests ; ne jamais laisser 
 p_lakehouse_name = ""            # Lakehouse cible (VL_HRIS.lakehouse_name) ; obligatoire, aucun Lakehouse par défaut
 p_run_integration = "true"       # true : scénarios d'intégration avec écriture dans le schéma de test ; false : sans écriture de table
 p_only = ""                      # filtre facultatif : fragments d'identifiants de tests séparés par des virgules
+p_fail_on_error = "false"        # true : le notebook échoue si un test échoue (pipeline T4_PL_HRIS_BOOTSTRAP) ; false : rapport seul
 p_log_cell_success = "true"      # true : trace aussi les cellules réussies ; false : échecs seulement
 
 # METADATA ********************
@@ -3129,7 +3380,7 @@ cell_log.start("RUN_TESTS")
 try:
     test_modules = [test_parity_transform, test_ts_acquire, test_adp_publication, test_contract_markers,
                     test_legacy_logs, test_tables_naming, test_spark_transform_parity, test_cell_log,
-                    test_reference_api, test_remuneration, test_adp_wiring]
+                    test_reference_api, test_remuneration, test_adp_wiring, test_bootstrap]
     run_integration = as_bool(p_run_integration)
     if run_integration:
         test_modules.append(test_fabric_integration)
@@ -3196,6 +3447,9 @@ except Exception as error:
 
 # ============= CLÔTURE =============
 cell_log.flush()
+if as_bool(p_fail_on_error) and not result["successful"]:     # pipeline d'amorçage : aucun run réel après un test en échec
+    raise HrisError("TESTS_FAILED", f"{len(result['failures'])} échec(s), {len(result['errors'])} erreur(s) : "
+                                    "voir le rapport ci-dessus et la table zz_test_report du schéma de test")
 notebookutils.notebook.exit(json_exit(dict(result, details={k: v[-600:] for k, v in list(details.items())[:10]})))
 
 # METADATA ********************

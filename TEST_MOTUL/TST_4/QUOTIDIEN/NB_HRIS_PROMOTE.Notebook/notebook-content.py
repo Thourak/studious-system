@@ -15,7 +15,7 @@
 # # **Type d'objet**
 # # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline T3_PL_HRIS_ORCHESTRATOR l'appelle dans l'activité Promote, après une comparaison réussie.
 # # **Chemin dans le dépôt**
-# # TEST_MOTUL/TST_4/NB_HRIS_PROMOTE.Notebook/notebook-content.py
+# # TEST_MOTUL/TST_4/QUOTIDIEN/NB_HRIS_PROMOTE.Notebook/notebook-content.py
 # # **Description fonctionnelle**
 # # Ce notebook fait d'un run validé la nouvelle référence, c'est-à-dire l'état de chaque salarié contre lequel le run suivant sera comparé, et fige la liste des salariés à publier vers l'outil de paie ADP. Il ne promeut qu'un run au statut VALIDATED, après avoir revalidé les contrôles bloquants et les seuils avec la configuration courante et vérifié qu'aucun autre run n'a déplacé la référence depuis la comparaison. Une seule fusion met à jour la référence : les nouveaux salariés sont insérés, les modifiés sont mis à jour, les absents sont supprimés et les rejetés sont conservés pour être retraités. La liste à publier est créée pour les nouveaux et les modifiés, sauf lors d'un premier chargement. Un run déjà promu n'est jamais fusionné une seconde fois.
 # # **Dépendances**
