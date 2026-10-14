@@ -11,7 +11,7 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-# # T3_NB_HRIS_TESTS. C'est le nom affiché dans Microsoft Fabric pour le notebook de tests du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_TESTS.Notebook.
+# # T4_NB_HRIS_TESTS. C'est le nom affiché dans Microsoft Fabric pour le notebook de tests du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_TESTS.Notebook.
 # # **Type d'objet**
 # # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline quotidien ne l'appelle pas. Le pipeline de premier chargement T4_PL_HRIS_BOOTSTRAP l'appelle avant tout run réel, avec p_fail_on_error à true. On le lance aussi à la main avant une mise en service ou après une modification du code.
 # # **Chemin dans le dépôt**
@@ -1784,7 +1784,7 @@ def suite():
 # CELL ********************
 
 # ============= MODULE test_cell_log =============
-register_hris_module('test_cell_log', '416233b1ee5c64b80bc66f58e982cb878328227d9aba62ec415355626af770e6', r'''"""TU-CL — journal des cellules (hris.cell_log) : réussites optionnelles, échecs toujours tracés, une écriture par
+register_hris_module('test_cell_log', '7638ac85d7a6ce9972a907eae9a4f3b89c0d3a54f82c80148c3b1b68908ff494', r'''"""TU-CL — journal des cellules (hris.cell_log) : réussites optionnelles, échecs toujours tracés, une écriture par
 flush, écriture en échec sans masquer l'erreur métier, expurgation des messages. Partie Spark : Fabric uniquement."""
 import contextlib
 import io
@@ -1800,7 +1800,7 @@ from hris.cell_log import CellLog, LOGICAL_TABLE, error_location, redact_error, 
 from hris.common import HrisError  # noqa: E402
 from hris.model import TABLES  # noqa: E402
 
-CONTEXT = {"activityId": "op-1", "currentNotebookName": "T3_NB_HRIS_TRANSFORM", "currentNotebookId": "nb-1",
+CONTEXT = {"activityId": "op-1", "currentNotebookName": "T4_NB_HRIS_TRANSFORM", "currentNotebookId": "nb-1",
            "currentWorkspaceName": "Sandbox - Fabric BI backend", "currentWorkspaceId": "ws-1", "isForPipeline": True}
 SENSITIVE = ["Bearer abc.def", "client_secret=xyz", "https://motul.talent-soft.com/api/token",
              "jean.dupont@motul.com", "DUPONT", "123456"]
@@ -1841,7 +1841,7 @@ class CellLogTests(unittest.TestCase):
         e = events[0]
         self.assertEqual((e["run_id"], e["operation_id"], e["notebook_name"], e["workspace_name"], e["lakehouse_name"],
                           e["is_for_pipeline"]), ("a124f919-88c1-4545-9ef7-ea2b3c8ca031", "op-1",
-                                                  "T3_NB_HRIS_TRANSFORM", "Sandbox - Fabric BI backend",
+                                                  "T4_NB_HRIS_TRANSFORM", "Sandbox - Fabric BI backend",
                                                   "MOTUL_LH_HRIS", True))
         self.assertIsNone(e["error_type"])
         self.assertGreaterEqual(e["duration_ms"], 0)

@@ -56,9 +56,9 @@ flowchart LR
 
 | Niveau | État | Preuve |
 |---|---|---|
-| Code écrit et testé localement | **Fait** : 150 tests unitaires, 142 réussis en local, 8 ignorés hors Fabric (Spark, schéma de test, document de référence absent) ; non-régression ADP et parité Spark établies lors des campagnes T3 | [Tests](TESTS/README_DETAILS.md#tests) |
-| Tests dans Fabric sur données fictives | **Fait en version T3** : 71 tests, 0 échec, sans Lakehouse par défaut ; à relancer sur `TST_4` (le premier chargement le fait) | [Tests](TESTS/README_DETAILS.md#tests) |
-| Extraction réelle TalentSoft PRD | **Exécutée** (version T3 le 08/10/2026, puis `TST_4`), avec la règle de population de l'existant. Les identifiants TalentSoft sont **écrits dans le code** de l'acquisition, contournement temporaire de B-01 | [Acquisition](QUOTIDIEN/README_DETAILS.md#acquisition) |
+| Code écrit et testé localement | **Fait** : 150 tests unitaires, 142 réussis en local, 8 ignorés hors Fabric (Spark, schéma de test, document de référence absent) ; non-régression ADP (NR-03) et parité Spark à rejouer sur `TST_4` | [Tests](TESTS/README_DETAILS.md#tests) |
+| Tests dans Fabric sur données fictives | **À faire** sur `TST_4` : campagne complète `T4_NB_HRIS_TESTS`, sans Lakehouse par défaut (le premier chargement la lance) | [Tests](TESTS/README_DETAILS.md#tests) |
+| Extraction réelle TalentSoft PRD | **Exécutée** avec `TST_4`, avec la règle de population de l'existant. Les identifiants TalentSoft sont **écrits dans le code** de l'acquisition, contournement temporaire de B-01 | [Acquisition](QUOTIDIEN/README_DETAILS.md#acquisition) |
 | Transformation, comparaison, référence sur données réelles | **Bloquées** tant que les codes ADP ne sont pas saisis (`MAPPING_TABLE_EMPTY`) | [Correspondances](QUOTIDIEN/README_DETAILS.md#correspondances) |
 | Correspondances sans fichier | **Code écrit et testé en local** : partie TalentSoft par l'API, codes ADP saisis par grille collée (reprise possible des tables de l'existant) ; jamais exécuté dans Fabric | [Codes ADP](ONESHOT/README_DETAILS.md#codes-adp) |
 | Premier chargement guidé | **Code écrit et testé en local** : 8 tests, 13 mutations détectées, simulation du notebook, contrôle statique des deux pipelines ; jamais exécuté dans Fabric | [Premier chargement](ONESHOT/README_DETAILS.md#premier-chargement) |
@@ -129,7 +129,7 @@ flowchart TD
 | `ONESHOT` | `T4_NB_HRIS_SETUP` | crée, de façon idempotente, les schémas et les 48 tables |
 | `ONESHOT` | `T4_NB_HRIS_REFERENCE_ADMIN` | saisie des codes ADP par grille collée, toutes les tables en une fois |
 | `TESTS` | `T4_NB_HRIS_TESTS` | tests sur données fictives, dans un schéma isolé |
-| `TEST_1` | `MOTUL_LH_HRIS` | le Lakehouse : toutes les tables de données, de contrôle et de log |
+| `QUOTIDIEN` | `T4_LH_HRIS` | le Lakehouse dédié (schémas activés) : toutes les tables de données, de contrôle et de log |
 
 Les mêmes objets, avec le même code, sont prévus pour tous les environnements ; seuls les paramètres de `T4_VL_HRIS`
 changeraient. Hors DEV, rien n'est déployé à ce jour. [→ Architecture](QUOTIDIEN/README_DETAILS.md#architecture)
@@ -203,7 +203,7 @@ maximales.
 
 - Pipeline quotidien : [contexte](QUOTIDIEN/README_DETAILS.md#contexte) · [les 48 tables](QUOTIDIEN/README_DETAILS.md#tables) ·
   [sécurité](QUOTIDIEN/README_DETAILS.md#securite) · [relancer et vérifier un run](QUOTIDIEN/README_DETAILS.md#exploitation) ·
-  [refactorisation TST_4](QUOTIDIEN/README_DETAILS.md#tst4) · [questions probables](QUOTIDIEN/README_DETAILS.md#faq) ·
+  [validation dans Fabric](QUOTIDIEN/README_DETAILS.md#tst4) · [questions probables](QUOTIDIEN/README_DETAILS.md#faq) ·
   [glossaire](QUOTIDIEN/README_DETAILS.md#glossaire)
 - Traitements ponctuels : [installation](ONESHOT/README_DETAILS.md#setup) · [intégration Git et Fabric](ONESHOT/README_DETAILS.md#git)
 - Tests : [tests et preuves](TESTS/README_DETAILS.md#tests)

@@ -11,7 +11,7 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-# # T3_NB_HRIS_SETUP. C'est le nom affiché dans Microsoft Fabric pour le notebook qui installe le socle du Lakehouse du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_SETUP.Notebook.
+# # T4_NB_HRIS_SETUP. C'est le nom affiché dans Microsoft Fabric pour le notebook qui installe le socle du Lakehouse du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_SETUP.Notebook.
 # # **Type d'objet**
 # # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline quotidien ne l'appelle pas. Le pipeline de premier chargement T4_PL_HRIS_BOOTSTRAP l'appelle en premier et s'arrête si une table est incompatible. On peut aussi le lancer à la main après toute évolution du modèle de données.
 # # **Chemin dans le dépôt**

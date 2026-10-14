@@ -51,9 +51,9 @@
     },
     {
       "name": "lakehouse_name",
-      "note": "Nom du Lakehouse cible dans le workspace d'exécution (noms de tables à 4 parties ; aucun Lakehouse par défaut requis).",
+      "note": "Nom du Lakehouse cible dans le workspace d'exécution : T4_LH_HRIS, item du dossier TST_4/QUOTIDIEN (noms de tables à 4 parties ; aucun Lakehouse par défaut requis).",
       "type": "String",
-      "value": "MOTUL_LH_HRIS"
+      "value": "T4_LH_HRIS"
     },
     {
       "name": "log_cell_success",

@@ -11,7 +11,7 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-# # T4_NB_HRIS_LIB. C'est le nom affiché dans Microsoft Fabric et celui que les autres notebooks utilisent pour le charger. Le dossier du dépôt garde son nom historique NB_HRIS_LIB.Notebook afin de ne déplacer aucun fichier. Le préfixe T3 désigne la version des objets de ce dossier, comme pour tous les autres objets qui l'accompagnent.
+# # T4_NB_HRIS_LIB. C'est le nom affiché dans Microsoft Fabric et celui que les autres notebooks utilisent pour le charger. Le dossier du dépôt garde son nom historique NB_HRIS_LIB.Notebook afin de ne déplacer aucun fichier. Le préfixe T4 désigne la version des objets de ce dossier, comme pour tous les autres objets qui l'accompagnent.
 # # **Type d'objet**
 # # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Il n'est jamais lancé seul par le pipeline. Chaque notebook du flux le charge au début de son exécution par la commande magique %run, qui exécute ses cellules dans le même interpréteur que le notebook appelant.
 # # **Chemin dans le dépôt**

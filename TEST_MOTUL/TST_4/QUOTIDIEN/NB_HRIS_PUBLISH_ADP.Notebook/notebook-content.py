@@ -11,9 +11,9 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-# # T3_NB_HRIS_PUBLISH_ADP. C'est le nom affiché dans Microsoft Fabric pour le notebook de publication vers l'outil de paie ADP du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_PUBLISH_ADP.Notebook.
+# # T4_NB_HRIS_PUBLISH_ADP. C'est le nom affiché dans Microsoft Fabric pour le notebook de publication vers l'outil de paie ADP du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_PUBLISH_ADP.Notebook.
 # # **Type d'objet**
-# # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline T3_PL_HRIS_ORCHESTRATOR l'appelle dans l'activité Publish, après une promotion réussie, sans aucune reprise automatique.
+# # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline T4_PL_HRIS_ORCHESTRATOR l'appelle dans l'activité Publish, après une promotion réussie, sans aucune reprise automatique.
 # # **Chemin dans le dépôt**
 # # TEST_MOTUL/TST_4/QUOTIDIEN/NB_HRIS_PUBLISH_ADP.Notebook/notebook-content.py
 # # **Description fonctionnelle**

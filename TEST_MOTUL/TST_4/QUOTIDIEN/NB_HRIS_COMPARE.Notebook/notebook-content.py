@@ -11,15 +11,15 @@
 # MARKDOWN ********************
 
 # **Nom de l'objet**
-# # T3_NB_HRIS_COMPARE. C'est le nom affiché dans Microsoft Fabric pour le notebook de comparaison du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_COMPARE.Notebook.
+# # T4_NB_HRIS_COMPARE. C'est le nom affiché dans Microsoft Fabric pour le notebook de comparaison du hub d'intégration des ressources humaines ; le dossier du dépôt s'appelle NB_HRIS_COMPARE.Notebook.
 # # **Type d'objet**
-# # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline T3_PL_HRIS_ORCHESTRATOR l'appelle dans l'activité Compare, après une transformation réussie.
+# # Notebook, exécuté dans Microsoft Fabric avec le moteur Synapse PySpark. Le pipeline T4_PL_HRIS_ORCHESTRATOR l'appelle dans l'activité Compare, après une transformation réussie.
 # # **Chemin dans le dépôt**
 # # TEST_MOTUL/TST_4/QUOTIDIEN/NB_HRIS_COMPARE.Notebook/notebook-content.py
 # # **Description fonctionnelle**
 # # Ce notebook compare les salariés mis en forme pour la paie par la transformation à la référence, c'est-à-dire l'état validé lors du dernier run promu. Chaque salarié, identifié par la clé id_unique, est classé comme nouveau, modifié, inchangé, absent ou rejeté, en comparant l'empreinte de sa ligne. Le notebook rassemble ensuite tous les contrôles bloquants du run, ceux de l'acquisition et de la transformation compris, et décide si le run est validé ou bloqué. Un premier chargement en mode NORMAL est bloqué parce que la référence est vide. Le mode INIT_REFERENCE est refusé si la référence n'est pas vide. Le recalcul est interdit dès qu'une écriture de promotion a eu lieu pour ce run.
 # # **Dépendances**
-# # Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB et utilise ses modules d'étapes, de comparaison, de modèle de données et de journal des cellules. Il lit ctl.run, ctl.run_step, cfg.process pour les seuils, stg.ts_employee_adp et stg.ts_employee_reject produits par T3_NB_HRIS_TRANSFORM, la référence ref.ts_employee_adp et la liste à publier pub.adp_outbox pour détecter une promotion déjà commencée. Il écrit log.comparison_summary, log.comparison_detail et log.anomaly, met à jour ctl.run, consigne l'étape dans ctl.run_step et ajoute ses traces dans log.cell_execution. Aucun secret n'est lu.
+# # Le notebook charge la bibliothèque commune par la commande %run T4_NB_HRIS_LIB et utilise ses modules d'étapes, de comparaison, de modèle de données et de journal des cellules. Il lit ctl.run, ctl.run_step, cfg.process pour les seuils, stg.ts_employee_adp et stg.ts_employee_reject produits par T4_NB_HRIS_TRANSFORM, la référence ref.ts_employee_adp et la liste à publier pub.adp_outbox pour détecter une promotion déjà commencée. Il écrit log.comparison_summary, log.comparison_detail et log.anomaly, met à jour ctl.run, consigne l'étape dans ctl.run_step et ajoute ses traces dans log.cell_execution. Aucun secret n'est lu.
 # # **Fonctionnement et logique de traitement**
 # # La configuration lit le contexte réel du notebook, résout les noms complets des tables, ouvre le journal des cellules et applique les réglages de session Spark. La cellule de comparaison vérifie que le mode reçu est celui enregistré pour le run ; en mode de reprise de publication, elle renvoie un statut de saut sans rien calculer. Elle contrôle ensuite les clés manquantes ou en double, classe les salariés, calcule les compteurs et les pourcentages, journalise les noms des colonnes modifiées sans aucune valeur et enregistre la décision VALIDATED ou BLOCKED. La clôture écrit les traces du journal puis renvoie le résultat.
 # # **Paramètres**

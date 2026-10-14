@@ -11,7 +11,7 @@ colonnes tels qu'ils apparaissent dans Fabric. Chaque affirmation indique, quand
 [Contrôle du run](#run-control) · [Acquisition](#acquisition) · [Correspondances](#correspondances) ·
 [Transformation](#transformation) · [Comparaison](#comparaison) · [Promotion](#promotion) ·
 [Rémunération](#remuneration) · [Publication ADP](#publication) · [Tables](#tables) · [Sécurité](#securite) ·
-[Exploitation](#exploitation) · [Journal des cellules](#journal-cellules) · [Refactorisation TST_4](#tst4) ·
+[Exploitation](#exploitation) · [Journal des cellules](#journal-cellules) · [Validation dans Fabric](#tst4) ·
 [Questions probables](#faq) · [Glossaire](#glossaire)
 
 ---
@@ -64,7 +64,7 @@ pipeline. Les notifications (Logic Apps, décommissionnées) et l'import des log
 |---|---|---|
 | Source | tenant TalentSoft **PRD** (`https://motul.talent-soft.com`) | constante du code, toute autre URL est refusée |
 | Exécution | workspace `Sandbox - Fabric BI backend` (non-PRD) | workspace réel du notebook |
-| Destination | Lakehouse `MOTUL_LH_HRIS` du même workspace | paramètre `lakehouse_name` de `VL_HRIS` |
+| Destination | Lakehouse `T4_LH_HRIS` du même workspace | paramètre `lakehouse_name` de `VL_HRIS` |
 
 <a id="architecture"></a>
 ## Architecture
@@ -79,7 +79,7 @@ flowchart LR
         PL["PL_HRIS_ORCHESTRATOR"]
         NB["Notebooks NB_HRIS_*"]
         VL["VL_HRIS"]
-        LH[("MOTUL_LH_HRIS : cfg, stg, ref, pub, ctl, log")]
+        LH[("T4_LH_HRIS : cfg, stg, ref, pub, ctl, log")]
     end
     ADP["ADP (non sollicité)"]
     VL --> PL --> NB
@@ -90,18 +90,16 @@ flowchart LR
 
 **Les items.** Ils sont rangés dans trois sous-dossiers de `TEST_MOTUL/TST_4`
 ([organisation](../README.md#organisation)). Ce dossier-ci, `QUOTIDIEN`, contient le pipeline planifié, ses sept
-notebooks d'étape, la bibliothèque commune et la variable library. Le Lakehouse préexiste dans `TEST_MOTUL/TEST_1` ;
-il est réutilisé, non dupliqué (le nom documenté `LH_HRIS` est remplacé par le Lakehouse désigné, `MOTUL_LH_HRIS`).
+notebooks d'étape, la bibliothèque commune, la variable library et le Lakehouse dédié `T4_LH_HRIS` (dossier
+`LH_HRIS.Lakehouse`, schémas activés), propre à `TST_4` : aucune table n'est partagée avec un autre dossier du dépôt.
 
 **Une bibliothèque, une seule copie.** Le code métier vit dans une bibliothèque Python (`hris`, 21 modules,
 dont `hris.reference_api` pour les correspondances et `hris.bootstrap` pour le premier chargement) portée par le
 notebook `T4_NB_HRIS_LIB` (dossier `QUOTIDIEN/NB_HRIS_LIB.Notebook`), une cellule par module, avec l'empreinte SHA-256
 de chaque module vérifiée au chargement. Chaque notebook la charge par `%run T4_NB_HRIS_LIB` (deuxième cellule), y
 compris ceux des dossiers `ONESHOT` et `TESTS` ; la commande exécute ses cellules dans l'interpréteur du notebook
-appelant. Jusqu'à la version T3, la
-bibliothèque était copiée à l'identique dans chaque notebook (environ 5 550 lignes par notebook) faute de
-vérification du `%run` en exécution par pipeline ; voir [Refactorisation TST_4](#tst4) pour ce qui reste à vérifier
-dans Fabric.
+appelant. Le chargement par `%run` en exécution par pipeline reste à vérifier dans Fabric ; voir
+[Validation dans Fabric](#tst4).
 
 **Noms de tables à quatre parties.** Les tables sont adressées par `` `workspace`.`lakehouse`.schéma.table ``. Mesuré
 dans ce workspace : sans Lakehouse par défaut attaché, les noms partiels (`ctl.run`) et à trois parties échouent
@@ -164,7 +162,7 @@ pipeline.
 | `ts_base_url` | `https://motul.talent-soft.com` | tenant TalentSoft PRD (seule valeur acceptée) |
 | `kv_url_ts` | coffre `kvt-mge-azr-hris-ts-prd` | référence du coffre des identifiants TalentSoft |
 | `kv_url_adp` | vide | référence du coffre ADP, vide hors PRD |
-| `lakehouse_name` | `MOTUL_LH_HRIS` | Lakehouse cible |
+| `lakehouse_name` | `T4_LH_HRIS` | Lakehouse cible |
 | `log_cell_success` | `true` | journal des cellules : `true` trace aussi les réussites ; les échecs sont toujours tracés |
 | `business_timezone` | `Europe/Paris` | fuseau de la date métier (à confirmer) |
 | `lock_lease_minutes` | `240` | durée du bail du verrou (à confirmer) |
@@ -672,7 +670,7 @@ utilisées.
 
 - **Secrets** : lus à l'exécution, encapsulés (représentation `SecretValue(***)`), jamais en paramètre, en variable de
   pipeline, en table, en fichier ni en sortie. **Exception temporaire** : les identifiants TalentSoft sont écrits dans
-  le code de l'acquisition (contournement de B-01, dans `TST_3` puis `TST_4`), donc présents dans l'historique Git. Ils
+  le code de l'acquisition (contournement de B-01), donc présents dans l'historique Git. Ils
   sont à retirer dès que le coffre est lisible, et à renouveler auprès de TalentSoft.
 - **Assainissement** : tout message écrit dans une table masque les URL, adresses, IBAN, jetons et toute suite de quatre
   chiffres ou plus ; les compteurs construits par le code sont conservés.
@@ -786,43 +784,27 @@ FROM log.cell_execution WHERE run_id = '<run_id>' ORDER BY started_at_utc;
 ```
 
 <a id="tst4"></a>
-## Refactorisation TST_4
+## Validation dans Fabric
 
-**Ce qui change.**
+`TST_4` est autonome : ses items portent leurs propres noms (`T4_*`) et identifiants logiques, ses pipelines ne
+désignent que des items de `TST_4` et lisent `T4_VL_HRIS`, et ses notebooks chargent `T4_NB_HRIS_LIB`. Sa validation ne
+s'appuie sur aucun run ni aucune table d'une autre version.
 
-| Sujet | Avant (T3) | TST_4 |
-|---|---|---|
-| Bibliothèque `hris` | copiée dans chaque notebook (≈ 5 550 lignes × 9) | une copie, `T4_NB_HRIS_LIB`, chargée par `%run` ; une cellule par module |
-| Modules métier | 17 | 16 identiques à l'octet près ; `model` : ajout du DDL `log.cell_execution` ; nouveau module `cell_log` |
-| Configuration | lue dans la cellule de traitement | cellule dédiée, minimale : workspace réel (contexte), Lakehouse (`VL_HRIS`), réglages de session |
-| Structure | 1 cellule de traitement | Markdown (R01), `%run`, imports, paramètres commentés, configuration, une fonction par cellule, traitements protégés, clôture |
-| Journal | `ctl.run_step` par étape | inchangé, **plus** `log.cell_execution` par cellule |
-| Pipeline | — | paramètre `p_log_cell_success` sur les 9 activités notebook ; rien d'autre |
+**À vérifier dans Fabric avant de considérer le traitement validé** (rien n'a été déployé ni exécuté) :
 
-Aucune règle métier, aucun contrat de sortie, aucune destination ni aucun garde-fou n'a été modifié ; le garde-fou ADP
-relit toujours le contexte réel du notebook au moment de la décision.
-
-**Preuves locales (sans Fabric).** Tests unitaires et NR-03 relancés sur la bibliothèque modifiée ; rejeu, ancien contre
-nouveau notebook, des 7 activités du run du 08/10/2026 avec ses paramètres et ses sorties réels : mêmes appels métier,
-même valeur de sortie, égale à la sortie réelle ; scénarios d'échec, d'option désactivée, de journal indisponible et de
-Lakehouse non résolu ; contrôles statiques des règles applicables. Le détail est dans le compte rendu de la
-refactorisation.
-
-**À vérifier dans Fabric avant de considérer le process 1 validé** (rien n'a été déployé ni exécuté) :
-
-1. Synchroniser les items (voir [Git](../ONESHOT/README_DETAILS.md#git)) : `TST_4` a ses propres noms (`T4_*`) et
-   identifiants logiques, distincts de ceux de `TST_3`.
-2. Lever B-01 par une voie validée (coffre lisible depuis le workspace d'exécution). Le run du 08/10 n'a obtenu ses
-   secrets que parce qu'ils étaient écrits dans le code de `TST_3` (commit `e817e10`). L'acquisition de `TST_4` reprend
-   ce contournement (lecture du coffre commentée) en attendant l'environnement Fabric de Motul : identifiants à retirer
-   du code dès que le coffre est lisible. Le flux rémunération lit, lui, le coffre.
-3. Exécuter `T4_NB_HRIS_SETUP` (crée `log.cell_execution`, attendu : `created = 1`, aucun `INCOMPATIBLE`).
+1. Synchroniser les items (voir [Git](../ONESHOT/README_DETAILS.md#git)).
+2. Lever B-01 par une voie validée (coffre lisible depuis le workspace d'exécution). L'acquisition lit aujourd'hui les
+   identifiants TalentSoft écrits dans son code (lecture du coffre commentée), en attendant l'environnement Fabric de
+   Motul : identifiants à retirer du code dès que le coffre est lisible, puis à renouveler. Le flux rémunération lit,
+   lui, le coffre.
+3. Exécuter `T4_NB_HRIS_SETUP` (attendu : statut `OK`, aucune table `INCOMPATIBLE`).
 4. Exécuter `T4_NB_HRIS_TESTS` (attendu : 0 échec, dont `CellLogSpark`).
-5. Exécuter `T4_PL_HRIS_ORCHESTRATOR` en `NORMAL` et comparer, pour ce run, les sorties des activités, `ctl.run`,
-   `ctl.run_step`, `log.anomaly` et les volumes de `stg.ts_employee_raw` à ceux du run du 08/10, puis lire
-   `log.cell_execution`. Vérifier en particulier que `%run T4_NB_HRIS_LIB` s'exécute en mode pipeline.
+5. Exécuter `T4_PL_HRIS_ORCHESTRATOR` et contrôler, pour ce run : les sorties des activités, `ctl.run`, `ctl.run_step`,
+   `log.anomaly`, `log.cell_execution` et la complétude de `stg.ts_employee_raw` (reçus égal à `totalCount`, lignes
+   égales aux clés distinctes). Vérifier en particulier que `%run T4_NB_HRIS_LIB` s'exécute en mode pipeline, y compris
+   depuis les dossiers `ONESHOT` et `TESTS`.
 
-Le pipeline `T4_PL_HRIS_BOOTSTRAP` enchaîne désormais les étapes 3 à 5
+Le pipeline `T4_PL_HRIS_BOOTSTRAP` enchaîne les étapes 3 à 5
 ([détail](../ONESHOT/README_DETAILS.md#premier-chargement)).
 
 <a id="faq"></a>
@@ -848,7 +830,7 @@ lignes au lieu de 5 600. La page Microsoft « Develop, execute, and manage noteb
 in both interactive mode and pipeline » (même workspace uniquement), mais une note de la même page ne liste que des
 magics de cellule (`%%pyspark`, `%%sql`, `%%configure`…) parmi celles supportées en pipeline : la documentation reste
 ambiguë. Les pipelines du dépôt `FR_BI_FABRIC` appellent déjà des notebooks qui commencent par `%run nb_shareddef`. Le
-point reste à **vérifier dans ce workspace** au premier run (voir [Refactorisation TST_4](#tst4)). L'intégrité reste
+point reste à **vérifier dans ce workspace** au premier run (voir [Validation dans Fabric](#tst4)). L'intégrité reste
 garantie par empreinte.
 
 **Pourquoi deux pipelines ?** Le pipeline quotidien porte toutes les étapes métier. Le pipeline de premier

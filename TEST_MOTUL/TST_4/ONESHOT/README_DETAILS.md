@@ -198,8 +198,8 @@ depuis les tables externes de Synapse (voir plus haut), ou le métier les ressai
 
 **Dépôt et association.** Dépôt GitHub `thourak/studious-system`, branche `main`, **répertoire `/`**, associé au
 workspace `Sandbox - Fabric BI backend`. Les items de cette version sont dans `TEST_MOTUL/TST_4`, rangés en trois
-sous-dossiers ; le Lakehouse reste dans `TEST_MOTUL/TEST_1`. `TEST_MOTUL/TST_3` (version précédente, noms `T3_*`)
-coexiste avec ses propres noms et identifiants logiques.
+sous-dossiers, Lakehouse dédié `T4_LH_HRIS` compris (dans `QUOTIDIEN`). Ils ont leurs propres noms (`T4_*`) et
+identifiants logiques et ne dépendent d'aucun autre dossier du dépôt.
 
 **Dossiers.** Fabric conserve la structure de dossiers du dépôt (jusqu'à 10 niveaux) et relie chaque item à Git par
 son identifiant logique (`logicalId` du fichier `.platform`), pas par son chemin : déplacer un dossier d'item dans le
@@ -229,6 +229,3 @@ nul (même workspace).
 3. Dans Fabric : Contrôle de code source → Mises à jour → tout mettre à jour. Les items se rangent dans `QUOTIDIEN`,
    `ONESHOT` et `TESTS` ; les deux nouveaux items sont créés.
 4. Lancer le premier chargement ([mode opératoire](#premier-chargement)).
-
-*Historique (version T3, avant le rangement)* : la synchronisation initiale proposait deux voies, commit sélectif
-depuis Fabric ou push des fichiers préparés ; elle est faite depuis.

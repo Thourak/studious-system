@@ -3,7 +3,7 @@
   "metadata": {
     "type": "Notebook",
     "displayName": "T4_NB_HRIS_LIB",
-    "description": "Bibliothèque commune HRIS (copie unique), chargée par %run T3_nb_hris_lib dans chaque notebook du flux ; jamais appelée seule par le pipeline."
+    "description": "Bibliothèque commune HRIS (copie unique), chargée par %run T4_NB_HRIS_LIB dans chaque notebook du flux ; jamais appelée seule par le pipeline."
   },
   "config": {
     "version": "2.0",
