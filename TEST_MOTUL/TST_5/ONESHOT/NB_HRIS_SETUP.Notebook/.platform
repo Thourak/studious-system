@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T5_NB_HRIS_SETUP",
+    "description": "Installation idempotente du socle : schémas, tables, graines."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "1f83481d-7d71-4f66-b603-0168f1ae14da"
+  }
+}

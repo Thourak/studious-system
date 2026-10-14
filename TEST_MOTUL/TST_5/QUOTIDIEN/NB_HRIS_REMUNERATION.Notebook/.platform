@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T5_NB_HRIS_REMUNERATION",
+    "description": "Flux rémunération de l'existant en tables : export TalentSoft, instantané, changements J / J-1, aucun envoi."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "f8d36417-4682-4029-95b0-a11adfda5807"
+  }
+}

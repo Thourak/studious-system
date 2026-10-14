@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T5_NB_HRIS_REFERENCE_ADMIN",
+    "description": "Saisie tracée des codes ADP des tables de correspondance (grille collée, aucun fichier)."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "f96c67cb-8d76-4706-9f90-33419171b1b6"
+  }
+}

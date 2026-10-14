@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "DataPipeline",
+    "displayName": "T5_PL_HRIS_ORCHESTRATOR",
+    "description": "Pipeline quotidien HRIS TalentSoft vers ADP (planifié à 06:00, Paris)."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "db6e30b3-4e1d-45ab-978e-08e1ac673e45"
+  }
+}

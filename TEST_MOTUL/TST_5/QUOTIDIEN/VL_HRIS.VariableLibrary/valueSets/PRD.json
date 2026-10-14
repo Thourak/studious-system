@@ -1,0 +1,23 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/variableLibrary/definition/valueSet/1.0.0/schema.json",
+  "name": "PRD",
+  "description": "Production (workspace dont le nom contient PRD, tenant Motul). Interrupteurs ADP à false jusqu'à la décision d'activation.",
+  "variableOverrides": [
+    {
+      "name": "env_code",
+      "value": "PRD"
+    },
+    {
+      "name": "key_vault_url_adp",
+      "value": "https://kvt-mge-azr-hris-ts-prd.vault.azure.net/"
+    },
+    {
+      "name": "bootstrap_run_tests",
+      "value": "false"
+    },
+    {
+      "name": "legacy_storage_account_url",
+      "value": "https://stomgeazrhristsprd.blob.core.windows.net"
+    }
+  ]
+}

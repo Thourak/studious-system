@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T5_NB_HRIS_TS_ACQUIRE",
+    "description": "Extraction des salariés Motul France depuis TalentSoft PRD, contrôle de complétude, catalogue des codes."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "0faff723-7be2-44dd-af81-3e1de8e5110a"
+  }
+}

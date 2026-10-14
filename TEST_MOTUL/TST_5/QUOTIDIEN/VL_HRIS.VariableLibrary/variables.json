@@ -1,0 +1,131 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/variableLibrary/definition/variables/1.0.0/schema.json",
+  "variables": [
+    {
+      "name": "env_code",
+      "type": "String",
+      "value": "DEV",
+      "note": "Environnement (DEV, UAT, PRD), pour les journaux seulement. Jamais utilisé par la garde ADP, qui lit le nom réel du workspace."
+    },
+    {
+      "name": "lakehouse_name",
+      "type": "String",
+      "value": "T5_LH_HRIS",
+      "note": "Lakehouse cible, item T5_LH_HRIS du dossier TST_5/QUOTIDIEN, même nom dans tous les environnements (noms de tables à quatre parties, aucun Lakehouse par défaut)."
+    },
+    {
+      "name": "key_vault_url",
+      "type": "String",
+      "value": "https://kvt-mge-azr-hris-ts-prd.vault.azure.net/",
+      "note": "Coffre des identifiants TalentSoft (client-id-ts, client-secret-ts) et des identifiants Azure de l'import historique (app-tenant-id, app-client-id, app-client-secret). La source TalentSoft est la production dans tous les environnements. Jamais de secret ici."
+    },
+    {
+      "name": "key_vault_url_adp",
+      "type": "String",
+      "value": "",
+      "note": "Coffre des secrets ADP (client-id-adp, client-secret-adp, MOTUL-SA-cer, motulsa-auth-key). Vide hors PRD : aucune lecture de secret ADP possible."
+    },
+    {
+      "name": "ts_base_url",
+      "type": "String",
+      "value": "https://motul.talent-soft.com",
+      "note": "Tenant TalentSoft de production, seule valeur acceptée par le code (invariant de sécurité)."
+    },
+    {
+      "name": "ts_request_concurrency",
+      "type": "String",
+      "value": "10",
+      "note": "Requêtes simultanées vers TalentSoft (1 à 40). L'existant en faisait 10. À valider avec l'éditeur avant de l'augmenter."
+    },
+    {
+      "name": "ts_employee_concurrency",
+      "type": "String",
+      "value": "10",
+      "note": "Salariés traités en parallèle pendant l'extraction (1 à 40)."
+    },
+    {
+      "name": "business_timezone",
+      "type": "String",
+      "value": "Europe/Paris",
+      "note": "Fuseau de la date métier. Pour un run à 06:00, même date qu'en UTC (convention de l'existant)."
+    },
+    {
+      "name": "lock_lease_minutes",
+      "type": "String",
+      "value": "600",
+      "note": "Durée du bail du verrou de run, supérieure à la somme des délais maximaux des activités (9 h 40)."
+    },
+    {
+      "name": "remuneration_enabled",
+      "type": "String",
+      "value": "true",
+      "note": "Flux rémunération exécuté à chaque run (true) ou sauté (false)."
+    },
+    {
+      "name": "adp_read_enabled",
+      "type": "String",
+      "value": "false",
+      "note": "Interrupteur de lecture ADP. true sans adp_write_enabled : lecture seule (opérations planifiées dans log.adp_dry_run, aucune écriture). Ne remplace jamais la garde du workspace (nom contenant PRD)."
+    },
+    {
+      "name": "adp_write_enabled",
+      "type": "String",
+      "value": "false",
+      "note": "Interrupteur d'écriture ADP (publication réelle, comportement de la Function de l'existant). Exige adp_read_enabled. Ne remplace jamais la garde du workspace. Activation par commit tracé du jeu de valeurs PRD, après la non-régression."
+    },
+    {
+      "name": "adp_base_url",
+      "type": "String",
+      "value": "https://accounts.eu.adp.com/",
+      "note": "Adresse de l'API ADP (identique à la Function de l'existant)."
+    },
+    {
+      "name": "insee_api_url",
+      "type": "String",
+      "value": "https://geo.api.gouv.fr/communes",
+      "note": "Adresse de l'API des communes (code INSEE), appelée par la logique ADP comme dans l'existant."
+    },
+    {
+      "name": "adp_max_attempts",
+      "type": "String",
+      "value": "3",
+      "note": "Tentatives maximales par opération ADP, en reprise explicite seulement (RETRY_PUBLICATION)."
+    },
+    {
+      "name": "adp_http_timeout_seconds",
+      "type": "String",
+      "value": "60",
+      "note": "Délai des appels HTTP ADP, en secondes."
+    },
+    {
+      "name": "adp_pause_seconds",
+      "type": "String",
+      "value": "1",
+      "note": "Pause entre deux salariés publiés, en secondes (cadence de l'existant)."
+    },
+    {
+      "name": "bootstrap_run_tests",
+      "type": "String",
+      "value": "true",
+      "note": "Campagne de tests lancée par le premier chargement quand son paramètre p_run_tests est vide. false en PRD : les tests tournent en DEV et en recette."
+    },
+    {
+      "name": "legacy_storage_account_url",
+      "type": "String",
+      "value": "",
+      "note": "Compte de stockage Azure de l'existant (journaux historiques de la Function ADP), lu une seule fois par T5_NB_HRIS_LEGACY_LOGS_IMPORT. Vide hors PRD."
+    },
+    {
+      "name": "legacy_container_name",
+      "type": "String",
+      "value": "files",
+      "note": "Conteneur des journaux historiques de la Function ADP."
+    },
+    {
+      "name": "legacy_log_prefix",
+      "type": "String",
+      "value": "ADP",
+      "note": "Dossier des journaux historiques (ADP/<AAAAMMJJ>/output_log_adp.csv)."
+    }
+  ]
+}

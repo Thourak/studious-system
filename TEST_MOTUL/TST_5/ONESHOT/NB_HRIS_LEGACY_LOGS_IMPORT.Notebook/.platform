@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T5_NB_HRIS_LEGACY_LOGS_IMPORT",
+    "description": "Import unique de l'historique des journaux de l'ancienne Function ADP."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "e6958b61-314a-429d-b812-47a3cb396a71"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T5_NB_HRIS_PROMOTE",
+    "description": "Promotion de la référence et préparation de la liste à publier."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "78b06483-c511-4ea5-8cce-a1b1e25b6541"
+  }
+}

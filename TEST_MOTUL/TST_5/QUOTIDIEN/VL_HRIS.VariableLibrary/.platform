@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "VariableLibrary",
+    "displayName": "T5_VL_HRIS",
+    "description": "Paramètres d'environnement HRIS (DEV par défaut, UAT, PRD), sans secret."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "8cb13bbf-080e-4c12-ab56-14b4375b300f"
+  }
+}

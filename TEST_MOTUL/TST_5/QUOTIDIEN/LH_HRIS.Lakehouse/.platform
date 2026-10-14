@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Lakehouse",
+    "displayName": "T5_LH_HRIS",
+    "description": "Lakehouse dédié de TST_5 (données HRIS : schémas cfg, stg, ref, pub, ctl, log) ; schémas activés."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "829225a6-a320-4527-8eaf-aeba0fabd763"
+  }
+}

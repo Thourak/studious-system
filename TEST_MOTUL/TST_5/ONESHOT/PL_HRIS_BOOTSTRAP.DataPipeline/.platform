@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "DataPipeline",
+    "displayName": "T5_PL_HRIS_BOOTSTRAP",
+    "description": "Premier chargement guidé, lancé à la main, jamais planifié."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "84fa54b0-ed42-4d01-b9c5-0743f5baf7b1"
+  }
+}

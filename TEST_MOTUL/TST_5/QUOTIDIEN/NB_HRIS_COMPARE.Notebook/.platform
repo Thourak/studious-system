@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T5_NB_HRIS_COMPARE",
+    "description": "Comparaison de la sortie ADP à la référence promue ; contrôles ; décision."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "85e9eb38-67ee-4603-b7f2-fddaa8801acd"
+  }
+}
