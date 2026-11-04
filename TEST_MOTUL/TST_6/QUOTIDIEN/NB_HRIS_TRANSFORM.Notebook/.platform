@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T6_NB_HRIS_TRANSFORM",
+    "description": "Règles SQL de production reproduites : correspondances, rejets, format paie ADP."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "8ed94140-3a19-5f09-9ae1-9e6867c485c1"
+  }
+}

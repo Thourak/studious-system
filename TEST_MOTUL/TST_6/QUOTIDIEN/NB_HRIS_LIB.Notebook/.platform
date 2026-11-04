@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T6_NB_HRIS_LIB",
+    "description": "Bibliothèque commune HRIS (rôle de nb_shareddef) : modules métier à empreinte vérifiée, logger, contexte."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "d19cb31e-a608-52fc-9dae-dc0bf01c963e"
+  }
+}

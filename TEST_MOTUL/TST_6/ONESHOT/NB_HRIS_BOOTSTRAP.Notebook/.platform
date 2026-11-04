@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T6_NB_HRIS_BOOTSTRAP",
+    "description": "Décisions du premier chargement : mode du run (PLAN), action suivante (STATUS)."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "ea896751-62e8-5056-9a52-12ec91b3c4e3"
+  }
+}

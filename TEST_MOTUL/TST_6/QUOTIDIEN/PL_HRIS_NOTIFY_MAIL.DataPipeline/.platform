@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "DataPipeline",
+    "displayName": "T6_PL_HRIS_NOTIFY_MAIL",
+    "description": "Squelette du pipeline d'envoi du message de fin de run (activité Outlook à ajouter dans le portail)."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "b7c0e9a4-31d8-5f26-8e45-0a9d2c6f4b71"
+  }
+}

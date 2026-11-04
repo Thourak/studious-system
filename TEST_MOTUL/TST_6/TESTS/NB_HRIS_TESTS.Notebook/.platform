@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T6_NB_HRIS_TESTS",
+    "description": "Campagne de tests sur données fictives, schéma isolé."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "e23c2f42-725b-50d7-960a-5e0f9c80f1bc"
+  }
+}

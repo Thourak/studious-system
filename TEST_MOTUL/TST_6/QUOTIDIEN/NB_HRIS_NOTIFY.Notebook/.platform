@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T6_NB_HRIS_NOTIFY",
+    "description": "Prépare le message HTML de fin de run (vert, rouge, orange) : sujet, destinataires, corps. N'envoie rien."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "4d2f7a52-6c1e-5b43-9a0d-7e3c1f8b2a10"
+  }
+}

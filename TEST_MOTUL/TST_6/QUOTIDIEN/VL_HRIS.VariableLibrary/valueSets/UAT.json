@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/variableLibrary/definition/valueSet/1.0.0/schema.json",
+  "name": "UAT",
+  "description": "Recette : même source TalentSoft de production, aucune publication ADP (le nom du workspace ne doit pas contenir PRD).",
+  "variableOverrides": [
+    {
+      "name": "env_code",
+      "value": "UAT"
+    }
+  ]
+}

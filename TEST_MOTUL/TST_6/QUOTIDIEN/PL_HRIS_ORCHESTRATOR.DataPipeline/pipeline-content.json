@@ -1,0 +1,554 @@
+{
+  "properties": {
+    "description": "Pipeline quotidien HRIS : TalentSoft PRD vers Fabric vers ADP, et flux rémunération en tables (aucun fichier, aucun envoi vers TalentSoft). Publication ADP seulement si le nom réel du workspace contient PRD et si les interrupteurs de T6_VL_HRIS l'autorisent. Run bloqué rendu visible (HRIS_RUN_BLOCKED). Planification : quotidienne à 06:00, heure de Paris (.schedules).",
+    "activities": [
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "8c6a435c-2f20-57ad-9f36-551041061fe1",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "p_mode": {
+              "value": {
+                "value": "START",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_run_id": {
+              "value": {
+                "value": "@pipeline().RunId",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_process_code": {
+              "value": {
+                "value": "@pipeline().parameters.p_process_code",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_run_mode": {
+              "value": {
+                "value": "@pipeline().parameters.p_run_mode",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_target_run_id": {
+              "value": {
+                "value": "@pipeline().parameters.p_target_run_id",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_trigger_time": {
+              "value": {
+                "value": "@string(pipeline().TriggerTime)",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_business_date_override": {
+              "value": {
+                "value": "@pipeline().parameters.p_business_date_override",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_pipeline_name": {
+              "value": {
+                "value": "@pipeline().PipelineName",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.00:20:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "RunStart",
+        "dependsOn": []
+      },
+      {
+        "type": "IfCondition",
+        "typeProperties": {
+          "expression": {
+            "value": "@equals(json(activity('RunStart').output.result.exitValue).status, 'OK')",
+            "type": "Expression"
+          },
+          "ifTrueActivities": [
+            {
+              "type": "TridentNotebook",
+              "typeProperties": {
+                "notebookId": "ed790e7a-6cb4-5273-a834-e68febd4682f",
+                "workspaceId": "00000000-0000-0000-0000-000000000000",
+                "parameters": {
+                  "p_run_id": {
+                    "value": {
+                      "value": "@pipeline().RunId",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  }
+                }
+              },
+              "policy": {
+                "timeout": "0.03:00:00",
+                "retry": 0,
+                "retryIntervalInSeconds": 30,
+                "secureInput": false,
+                "secureOutput": false
+              },
+              "name": "Acquire",
+              "dependsOn": []
+            },
+            {
+              "type": "TridentNotebook",
+              "typeProperties": {
+                "notebookId": "54715c64-ec76-5791-9119-a36a18ab8eeb",
+                "workspaceId": "00000000-0000-0000-0000-000000000000",
+                "parameters": {
+                  "p_mode": {
+                    "value": {
+                      "value": "RUN",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_run_id": {
+                    "value": {
+                      "value": "@pipeline().RunId",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  }
+                }
+              },
+              "policy": {
+                "timeout": "0.02:00:00",
+                "retry": 0,
+                "retryIntervalInSeconds": 30,
+                "secureInput": false,
+                "secureOutput": false
+              },
+              "name": "Remuneration",
+              "dependsOn": []
+            },
+            {
+              "type": "TridentNotebook",
+              "typeProperties": {
+                "notebookId": "8ed94140-3a19-5f09-9ae1-9e6867c485c1",
+                "workspaceId": "00000000-0000-0000-0000-000000000000",
+                "parameters": {
+                  "p_run_id": {
+                    "value": {
+                      "value": "@pipeline().RunId",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  }
+                }
+              },
+              "policy": {
+                "timeout": "0.01:00:00",
+                "retry": 0,
+                "retryIntervalInSeconds": 30,
+                "secureInput": false,
+                "secureOutput": false
+              },
+              "name": "Transform",
+              "dependsOn": [
+                {
+                  "activity": "Acquire",
+                  "dependencyConditions": [
+                    "Succeeded"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "TridentNotebook",
+              "typeProperties": {
+                "notebookId": "f74c5fee-219a-5e8c-98c9-397a046f90fa",
+                "workspaceId": "00000000-0000-0000-0000-000000000000",
+                "parameters": {
+                  "p_run_id": {
+                    "value": {
+                      "value": "@pipeline().RunId",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_run_mode": {
+                    "value": {
+                      "value": "@pipeline().parameters.p_run_mode",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  }
+                }
+              },
+              "policy": {
+                "timeout": "0.00:30:00",
+                "retry": 0,
+                "retryIntervalInSeconds": 30,
+                "secureInput": false,
+                "secureOutput": false
+              },
+              "name": "Compare",
+              "dependsOn": [
+                {
+                  "activity": "Transform",
+                  "dependencyConditions": [
+                    "Succeeded"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "TridentNotebook",
+              "typeProperties": {
+                "notebookId": "33411ef3-e435-5c62-9e2f-d1bfa8c87287",
+                "workspaceId": "00000000-0000-0000-0000-000000000000",
+                "parameters": {
+                  "p_run_id": {
+                    "value": {
+                      "value": "@pipeline().RunId",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_run_mode": {
+                    "value": {
+                      "value": "@pipeline().parameters.p_run_mode",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  }
+                }
+              },
+              "policy": {
+                "timeout": "0.00:30:00",
+                "retry": 0,
+                "retryIntervalInSeconds": 30,
+                "secureInput": false,
+                "secureOutput": false
+              },
+              "name": "Promote",
+              "dependsOn": [
+                {
+                  "activity": "Compare",
+                  "dependencyConditions": [
+                    "Succeeded"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "TridentNotebook",
+              "typeProperties": {
+                "notebookId": "8912c666-66d1-57d4-b3f5-38697bc60e78",
+                "workspaceId": "00000000-0000-0000-0000-000000000000",
+                "parameters": {
+                  "p_run_id": {
+                    "value": {
+                      "value": "@pipeline().RunId",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_run_mode": {
+                    "value": {
+                      "value": "@pipeline().parameters.p_run_mode",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  }
+                }
+              },
+              "policy": {
+                "timeout": "0.04:00:00",
+                "retry": 0,
+                "retryIntervalInSeconds": 30,
+                "secureInput": false,
+                "secureOutput": false
+              },
+              "name": "Publish",
+              "dependsOn": [
+                {
+                  "activity": "Promote",
+                  "dependencyConditions": [
+                    "Succeeded"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "TridentNotebook",
+              "typeProperties": {
+                "notebookId": "8c6a435c-2f20-57ad-9f36-551041061fe1",
+                "workspaceId": "00000000-0000-0000-0000-000000000000",
+                "parameters": {
+                  "p_mode": {
+                    "value": {
+                      "value": "END",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_run_id": {
+                    "value": {
+                      "value": "@pipeline().RunId",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  }
+                }
+              },
+              "policy": {
+                "timeout": "0.00:20:00",
+                "retry": 0,
+                "retryIntervalInSeconds": 30,
+                "secureInput": false,
+                "secureOutput": false
+              },
+              "name": "RunEnd",
+              "dependsOn": [
+                {
+                  "activity": "Publish",
+                  "dependencyConditions": [
+                    "Succeeded"
+                  ]
+                },
+                {
+                  "activity": "Remuneration",
+                  "dependencyConditions": [
+                    "Completed"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "TridentNotebook",
+              "typeProperties": {
+                "notebookId": "8c6a435c-2f20-57ad-9f36-551041061fe1",
+                "workspaceId": "00000000-0000-0000-0000-000000000000",
+                "parameters": {
+                  "p_mode": {
+                    "value": {
+                      "value": "FAIL",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_run_id": {
+                    "value": {
+                      "value": "@pipeline().RunId",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_error_message": {
+                    "value": {
+                      "value": "@concat('Échec ou étape sautée dans T6_PL_HRIS_ORCHESTRATOR, run ', pipeline().RunId)",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  }
+                }
+              },
+              "policy": {
+                "timeout": "0.00:20:00",
+                "retry": 0,
+                "retryIntervalInSeconds": 30,
+                "secureInput": false,
+                "secureOutput": false
+              },
+              "name": "RunFail",
+              "dependsOn": [
+                {
+                  "activity": "Publish",
+                  "dependencyConditions": [
+                    "Failed",
+                    "Skipped"
+                  ]
+                },
+                {
+                  "activity": "Remuneration",
+                  "dependencyConditions": [
+                    "Completed"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "TridentNotebook",
+              "typeProperties": {
+                "notebookId": "8c6a435c-2f20-57ad-9f36-551041061fe1",
+                "workspaceId": "00000000-0000-0000-0000-000000000000",
+                "parameters": {
+                  "p_mode": {
+                    "value": {
+                      "value": "FAIL",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_run_id": {
+                    "value": {
+                      "value": "@pipeline().RunId",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "p_error_message": {
+                    "value": {
+                      "value": "Échec de la clôture du run (RunEnd)",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  }
+                }
+              },
+              "policy": {
+                "timeout": "0.00:20:00",
+                "retry": 0,
+                "retryIntervalInSeconds": 30,
+                "secureInput": false,
+                "secureOutput": false
+              },
+              "name": "RunEndFail",
+              "dependsOn": [
+                {
+                  "activity": "RunEnd",
+                  "dependencyConditions": [
+                    "Failed"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "Fail",
+              "typeProperties": {
+                "message": "Le run HRIS a échoué (voir ctl.run / ctl.run_step).",
+                "errorCode": "HRIS_RUN_FAILED"
+              },
+              "name": "RunFailed",
+              "dependsOn": [
+                {
+                  "activity": "RunFail",
+                  "dependencyConditions": [
+                    "Completed"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "Fail",
+              "typeProperties": {
+                "message": "La clôture du run HRIS a échoué.",
+                "errorCode": "HRIS_RUN_END_FAILED"
+              },
+              "name": "RunEndFailed",
+              "dependsOn": [
+                {
+                  "activity": "RunEndFail",
+                  "dependencyConditions": [
+                    "Completed"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "Fail",
+              "typeProperties": {
+                "message": "Le flux de rémunération a échoué (voir ctl.run_step, étape REMUNERATION, et log.ts_remuneration_computation).",
+                "errorCode": "HRIS_REMUNERATION_FAILED"
+              },
+              "name": "RemunerationFailed",
+              "dependsOn": [
+                {
+                  "activity": "Remuneration",
+                  "dependencyConditions": [
+                    "Failed"
+                  ]
+                },
+                {
+                  "activity": "RunEnd",
+                  "dependencyConditions": [
+                    "Succeeded"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "IfRunBlocked",
+              "type": "IfCondition",
+              "dependsOn": [
+                {
+                  "activity": "RunEnd",
+                  "dependencyConditions": [
+                    "Succeeded"
+                  ]
+                }
+              ],
+              "typeProperties": {
+                "expression": {
+                  "value": "@equals(json(activity('RunEnd').output.result.exitValue).status, 'BLOCKED')",
+                  "type": "Expression"
+                },
+                "ifTrueActivities": [
+                  {
+                    "name": "RunBlocked",
+                    "type": "Fail",
+                    "dependsOn": [],
+                    "typeProperties": {
+                      "message": "Run HRIS bloqué par un contrôle : rien n'a été promu ni publié (voir ctl.run, log.anomaly).",
+                      "errorCode": "HRIS_RUN_BLOCKED"
+                    }
+                  }
+                ],
+                "ifFalseActivities": []
+              }
+            }
+          ],
+          "ifFalseActivities": []
+        },
+        "name": "IfStarted",
+        "dependsOn": [
+          {
+            "activity": "RunStart",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      }
+    ],
+    "parameters": {
+      "p_process_code": {
+        "type": "string",
+        "defaultValue": "TS_ADP_EMPLOYEE"
+      },
+      "p_run_mode": {
+        "type": "string",
+        "defaultValue": "NORMAL"
+      },
+      "p_target_run_id": {
+        "type": "string",
+        "defaultValue": ""
+      },
+      "p_business_date_override": {
+        "type": "string",
+        "defaultValue": ""
+      }
+    }
+  }
+}

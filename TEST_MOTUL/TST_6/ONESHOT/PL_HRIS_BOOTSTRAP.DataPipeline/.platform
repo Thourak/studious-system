@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "DataPipeline",
+    "displayName": "T6_PL_HRIS_BOOTSTRAP",
+    "description": "Premier chargement guidé, lancé à la main, jamais planifié."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "ea15af23-6f39-5e2e-b5c5-5dc8b4aa8e28"
+  }
+}

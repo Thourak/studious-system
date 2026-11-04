@@ -1,0 +1,20 @@
+{
+  "properties": {
+    "description": "SQUELETTE : pipeline d'envoi du message de fin de run. Il ne contient volontairement aucune activité : l'activité Office 365 Outlook (type Office365Email dans la définition) doit être ajoutée dans le portail Fabric avec la connexion du compte d'envoi, puis le pipeline doit être validé et enregistré dans Git. Contrat des paramètres : p_subject, p_recipients, p_html (valeurs renvoyées par T6_NB_HRIS_NOTIFY).",
+    "activities": [],
+    "parameters": {
+      "p_subject": {
+        "type": "string",
+        "defaultValue": ""
+      },
+      "p_recipients": {
+        "type": "string",
+        "defaultValue": ""
+      },
+      "p_html": {
+        "type": "string",
+        "defaultValue": ""
+      }
+    }
+  }
+}

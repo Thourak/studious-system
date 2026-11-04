@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T6_NB_HRIS_PUBLISH_ADP",
+    "description": "Publication ADP : garde sur le workspace réel, interrupteurs de la variable library, intention durable."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "8912c666-66d1-57d4-b3f5-38697bc60e78"
+  }
+}

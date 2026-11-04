@@ -1,0 +1,170 @@
+{
+  "properties": {
+    "description": "Point d'entrée « un clic » avec notification : lance T6_PL_HRIS_ORCHESTRATOR et attend sa fin, prépare le message de fin de run (T6_NB_HRIS_NOTIFY), l'envoie par T6_PL_HRIS_NOTIFY_MAIL seulement si la notification est activée, puis propage l'échec du run pour qu'il reste visible dans le suivi. Non planifié : l'orchestrateur reste le point d'entrée planifié tant que ce pipeline n'est pas validé dans Fabric.",
+    "activities": [
+      {
+        "type": "ExecutePipeline",
+        "typeProperties": {
+          "pipeline": {
+            "referenceName": "dde10f6d-4b87-5f82-8325-c6ed12f76684",
+            "type": "PipelineReference"
+          },
+          "waitOnCompletion": true,
+          "parameters": {
+            "p_process_code": {
+              "value": "@pipeline().parameters.p_process_code",
+              "type": "Expression"
+            },
+            "p_run_mode": {
+              "value": "@pipeline().parameters.p_run_mode",
+              "type": "Expression"
+            },
+            "p_target_run_id": {
+              "value": "@pipeline().parameters.p_target_run_id",
+              "type": "Expression"
+            },
+            "p_business_date_override": {
+              "value": "@pipeline().parameters.p_business_date_override",
+              "type": "Expression"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "RunHub",
+        "dependsOn": []
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "4d2f7a52-6c1e-5b43-9a0d-7e3c1f8b2a10",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "p_since_utc": {
+              "value": {
+                "value": "@string(pipeline().TriggerTime)",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.00:20:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "NotifyPrepare",
+        "dependsOn": [
+          {
+            "activity": "RunHub",
+            "dependencyConditions": [
+              "Completed"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "IfCondition",
+        "typeProperties": {
+          "expression": {
+            "value": "@equals(json(activity('NotifyPrepare').output.result.exitValue).send, true)",
+            "type": "Expression"
+          },
+          "ifTrueActivities": [
+            {
+              "type": "ExecutePipeline",
+              "typeProperties": {
+                "pipeline": {
+                  "referenceName": "b7c0e9a4-31d8-5f26-8e45-0a9d2c6f4b71",
+                  "type": "PipelineReference"
+                },
+                "waitOnCompletion": true,
+                "parameters": {
+                  "p_subject": {
+                    "value": "@json(activity('NotifyPrepare').output.result.exitValue).subject",
+                    "type": "Expression"
+                  },
+                  "p_recipients": {
+                    "value": "@json(activity('NotifyPrepare').output.result.exitValue).recipients",
+                    "type": "Expression"
+                  },
+                  "p_html": {
+                    "value": "@json(activity('NotifyPrepare').output.result.exitValue).html",
+                    "type": "Expression"
+                  }
+                }
+              },
+              "policy": {
+                "timeout": "0.00:30:00",
+                "retry": 0,
+                "retryIntervalInSeconds": 30,
+                "secureInput": false,
+                "secureOutput": false
+              },
+              "name": "SendMail",
+              "dependsOn": []
+            }
+          ],
+          "ifFalseActivities": []
+        },
+        "name": "IfSend",
+        "dependsOn": [
+          {
+            "activity": "NotifyPrepare",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "Fail",
+        "typeProperties": {
+          "message": "@concat('Le run HRIS a échoué (voir ctl.run et ctl.run_step) : ', activity('RunHub').error.message)",
+          "errorCode": "HRIS_RUN_FAILED"
+        },
+        "name": "PropagateFailure",
+        "dependsOn": [
+          {
+            "activity": "RunHub",
+            "dependencyConditions": [
+              "Failed"
+            ]
+          },
+          {
+            "activity": "IfSend",
+            "dependencyConditions": [
+              "Completed"
+            ]
+          }
+        ]
+      }
+    ],
+    "parameters": {
+      "p_process_code": {
+        "type": "string",
+        "defaultValue": "TS_ADP_EMPLOYEE"
+      },
+      "p_run_mode": {
+        "type": "string",
+        "defaultValue": "NORMAL"
+      },
+      "p_target_run_id": {
+        "type": "string",
+        "defaultValue": ""
+      },
+      "p_business_date_override": {
+        "type": "string",
+        "defaultValue": ""
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T6_NB_HRIS_RUN_CONTROL",
+    "description": "Ouverture (verrou, registre), clôture et échec d'un run HRIS."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "8c6a435c-2f20-57ad-9f36-551041061fe1"
+  }
+}

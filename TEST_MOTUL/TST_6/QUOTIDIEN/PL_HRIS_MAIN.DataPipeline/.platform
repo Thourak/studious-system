@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "DataPipeline",
+    "displayName": "T6_PL_HRIS_MAIN",
+    "description": "Point d'entrée un clic avec notification : orchestrateur, message de fin de run, envoi, propagation de l'échec. Non planifié."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "c3a1d5e7-9b24-5e18-a6f0-2d7b8e4c9f15"
+  }
+}
