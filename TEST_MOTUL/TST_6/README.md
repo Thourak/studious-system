@@ -59,6 +59,7 @@
 | `ONESHOT` | `T6_NB_HRIS_SETUP` | Schémas, tables, graines (idempotent) |
 | `ONESHOT` | `T6_NB_HRIS_BOOTSTRAP` | Décisions du premier chargement (`PLAN`, `STATUS`) |
 | `ONESHOT` | `T6_NB_HRIS_REFERENCE_ADMIN` | Saisie tracée des codes ADP (grille collée, aucun fichier) |
+| `ONESHOT` | `T6_NB_HRIS_REFERENCE_IMPORT` | Reprise unique des codes ADP depuis les 17 fichiers de l'existant, déposés à la main dans `Files` du Lakehouse (`CHECK` puis `APPLY`) |
 | `TESTS` | `T6_NB_HRIS_TESTS` | Campagne de tests sur données fictives, schéma isolé |
 | `DOC/README` | `<displayname>.md` | Documentation de chaque objet (règle R21) |
 | `LOCAL_TESTS` | *(hors Fabric)* | Contrôles et tests lancés sur le poste, voir plus bas |
@@ -78,6 +79,8 @@ Retiré par rapport à `TST_5` : `T5_NB_HRIS_LEGACY_LOGS_IMPORT`.
 | T6-07 | `mssparkutils.notebook.exit` remplacé par `notebookutils.notebook.exit` dans 11 notebooks | `mssparkutils` est l'ancien nom (règle `RC-11`) |
 | T6-08 | Retrait du module `hris.legacy_logs`, de son test, du test `test_contract_markers` et des chemins `sys.path` vers `src/`, `tools/`, `fixtures/` | Ces éléments lisaient un stockage externe ou supposaient des dossiers qui ne sont pas dans `TST_6` (le test des marqueurs de contrat était toujours ignoré dans Fabric). Les tables `log.log_file_import*`, devenues sans usage, restent à retirer (étape 6) |
 | T6-09 | Le notebook de notification retrouve le run par l'heure de déclenchement (`p_since_utc`, marge de 5 minutes) | La propriété qui donnerait l'identifiant du run lancé par une activité de pipeline n'est pas documentée |
+| T6-10 | **Exception à la règle « pas de fichier »** (décision de l'utilisateur, 2026-11-04) : `T6_NB_HRIS_REFERENCE_IMPORT` lit les 17 fichiers de référentiels de l'existant, déposés à la main dans la zone `Files` de `T6_LH_HRIS`, **une fois par environnement** | La correspondance code TalentSoft vers code ADP n'existe que dans ces fichiers (ADP ne connaît pas les codes TalentSoft). La zone `Files` est dans le Lakehouse, pas dans un stockage externe. **Les fichiers sont supprimés après l'import** ; le quotidien n'en lit aucun. L'existant lit ces fichiers sur le SFTP (`/ExportCarriere/Data/Reference/`, dossier de test `/TestExportCarriere/...` ; qui les y dépose n'est pas établi) et les recopie **à chaque run** (`Pipeline INIT`, lancé par `Pipeline_SIRH_TalentSoft_ADP`) dans le conteneur `files`, dossier `talentsoft/reference`, en les réécrivant à chemin identique, séparateur `;` converti en `,` et tous les textes entre guillemets : leurs dates de modification changent donc à chaque run, même si le contenu est le même. Les tables de `TST_6` sont un instantané : une modification ultérieure du métier sur ces fichiers doit être reprise par un nouvel import (`p_overwrite`) |
+| T6-11 | L'objet des courriels de fin de run commence par l'étiquette de l'environnement, `[DEV]`, `[UAT]` ou `[PRD]` | Demande du développeur (2026-11-04). L'étiquette est ajoutée par `T6_NB_HRIS_NOTIFY`, pas par la variable library : `[PRD]` ne s'affiche que si le nom réel du workspace contient `PRD` (même règle que la garde ADP), `[HORS-PRD]` si `env_code` dit `PRD` sans que le nom le confirme, pour qu'un message ne soit jamais pris pour la production par erreur |
 
 ## Comportement hérité de `TST_5` (résultats de l'audit d'équivalence)
 
@@ -124,10 +127,11 @@ python -I LOCAL_TESTS/digest_tools.py QUOTIDIEN/NB_HRIS_LIB.Notebook/notebook-co
 ```text
 python -B -I LOCAL_TESTS/verify_static.py <dossier TST_6>   # empreintes, résidus T5, logicalId, références, structure des pipelines, compilation, mssparkutils, secrets
 python -B -I LOCAL_TESTS/test_notify_html.py                # 14 tests du notebook de notification (sans Spark, sans réseau)
+python -B -I LOCAL_TESTS/test_reference_import.py           # 23 tests de l'import des codes ADP (lecture CSV, correspondance par position, doublons, plan, compatibilité avec la synchronisation ; sans Spark)
 python -B -I LOCAL_TESTS/render_preview.py                  # écrit LOCAL_TESTS/apercu/*.html (données fictives)
 ```
 
-Résultat à l'issue de l'étape 2 : 19 items, 21 + 14 modules aux empreintes valides, 185 cellules et 35 modules compilés, 4 pipelines dont les dépendances et les références d'activités sont résolues, aucune référence orpheline, 14 tests sur 14 réussis. **Spark n'est pas installé sur le poste** : aucun test dépendant de Spark n'a pu être rejoué (voir `DOC/CONFORMITE_TST_6.md`). Les aperçus HTML dans un navigateur **ne remplacent pas** le test dans Outlook.
+Résultat (mis à jour le 2026-11-04, après la correction de l'imbrication des conditions et l'ajout de l'import) : 20 items, 21 + 14 modules aux empreintes valides, 205 cellules et 35 modules compilés, 4 pipelines dont les dépendances, les références d'activités et la non-imbrication des conditions sont contrôlées, aucune référence orpheline, 14 tests de notification et 23 tests d'import réussis. **Spark n'est pas installé sur le poste** : aucun test dépendant de Spark n'a pu être rejoué (voir `DOC/CONFORMITE_TST_6.md`). Les aperçus HTML dans un navigateur **ne remplacent pas** le test dans Outlook.
 
 ## Prérequis PRD (hors code)
 
@@ -142,8 +146,13 @@ Résultat à l'issue de l'étape 2 : 19 items, 21 + 14 modules aux empreintes va
 
 ## Mise en service
 
+Le pas-à-pas complet, à appliquer à chaque environnement (DEV, UAT, PRD), est dans [`GUIDE_MISE_EN_SERVICE.md`](GUIDE_MISE_EN_SERVICE.md) ; ce qui suit en est le résumé.
+
 1. **DEV** : synchroniser ; vérifier la création de `T6_LH_HRIS` à schémas ; **activer et enregistrer le jeu de valeurs voulu dans `T6_VL_HRIS`** ; lancer `T6_PL_HRIS_BOOTSTRAP` (tests compris). Le premier passage s'arrête sur `HRIS_ENTER_ADP_CODES`.
-2. **Codes ADP** : dans `T6_NB_HRIS_REFERENCE_ADMIN`, coller le résultat des `SELECT * FROM dwh.lu_hr_*` de Synapse (13 tables), passer en `CHECK`, puis en `APPLY` avec `p_change_ref`. Faire trancher par le métier le code de situation matrimoniale en conflit. Relancer le premier chargement.
+2. **Codes ADP** : deux voies, qui passent par les mêmes contrôles.
+   - **Reprise des fichiers de l'existant (recommandée)** : télécharger les 17 CSV de **production** (SFTP `/ExportCarriere/Data/Reference/`, ou conteneur `files`, dossier `talentsoft/reference`, du compte de stockage du projet), les déposer dans `Files/reference_import` de `T6_LH_HRIS`, lancer `T6_NB_HRIS_REFERENCE_IMPORT` en `CHECK` (n'écrit rien), lire le résultat, puis en `APPLY` avec `p_change_ref`. Les tables sont alors remplies **avant** la première extraction. Faire trancher par le métier le code de situation matrimoniale en conflit (dans le fichier, ou par `p_conflict_policy`). **Supprimer ensuite les fichiers déposés.**
+   - **Saisie ou collage** : dans `T6_NB_HRIS_REFERENCE_ADMIN`, coller le résultat des `SELECT * FROM dwh.lu_hr_*` de Synapse (13 tables), passer en `CHECK`, puis en `APPLY`. À utiliser pour les compléments, une fois l'extraction faite (l'outil n'ajoute aucune ligne : les codes absents de la table sont ignorés).
+   - Relancer ensuite le premier chargement. `APPLY` est refusé tant qu'un run tient le verrou.
 3. **UAT** : même procédure, avec le jeu de valeurs **UAT** activé et enregistré.
 4. **PRD** : synchroniser ; activer et enregistrer le jeu de valeurs **PRD** ; vérifier les prérequis. Laisser la planification désactivée.
 5. **Non-régression en parallèle d'Azure**, qui reste la référence et continue de publier : lancer `T6_PL_HRIS_ORCHESTRATOR` juste après le run Azure de 02:00 ; comparer extraction, transformation, rejets et rémunération aux sorties Azure du même jour ; puis passer `adp_read_enabled = true` (commit tracé du jeu PRD) pour comparer les opérations planifiées (`log.adp_dry_run`) au journal de la Function ADP ; critère : 10 jours ouvrés sans écart inexpliqué.

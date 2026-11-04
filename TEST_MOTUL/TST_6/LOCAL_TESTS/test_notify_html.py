@@ -253,6 +253,29 @@ class NotifyTests(unittest.TestCase):
         self.assertIn("ÉCHEC", subject)
         self.assertEqual(self.ns["build_subject"]("[HRIS]", "DEV", dict(RUN, status="WEIRD")).split(" ")[2], "INCOMPLET")
 
+    def test_environment_tag_follows_the_real_workspace_name(self) -> None:
+        tag = self.ns["environment_tag"]
+        self.assertEqual(tag("DEV", "HRIS-DEV"), "DEV")
+        self.assertEqual(tag("UAT", "HRIS-UAT"), "UAT")
+        self.assertEqual(tag("DEV", "HRIS-PRD"), "PRD")          # jeu de valeurs non activé : le nom du workspace fait foi
+        self.assertEqual(tag("PRD", "HRIS-PRD"), "PRD")
+        self.assertEqual(tag("PRD", "HRIS-UAT"), "HORS-PRD")     # jamais présenté comme la production sans PRD dans le nom
+        self.assertEqual(tag("PRD", "hris-prd"), "HORS-PRD")     # la garde ADP est sensible à la casse : l'étiquette aussi
+        self.assertEqual(tag(None, None), "HORS-PRD")
+        self.assertEqual(tag("", "HRIS-DEV"), "HORS-PRD")
+        self.assertEqual(tag("int", "HRIS-INT"), "INT")
+        self.assertEqual(tag("DEV]\r\nBcc: x", "HRIS-DEV"), "DEVBCCX")   # une seule ligne, aucun caractère de contrôle
+
+    def test_subject_begins_with_the_environment_tag(self) -> None:
+        for env in ("DEV", "UAT", "PRD"):
+            subject = self.ns["build_subject"]("[HRIS]", env, dict(RUN, status="SUCCEEDED"))
+            self.assertTrue(subject.startswith(f"[{env}] [HRIS] "), subject)
+            self.assertIn("2026-11-04", subject)
+        long_prefix = "[HRIS]" + "x" * 200
+        long_subject = self.ns["build_subject"](long_prefix, "PRD", RUN)
+        self.assertTrue(long_subject.startswith("[PRD] "))
+        self.assertLessEqual(len(long_subject), 120)
+
     def test_recipients_parsing(self) -> None:
         parse = self.ns["parse_recipients"]
         self.assertEqual(parse("a@x.fr; b@y.com , nope, c@@z.fr"), ["a@x.fr", "b@y.com"])

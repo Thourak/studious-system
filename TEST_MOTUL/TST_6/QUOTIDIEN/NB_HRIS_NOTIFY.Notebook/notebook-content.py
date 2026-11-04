@@ -19,9 +19,9 @@
 # # **Description fonctionnelle**
 # # Ce notebook prépare le message de fin de run destiné à l'équipe d'exploitation. Il lit le registre du run, ses étapes et ses contrôles, puis construit un objet de courriel et un corps HTML lisible dans les clients courants : un bandeau vert quand le run a réussi, rouge quand il a échoué, a été bloqué ou s'est arrêté avant sa fin, orange pour les cas à surveiller (publication partielle, publication désactivée ou en lecture seule, run ignoré). Chaque étape et chaque contrôle porte une pastille de la même couleur accompagnée d'un libellé écrit, afin que l'information ne repose jamais sur la couleur seule. Le notebook n'envoie rien lui-même : il renvoie au pipeline le sujet, la liste des destinataires et le HTML, et c'est l'activité Outlook d'un pipeline d'envoi dédié qui expédie le message.
 # # **Dépendances**
-# # Le notebook charge la bibliothèque commune par %run T6_NB_HRIS_LIB et lit les tables ctl.run, ctl.run_step et log.anomaly du Lakehouse T6_LH_HRIS, alimentées par les autres notebooks du run. Il lit dans la variable library T6_VL_HRIS les variables notify_enabled, notify_recipients et notify_subject_prefix. Il n'utilise aucun secret : l'adresse de destination est celle d'une liste de diffusion, pas celle d'une personne. Il est appelé par T6_PL_HRIS_MAIN, une fois T6_PL_HRIS_ORCHESTRATOR terminé, réussi ou non ; l'orchestrateur lui-même n'est pas modifié.
+# # Le notebook charge la bibliothèque commune par %run T6_NB_HRIS_LIB et lit les tables ctl.run, ctl.run_step et log.anomaly du Lakehouse T6_LH_HRIS, alimentées par les autres notebooks du run. Il lit dans la variable library T6_VL_HRIS les variables notify_enabled, notify_recipients, notify_subject_prefix et env_code, et lit le nom réel du workspace dans le contexte d'exécution. Il n'utilise aucun secret : l'adresse de destination est celle d'une liste de diffusion, pas celle d'une personne. Il est appelé par T6_PL_HRIS_MAIN, une fois T6_PL_HRIS_ORCHESTRATOR terminé, réussi ou non ; l'orchestrateur lui-même n'est pas modifié.
 # # **Fonctionnement et logique de traitement**
-# # Après la configuration et la préparation du Lakehouse, le notebook vérifie qu'il reçoit p_run_id ou p_since_utc, retrouve le run (le plus récent démarré depuis p_since_utc, avec cinq minutes de marge, quand p_run_id est vide), lit la ligne du run puis les étapes et les contrôles correspondants. Cette recherche évite de dépendre d'une propriété de sortie de l'activité de lancement, qui n'est pas documentée. Pour chaque étape, seule la dernière tentative est retenue. Il classe les statuts en succès, échec, attention ou incomplet, construit le HTML avec des styles en ligne et une mise en page en tableaux, seule technique fiable dans les clients de messagerie, puis vérifie que le message reste sous la limite de taille choisie ; si besoin, il réduit le nombre de lignes affichées. L'envoi n'est demandé que si la variable notify_enabled vaut true et si au moins une adresse valide est configurée ; sinon le notebook renvoie la raison de l'absence d'envoi. Tous les textes issus des tables sont échappés, tronqués et masqués par la fonction d'assainissement de la bibliothèque : le message ne contient ni donnée personnelle ni secret.
+# # Après la configuration et la préparation du Lakehouse, le notebook vérifie qu'il reçoit p_run_id ou p_since_utc, retrouve le run (le plus récent démarré depuis p_since_utc, avec cinq minutes de marge, quand p_run_id est vide), lit la ligne du run puis les étapes et les contrôles correspondants. Cette recherche évite de dépendre d'une propriété de sortie de l'activité de lancement, qui n'est pas documentée. Pour chaque étape, seule la dernière tentative est retenue. Il classe les statuts en succès, échec, attention ou incomplet, construit le HTML avec des styles en ligne et une mise en page en tableaux, seule technique fiable dans les clients de messagerie, puis vérifie que le message reste sous la limite de taille choisie ; si besoin, il réduit le nombre de lignes affichées. L'envoi n'est demandé que si la variable notify_enabled vaut true et si au moins une adresse valide est configurée ; sinon le notebook renvoie la raison de l'absence d'envoi. Tous les textes issus des tables sont échappés, tronqués et masqués par la fonction d'assainissement de la bibliothèque : le message ne contient ni donnée personnelle ni secret. L'objet du courriel commence par l'étiquette de l'environnement entre crochets, [DEV], [UAT] ou [PRD], suivie du préfixe notify_subject_prefix, du libellé du statut et de la date métier. L'étiquette [PRD] vient du nom réel du workspace, selon la règle de la garde de publication ADP (le nom contient PRD) ; sinon elle reprend env_code, et un workspace sans PRD n'est jamais présenté comme la production ([HORS-PRD]).
 # # **Paramètres**
 # # Le paramètre p_run_id reçoit l'identifiant du run HRIS à décrire. S'il est vide, le paramètre p_since_utc, reçu du pipeline sous la forme de l'heure de déclenchement, permet de retrouver le run le plus récent démarré depuis cet instant ; l'un des deux est obligatoire. Le paramètre p_test_schema isole les tables pendant les tests ; vide, il désigne les tables réelles.
 # # **Sorties produites**
@@ -253,11 +253,39 @@ def latest_steps(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 # CELL ********************
 
+def environment_tag(env_code: Any, workspace_name: Any) -> str:
+    """Étiquette d'environnement placée en tête de l'objet : PRD, UAT, DEV (ou une autre valeur de env_code).
+
+    Le nom réel du workspace fait foi pour la production, selon la règle de la garde de publication ADP : le nom contient
+    PRD (sensible à la casse). Un workspace sans PRD n'est jamais étiqueté PRD, même si env_code le prétend : il reçoit
+    HORS-PRD. Sans PRD dans le nom, l'étiquette reprend env_code (DEV, UAT...), réduit à des lettres, chiffres, tiret
+    et tiret bas pour que l'objet reste sur une seule ligne.
+    """
+    if "PRD" in str(workspace_name or ""):
+        return "PRD"
+    code = re.sub(r"[^A-Z0-9_-]", "", str(env_code or "").strip().upper())[:12]
+    if not code or code == "PRD":
+        return "HORS-PRD"
+    return code
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 def build_subject(prefix: str, env: str, run: Dict[str, Any]) -> str:
-    """Objet du courriel : préfixe, environnement, libellé du statut et date métier (une seule ligne, 120 caractères au plus)."""
+    """Objet du courriel : [ENVIRONNEMENT] préfixe, libellé du statut et date métier (une seule ligne, 120 caractères au plus).
+
+    L'étiquette d'environnement est toujours en tête, avant le préfixe de la variable library, pour rester lisible dans
+    la liste des messages. `env` est le résultat de environment_tag.
+    """
     status = str(run.get("status") or "").upper()
     label = RUN_STATUS_LABELS.get(status, "INCOMPLET")
-    text = f"{prefix} [{env}] {label} - {run.get('business_date') or 'date inconnue'}"
+    text = f"[{env}] {prefix} {label} - {run.get('business_date') or 'date inconnue'}"
     return re.sub(r"[\r\n\t]+", " ", text)[:120]
 
 # METADATA ********************
@@ -481,13 +509,14 @@ try:
     anomalies = read_anomalies(spark, tables, resolved_run_id)
     recipients = parse_recipients(notify_recipients)
     category = classify_run_status(run.get("status"))
-    subject = build_subject(notify_subject_prefix, env_code, run)
+    environment = environment_tag(env_code, workspace_name)
+    subject = build_subject(notify_subject_prefix, environment, run)
     if not hris.common.as_bool(notify_enabled):
         send, reason, body, reduction = False, "NOTIFY_DISABLED", "", 0
     elif not recipients:
         send, reason, body, reduction = False, "NO_VALID_RECIPIENT", "", 0
     else:
-        body, reduction = fit_html(run, steps, anomalies, env_code)
+        body, reduction = fit_html(run, steps, anomalies, environment)
         send, reason = True, "OK"
     result = {
         "status": "OK", "send": send, "reason": reason, "subject": subject, "recipients": ";".join(recipients),
@@ -495,7 +524,8 @@ try:
         "html_bytes": len(body.encode("utf-8")), "run_id": resolved_run_id,
     }
     logger.info(f"✓ Message préparé : send={send}, raison={reason}, catégorie={category}, "
-                f"étapes={len(latest_steps(steps))}, réduction={reduction}, destinataires={len(recipients)}")
+                f"environnement={environment}, étapes={len(latest_steps(steps))}, réduction={reduction}, "
+                f"destinataires={len(recipients)}")
 except Exception as e:
     error_message = f"Erreur lors de la préparation du message: {e}"
     logger.error(f"❌ {error_message}", exc_info=True)

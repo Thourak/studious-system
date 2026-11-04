@@ -125,7 +125,7 @@
       "name": "notify_subject_prefix",
       "type": "String",
       "value": "[HRIS]",
-      "note": "Préfixe de l'objet des messages de fin de run."
+      "note": "Préfixe applicatif de l'objet des messages de fin de run. L'étiquette d'environnement ([DEV], [UAT] ou [PRD]) est ajoutée seule devant par T6_NB_HRIS_NOTIFY : objet = [PRD] [HRIS] ÉCHEC - 2026-11-04."
     }
   ]
 }

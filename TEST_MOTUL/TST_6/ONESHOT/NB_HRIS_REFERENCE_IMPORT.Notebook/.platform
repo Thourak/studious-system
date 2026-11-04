@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "T6_NB_HRIS_REFERENCE_IMPORT",
+    "description": "Reprise unique des codes ADP depuis les 17 fichiers de référentiels de l'existant déposés dans la zone Files du Lakehouse."
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "e6b3f0a1-4c27-5d98-b1e4-7a2c9d05f8b3"
+  }
+}

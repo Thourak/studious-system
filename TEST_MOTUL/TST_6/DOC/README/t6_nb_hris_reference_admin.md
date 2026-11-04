@@ -32,7 +32,7 @@ En mode APPLY, le notebook remplace les tables de correspondance modifiées, cha
 
 **Limitations connues et points d'attention**
 
-Pour reprendre les codes ADP de l'existant, il faut coller le résultat des requêtes sur les tables externes de Synapse, dont les colonnes portent les noms du modèle : les fichiers de référentiels de l'existant ont des en-têtes différents pour les nationalités, les pays et les entités, et une grille collée telle quelle est refusée. Une clé de situation matrimoniale porte deux codes ADP différents dans l'existant : le métier doit choisir le bon code avant la saisie. Après APPLY, il faut vider p_grid pour ne pas enregistrer la grille dans le contrôle de source.
+Pour reprendre les codes ADP de l'existant, il faut coller le résultat des requêtes sur les tables externes de Synapse, dont les colonnes portent les noms du modèle : les fichiers de référentiels de l'existant ont des en-têtes différents pour les nationalités, les pays et les entités, et une grille collée telle quelle est refusée ; pour reprendre directement ces fichiers, utiliser T6_NB_HRIS_REFERENCE_IMPORT, qui lit leurs colonnes par position. Une clé de situation matrimoniale porte deux codes ADP différents dans l'existant : le métier doit choisir le bon code avant la saisie. Après APPLY, il faut vider p_grid pour ne pas enregistrer la grille dans le contrôle de source.
 
 **Responsable et contact**
 
