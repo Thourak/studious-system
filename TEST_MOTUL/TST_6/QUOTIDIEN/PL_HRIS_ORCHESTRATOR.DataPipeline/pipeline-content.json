@@ -487,36 +487,6 @@
                   ]
                 }
               ]
-            },
-            {
-              "type": "IfCondition",
-              "typeProperties": {
-                "expression": {
-                  "value": "@equals(json(activity('RunEnd').output.result.exitValue).status, 'BLOCKED')",
-                  "type": "Expression"
-                },
-                "ifTrueActivities": [
-                  {
-                    "type": "Fail",
-                    "typeProperties": {
-                      "message": "Run HRIS bloqué par un contrôle : rien n'a été promu ni publié (voir ctl.run, log.anomaly).",
-                      "errorCode": "HRIS_RUN_BLOCKED"
-                    },
-                    "name": "RunBlocked",
-                    "dependsOn": []
-                  }
-                ],
-                "ifFalseActivities": []
-              },
-              "name": "IfRunBlocked",
-              "dependsOn": [
-                {
-                  "activity": "RunEnd",
-                  "dependencyConditions": [
-                    "Succeeded"
-                  ]
-                }
-              ]
             }
           ],
           "ifFalseActivities": []
@@ -525,6 +495,75 @@
         "dependsOn": [
           {
             "activity": "RunStart",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "8c6a435c-2f20-57ad-9f36-551041061fe1",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "p_mode": {
+              "value": {
+                "value": "VERDICT",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "p_run_id": {
+              "value": {
+                "value": "@pipeline().RunId",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.00:20:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "RunVerdict",
+        "dependsOn": [
+          {
+            "activity": "IfStarted",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "IfCondition",
+        "typeProperties": {
+          "expression": {
+            "value": "@equals(json(activity('RunVerdict').output.result.exitValue).status, 'BLOCKED')",
+            "type": "Expression"
+          },
+          "ifTrueActivities": [
+            {
+              "type": "Fail",
+              "typeProperties": {
+                "message": "Run HRIS bloqué par un contrôle : rien n'a été promu ni publié (voir ctl.run, log.anomaly).",
+                "errorCode": "HRIS_RUN_BLOCKED"
+              },
+              "name": "RunBlocked",
+              "dependsOn": []
+            }
+          ],
+          "ifFalseActivities": []
+        },
+        "name": "IfRunBlocked",
+        "dependsOn": [
+          {
+            "activity": "RunVerdict",
             "dependencyConditions": [
               "Succeeded"
             ]

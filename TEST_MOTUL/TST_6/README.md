@@ -19,7 +19,7 @@
 |---|---|---|
 | 1 | Base issue de `TST_5` ; import de l'historique des journaux ADP exclu ; variable library nettoyée ; `exit` par `notebookutils` ; notebook de notification et squelette du pipeline d'envoi ; documentation ; outils de contrôle locaux | **Faite** (locale) |
 | 2 | Indépendance et code dormant : module `hris.legacy_logs` et son test retirés, deux tests dépendant de dossiers extérieurs retirés, chemins orphelins et références mortes supprimés ; pipeline `T6_PL_HRIS_MAIN` (orchestrateur, message de fin de run, envoi, propagation de l'échec) ; recherche du run par heure de déclenchement ; contrôle de structure des pipelines | **Faite** (locale) |
-| 3 | Première exécution en DEV : `%run` d'un dossier à l'autre, valeur de sortie d'un notebook lue par le pipeline, identité d'exécution (Key Vault, variable library), statut final de `T6_PL_HRIS_MAIN` dans chaque cas | À faire (Fabric) |
+| 3 | Première exécution en DEV : `%run` d'un dossier à l'autre, valeur de sortie d'un notebook lue par le pipeline, identité d'exécution (Key Vault, variable library), statut final de `T6_PL_HRIS_MAIN` dans chaque cas | **En cours** : premier run du OneShot le 2026-11-04 ; Setup, Plan et RunStart au vert (rapport de l'utilisateur), puis échec de l'orchestrateur sur un `IfCondition` imbriqué (interdit par Fabric), **corrigé** (activité `RunVerdict`, contrôle ajouté à `verify_static.py`). Nouveau run à faire après libération du verrou orphelin (voir Exploitation) |
 | 4 | Création de l'activité Outlook dans le portail ; **test de rendu** des couleurs (Outlook web, poste, mobile) ; expéditeur selon le mode d'authentification | À faire (accord et boîte de test requis) |
 | 5 | Table de suivi des envois contre les doublons ; remplacement de la planification de l'orchestrateur par celle de `T6_PL_HRIS_MAIN` | À faire (après 3 et 4) |
 | 6 | Alignement sur les règles de code `RC-xx` : retrait de `eventpath` ; création des tables sans DDL généré (non testable sans Spark local) ; tables historiques inutilisées | À faire |
@@ -165,12 +165,13 @@ SELECT status, COUNT(*) FROM pub.adp_outbox WHERE run_id = '<run_id>' GROUP BY s
 | Run bloqué (`HRIS_RUN_BLOCKED`) | Lire `log.anomaly`, corriger la cause, relancer. La référence est intacte |
 | Publication partielle | Relancer avec `p_run_mode = RETRY_PUBLICATION` et `p_target_run_id` |
 | Résultat incertain | Réconciliation ou décision manuelle ; jamais de renvoi automatique |
-| Verrou orphelin | Attendre l'expiration du bail ; ne jamais supprimer la ligne de verrou |
+| Verrou orphelin (un run a pris le verrou puis le pipeline s'est arrêté sans appeler `RunFail`, par exemple erreur de structure du pipeline) | **Ne jamais supprimer la ligne de verrou.** Chemin prévu : lancer `T6_NB_HRIS_RUN_CONTROL` avec `p_mode = FAIL` et `p_run_id` = identifiant du run orphelin (colonne `holder_run_id` de `ctl.process_lock`, ou identifiant du run de l'orchestrateur dans le suivi). Le run passe en `FAILED` (`PIPELINE_FAILURE`) et le verrou n'est libéré que s'il appartient bien à ce run. À défaut, attendre l'expiration du bail (600 minutes) |
+| Tables vides ou absentes dans le point de terminaison SQL alors que les notebooks sont verts | La synchronisation des métadonnées du point de terminaison SQL peut avoir du retard sur les tables écrites par Spark. Lire les tables dans l'explorateur du Lakehouse (aperçu de la table) ou avec `spark.read.table`, ou actualiser le point de terminaison |
 
 ## Ce qui reste à démontrer
 
 Hérité de `TST_5` :
-- le chargement par `%run` d'un dossier à l'autre en exécution par pipeline ;
+- le chargement par `%run` d'un dossier à l'autre en exécution par pipeline (**observé au vert** au premier run du 2026-11-04, sur rapport de l'utilisateur ; à confirmer par `ctl.run_step` une fois un run complet obtenu) ;
 - l'équivalence sur données réelles, par le protocole de non-régression ;
 - les hypothèses de correspondance de la rémunération (mode `VALIDATE`) ;
 - le comportement face aux réponses réelles d'ADP.

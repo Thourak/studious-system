@@ -111,19 +111,34 @@ def collect_names(acts: list) -> list:
     return out
 
 
-def check_scope(acts: list, pname: str, all_names: list) -> None:
+BRANCHING = ("IfCondition", "Switch")
+CONTROL = ("IfCondition", "Switch", "ForEach", "Until")
+
+
+def check_scope(acts: list, pname: str, all_names: list, in_branch: bool = False,
+                visible: frozenset = frozenset()) -> None:
+    """in_branch : on est dans une branche d'IfCondition/Switch. Fabric refuse un IfCondition dans un IfCondition
+    (erreur constatée au premier run : « IfCondition activity cannot include another IfCondition »). Par prudence,
+    on interdit toute activité de contrôle (If, Switch, ForEach, Until) dans une branche d'If ou de Switch."""
     names = [a["name"] for a in acts]
+    scope_visible = frozenset(visible) | frozenset(names)
     for a in acts:
         for dep in a.get("dependsOn", []):
             if dep["activity"] not in names:
                 problems.append(f"{pname}: {a['name']} dépend de {dep['activity']} absent de sa portée")
+        if in_branch and a["type"] in CONTROL:
+            problems.append(f"{pname}: {a['type']} {a['name']} imbriqué dans une branche d'If/Switch (refusé par Fabric)")
         tp = a.get("typeProperties", {})
+        own = {k: v for k, v in tp.items() if k not in ("activities", "ifTrueActivities", "ifFalseActivities")}
+        for ref in set(re.findall(r"activity\('([^']+)'\)", json.dumps(own))):
+            if ref not in scope_visible:   # une activité interne d'un If n'est pas lisible depuis l'extérieur
+                problems.append(f"{pname}: {a['name']} lit l'activité {ref} hors de sa portée")
         if a["type"] == "Fail" and not (tp.get("message") and tp.get("errorCode")):
             problems.append(f"{pname}: Fail {a['name']} sans message ou errorCode")
         if a["type"] == "IfCondition" and "expression" not in tp:
             problems.append(f"{pname}: IfCondition {a['name']} sans expression")
         for key in ("activities", "ifTrueActivities", "ifFalseActivities"):
-            check_scope(tp.get(key, []), pname, all_names)
+            check_scope(tp.get(key, []), pname, all_names, in_branch or a["type"] in BRANCHING, scope_visible)
 
 
 n_pipelines = 0
