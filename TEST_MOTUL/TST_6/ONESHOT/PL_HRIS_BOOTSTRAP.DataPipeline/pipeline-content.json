@@ -181,13 +181,13 @@
             "referenceName": "dde10f6d-4b87-5f82-8325-c6ed12f76684",
             "type": "PipelineReference"
           },
-          "waitOnCompletion": true,
           "parameters": {
             "p_run_mode": {
               "value": "@json(activity('Plan').output.result.exitValue).run_mode",
               "type": "Expression"
             }
-          }
+          },
+          "waitOnCompletion": true
         },
         "name": "RunOrchestrator",
         "dependsOn": [

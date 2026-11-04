@@ -489,16 +489,7 @@
               ]
             },
             {
-              "name": "IfRunBlocked",
               "type": "IfCondition",
-              "dependsOn": [
-                {
-                  "activity": "RunEnd",
-                  "dependencyConditions": [
-                    "Succeeded"
-                  ]
-                }
-              ],
               "typeProperties": {
                 "expression": {
                   "value": "@equals(json(activity('RunEnd').output.result.exitValue).status, 'BLOCKED')",
@@ -506,17 +497,26 @@
                 },
                 "ifTrueActivities": [
                   {
-                    "name": "RunBlocked",
                     "type": "Fail",
-                    "dependsOn": [],
                     "typeProperties": {
                       "message": "Run HRIS bloqué par un contrôle : rien n'a été promu ni publié (voir ctl.run, log.anomaly).",
                       "errorCode": "HRIS_RUN_BLOCKED"
-                    }
+                    },
+                    "name": "RunBlocked",
+                    "dependsOn": []
                   }
                 ],
                 "ifFalseActivities": []
-              }
+              },
+              "name": "IfRunBlocked",
+              "dependsOn": [
+                {
+                  "activity": "RunEnd",
+                  "dependencyConditions": [
+                    "Succeeded"
+                  ]
+                }
+              ]
             }
           ],
           "ifFalseActivities": []

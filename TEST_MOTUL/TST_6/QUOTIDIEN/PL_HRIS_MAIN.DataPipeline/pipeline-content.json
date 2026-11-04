@@ -9,7 +9,6 @@
             "referenceName": "dde10f6d-4b87-5f82-8325-c6ed12f76684",
             "type": "PipelineReference"
           },
-          "waitOnCompletion": true,
           "parameters": {
             "p_process_code": {
               "value": "@pipeline().parameters.p_process_code",
@@ -27,7 +26,8 @@
               "value": "@pipeline().parameters.p_business_date_override",
               "type": "Expression"
             }
-          }
+          },
+          "waitOnCompletion": true
         },
         "policy": {
           "timeout": "0.12:00:00",
@@ -86,7 +86,6 @@
                   "referenceName": "b7c0e9a4-31d8-5f26-8e45-0a9d2c6f4b71",
                   "type": "PipelineReference"
                 },
-                "waitOnCompletion": true,
                 "parameters": {
                   "p_subject": {
                     "value": "@json(activity('NotifyPrepare').output.result.exitValue).subject",
@@ -100,7 +99,8 @@
                     "value": "@json(activity('NotifyPrepare').output.result.exitValue).html",
                     "type": "Expression"
                   }
-                }
+                },
+                "waitOnCompletion": true
               },
               "policy": {
                 "timeout": "0.00:30:00",
